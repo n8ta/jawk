@@ -1,5 +1,5 @@
 use crate::codgen::compile_and_capture;
-use crate::{analyze, lex, parse};
+use crate::{analyze, lex, parse, Symbolizer};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tempfile::tempdir;
@@ -37,12 +37,14 @@ fn long_number_file() -> String {
     }
     string
 }
+
 fn test_against(interpreter: &str, prog: &str, oracle_output: &str, file: &PathBuf) {
+    let mut symbolizer = Symbolizer::new();
     match std::process::Command::new(interpreter).output() {
         Ok(_) => {}
         Err(err) => return, // this interpreter doesn't exist
     }
-    let mut ast = analyze(parse(lex(prog).unwrap())).unwrap();
+    let mut ast = analyze(parse(lex(prog, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
 
     let output = test_once(interpreter, prog, file);
 
@@ -73,19 +75,20 @@ fn test_perf(interpreter: &str, prog: &str, oracle_output: &str, file: &PathBuf)
     our_total /= PERF_RUNS;
     other_total /= PERF_RUNS;
 
-    assert!(our_total < other_total || our_total < 5*1000, "perf-test: jawk={}ms {}={}ms", our_total/1000, interpreter, other_total/1000);
+    assert!(our_total < other_total || our_total < 5 * 1000, "perf-test: jawk={}ms {}={}ms", our_total / 1000, interpreter, other_total / 1000);
 }
 
 fn test_it<S: AsRef<str>>(prog: &str, file: S, oracle_output: &str) {
     println!("Program:\n{}", prog);
-    let mut program = analyze(parse(lex(&prog).unwrap())).unwrap();
+    let mut symbolizer = Symbolizer::new();
+    let mut program = analyze(parse(lex(&prog, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
     println!("Ast:\n{}", &program);
 
     let temp_dir = tempdir().unwrap();
     let file_path = temp_dir.path().join("tmp");
     std::fs::write(file_path.clone(), file.as_ref()).unwrap();
     let file_path_string = file_path.to_str().unwrap().to_string();
-    let res = compile_and_capture(program, &[file_path_string]).unwrap();
+    let res = compile_and_capture(program, &[file_path_string], &mut symbolizer).unwrap();
     assert_eq!(
         res.strings_in(), res.strings_out(),
         "runtime strings_in didn't match string_out. Possible mem leak `{}` in vs `{}` out",

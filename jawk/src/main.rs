@@ -4,6 +4,7 @@ use crate::args::AwkArgs;
 use crate::lexer::lex;
 use crate::parser::{Expr, parse};
 use crate::printable_error::PrintableError;
+use crate::symbolizer::Symbolizer;
 use crate::typing::{AnalysisResults, analyze};
 
 mod args;
@@ -16,6 +17,7 @@ mod runtime;
 #[allow(dead_code)]
 mod test;
 mod typing;
+mod symbolizer;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -35,8 +37,10 @@ fn main() {
     // 3. Type checking pass
     // 4. Run it
 
+
+    let mut symbolizer = Symbolizer::new();
     // 1,2,3
-    let mut ast = analyze(parse(lex(&source).unwrap()));
+    let mut ast = analyze(parse(lex(&source, &mut symbolizer).unwrap(), &mut symbolizer));
 
     // 4
     let program = match ast {
@@ -54,11 +58,11 @@ fn main() {
 
     // 5
     if args.debug {
-        if let Err(err) = codgen::compile_and_capture(program, &args.files) {
+        if let Err(err) = codgen::compile_and_capture(program, &args.files, &mut symbolizer) {
             eprintln!("{}", err);
         }
     } else {
-        if let Err(err) = codgen::compile_and_run(program, &args.files) {
+        if let Err(err) = codgen::compile_and_run(program, &args.files, &mut symbolizer) {
             eprintln!("{}", err);
         }
     }

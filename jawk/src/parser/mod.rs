@@ -4,11 +4,13 @@ mod test;
 
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, write};
+use std::process::id;
 use crate::lexer::{BinOp, LogicalOp, MathOp, Token, TokenType};
 pub use crate::parser::types::PatternAction;
 pub use types::{Expr, Function, ScalarType, Stmt, TypedExpr, Arg, ArgT};
-use crate::AnalysisResults;
+use crate::{AnalysisResults, Symbolizer};
 use crate::parser::transformer::transform;
+use crate::symbolizer::Symbol;
 
 // Pattern Action Type
 // Normal eg: $1 == "a" { doSomething() }
@@ -22,23 +24,23 @@ enum PAType {
 
 #[derive(Debug, PartialEq)]
 pub struct Program {
-    pub functions: HashMap<String, Function>,
+    pub functions: HashMap<Symbol, Function>,
     pub global_analysis: AnalysisResults,
 }
 
 impl Program {
     #[cfg(test)]
-    fn new_action_only(action: Stmt) -> Program {
+    fn new_action_only(name: Symbol, action: Stmt) -> Program {
         let body = transform(vec![], vec![], vec![PatternAction::new_action_only(action)]);
         let mut functions = HashMap::new();
-        functions.insert("main function".to_string(), Function::new("main function".to_string(), vec![], body));
+        functions.insert(name.clone(), Function::new(name, vec![], body));
         Program { functions, global_analysis: AnalysisResults::new() }
     }
-    pub fn new(begins: Vec<Stmt>, ends: Vec<Stmt>, pas: Vec<PatternAction>, parsed_functions: Vec<Function>) -> Program {
+    pub fn new(name: Symbol, begins: Vec<Stmt>, ends: Vec<Stmt>, pas: Vec<PatternAction>, parsed_functions: Vec<Function>) -> Program {
         let body = transform(begins, ends, pas);
-        let main = Function::new("main function".to_string(), vec![], body);
+        let main = Function::new(name.clone(), vec![], body);
         let mut functions = HashMap::new();
-        functions.insert("main function".to_string(), main);
+        functions.insert(name, main);
         for func in parsed_functions {
             functions.insert(func.name.clone(), func);
         }
@@ -55,17 +57,18 @@ impl Display for Program {
     }
 }
 
-pub fn parse(tokens: Vec<Token>) -> Program {
-    let mut parser = Parser { tokens, current: 0 };
+pub fn parse(tokens: Vec<Token>, symbolizer: &mut Symbolizer) -> Program {
+    let mut parser = Parser { tokens, current: 0, symbolizer };
     parser.parse()
 }
 
-struct Parser {
+struct Parser<'a> {
     tokens: Vec<Token>,
     current: usize,
+    symbolizer: &'a mut Symbolizer,
 }
 
-impl Parser {
+impl<'a> Parser<'a> {
     fn parse(&mut self) -> Program {
         let mut begins = vec![];
         let mut ends = vec![];
@@ -100,12 +103,12 @@ impl Parser {
             }
         }
 
-        Program::new(begins, ends, pattern_actions, functions)
+        Program::new(self.symbolizer.get_symbol("main function"), begins, ends, pattern_actions, functions)
     }
 
-    fn ident_consume(&mut self, error_msg: &str) -> String {
+    fn ident_consume(&mut self, error_msg: &str) -> Symbol {
         if let Token::Ident(ident) = self.consume(TokenType::Ident, error_msg) {
-            return ident;
+            return ident
         }
         unreachable!()
     }
@@ -370,12 +373,12 @@ impl Parser {
                 // ?=
                 let math_op = if let Token::InplaceEq(math_op) = self.previous().unwrap() { math_op } else { unreachable!() };
                 let expr = Expr::MathOp(
-                    Box::new(Expr::Variable(var.to_string()).into()),
+                    Box::new(Expr::Variable(var.clone()).into()),
                     math_op,
                     Box::new(self.assignment()),
                 );
                 return Expr::ScalarAssign(
-                    var.to_string(),
+                    var,
                     Box::new(expr.into())).into();
             }
         }
@@ -748,7 +751,7 @@ impl Parser {
         }
     }
 
-    fn call(&mut self, target: String) -> TypedExpr {
+    fn call(&mut self, target: Symbol) -> TypedExpr {
         let mut args = vec![];
         loop {
             if self.matches(&[TokenType::RightParen]) {
@@ -768,7 +771,7 @@ impl Parser {
         Expr::Call { target, args }.into()
     }
 
-    fn array_index(&mut self, name: String) -> TypedExpr {
+    fn array_index(&mut self, name: Symbol) -> TypedExpr {
         let mut indices = vec![self.expression()];
         while self.matches(&[TokenType::Comma]) && self.peek().ttype() != TokenType::RightBracket {
             indices.push(self.expression());

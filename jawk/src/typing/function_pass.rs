@@ -2,12 +2,13 @@ use std::collections::{HashMap, HashSet};
 use libc::{calloc, stat};
 use crate::parser::{Arg, ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
+use crate::symbolizer::Symbol;
 use crate::typing::types::{AnalysisResults, Call, CallArg, MapT, TypedFunc, TypedProgram};
 
 pub struct FunctionAnalysis {
     global_scalars: MapT,
-    global_arrays: HashSet<String>,
-    func_names: HashSet<String>,
+    global_arrays: HashSet<Symbol>,
+    func_names: HashSet<Symbol>,
     str_consts: HashSet<String>,
 }
 
@@ -22,8 +23,8 @@ impl FunctionAnalysis {
     }
 }
 
-fn get_arg<'a>(func_state: &'a mut FuncState, name: &str) -> Option<&'a mut Arg> {
-    if let Some(arg) = func_state.args.iter_mut().find(|a| a.name == name) {
+fn get_arg<'a>(func_state: &'a mut FuncState, name: &Symbol) -> Option<&'a mut Arg> {
+    if let Some(arg) = func_state.args.iter_mut().find(|a| a.name == *name) {
         Some(arg)
     } else {
         None
@@ -57,14 +58,14 @@ impl FunctionAnalysis {
         }
 
         let results = AnalysisResults {
-            global_scalars: self.global_scalars.into_iter().map(|(key, val)| key.to_string()).collect(),
+            global_scalars: self.global_scalars.into_iter().map(|(key, val)| key.clone()).collect(),
             str_consts: self.str_consts,
             global_arrays,
         };
 
         Ok(TypedProgram::new(functions, results))
     }
-    fn use_as_scalar(&mut self, var: &str, typ: ScalarType, func_state: &mut FuncState) -> Result<(), PrintableError> {
+    fn use_as_scalar(&mut self, var: &Symbol, typ: ScalarType, func_state: &mut FuncState) -> Result<(), PrintableError> {
         if let Some(arg) = get_arg(func_state, var) {
             if let Some(arg_typ) = arg.typ {
                 match arg_typ {
@@ -82,10 +83,10 @@ impl FunctionAnalysis {
         if self.global_arrays.contains(var) {
             return Err(PrintableError::new(format!("fatal: attempt to use array `{}` in a scalar context", var)));
         }
-        self.global_scalars = self.global_scalars.insert(var.to_string(), typ).0;
+        self.global_scalars = self.global_scalars.insert(var.clone(), typ).0;
         Ok(())
     }
-    fn use_as_array(&mut self, var: &str, func_state: &mut FuncState) -> Result<(), PrintableError> {
+    fn use_as_array(&mut self, var: &Symbol, func_state: &mut FuncState) -> Result<(), PrintableError> {
         if let Some(arg) = get_arg(func_state, var) {
             if let Some(arg_typ) = arg.typ {
                 match arg_typ {
@@ -103,7 +104,7 @@ impl FunctionAnalysis {
         if let Some(_type) = self.global_scalars.get(var) {
             return Err(PrintableError::new(format!("fatal: attempt to scalar `{}` in an array context", var)));
         }
-        self.global_arrays.insert(var.to_string());
+        self.global_arrays.insert(var.clone());
         Ok(())
     }
 
@@ -165,7 +166,7 @@ impl FunctionAnalysis {
         Ok(())
     }
 
-    fn resolve(&self, var: &str, func_state: &mut FuncState) -> Option<ArgT> {
+    fn resolve(&self, var: &Symbol, func_state: &mut FuncState) -> Option<ArgT> {
         if let Some(arg) = get_arg(func_state, var) {
             return arg.typ.clone();
         } else if self.global_scalars.get(var).is_some() {
@@ -199,7 +200,7 @@ impl FunctionAnalysis {
                         CallArg::new_expr(Some(ArgT::Scalar))
                     }
                 });
-                let call = Call::new(target.to_string(), call_args.collect());
+                let call = Call::new(target.clone(), call_args.collect());
                 func_state.calls.push(call)
             }
             Expr::NumberF64(_) => {
@@ -248,7 +249,7 @@ impl FunctionAnalysis {
                 expr.typ = Self::merge_types(&expr1.typ, &expr2.typ);
             }
             Expr::Variable(var) => {
-                if let Some(arg) = func_state.args.iter().find(|arg| *arg.name == *var) {
+                if let Some(arg) = func_state.args.iter().find(|arg| arg.name == *var) {
                     if arg.typ == Some(ArgT::Array) && is_returned {
                         return Err(PrintableError::new(format!("fatal: attempted to use array {} in scalar context", var)));
                     }

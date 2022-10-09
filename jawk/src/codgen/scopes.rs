@@ -3,11 +3,12 @@ use crate::printable_error::PrintableError;
 use std::collections::HashMap;
 use std::thread::scope;
 use gnu_libjit::Value;
+use crate::symbolizer::Symbol;
 
 
 pub struct Scope {
-    pub scalars: HashMap<String, ValuePtrT>,
-    pub arrays: HashMap<String, Value>,
+    pub scalars: HashMap<Symbol, ValuePtrT>,
+    pub arrays: HashMap<Symbol, Value>,
 }
 
 impl Scope {
@@ -26,7 +27,7 @@ impl Scopes {
             levels: vec![Scope::new()],
         }
     }
-    pub fn insert_scalar(&mut self, name: String, value: ValuePtrT) -> Result<(), PrintableError> {
+    pub fn insert_scalar(&mut self, name: Symbol, value: ValuePtrT) -> Result<(), PrintableError> {
         let mut inner_scope = self.levels.last_mut().unwrap();
 
         if inner_scope.scalars.get(&name).is_some() {
@@ -38,7 +39,7 @@ impl Scopes {
         Ok(())
     }
 
-    pub fn insert_array(&mut self, name: String, value: Value) -> Result<(), PrintableError> {
+    pub fn insert_array(&mut self, name: Symbol, value: Value) -> Result<(), PrintableError> {
         let mut inner_scope = self.levels.last_mut().unwrap();
 
         if inner_scope.arrays.get(&name).is_some() {
@@ -50,7 +51,7 @@ impl Scopes {
         Ok(())
     }
 
-    pub fn get_scalar(&self, name: &str) -> Result<&ValuePtrT, PrintableError> {
+    pub fn get_scalar(&self, name: &Symbol) -> Result<&ValuePtrT, PrintableError> {
         for scope in self.levels.iter().rev() {
             if let Some(scalar) = scope.scalars.get(name) {
                 return Ok(scalar)
@@ -59,7 +60,7 @@ impl Scopes {
         panic!("Scalar {} does not exist", name);
     }
 
-    pub fn get_array(&self, name: &str) -> Result<&Value, PrintableError> {
+    pub fn get_array(&self, name: &Symbol) -> Result<&Value, PrintableError> {
         for scope in self.levels.iter().rev() {
             if let Some(arr) = scope.arrays.get(name) {
                 return Ok(arr)

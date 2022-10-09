@@ -14,7 +14,7 @@ use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::printable_error::PrintableError;
 use crate::runtime::{LiveRuntime, Runtime, TestRuntime};
-use crate::{AnalysisResults, Expr};
+use crate::{AnalysisResults, Expr, Symbolizer};
 use gnu_libjit::{Abi, Context, Label, Value};
 use std::collections::{HashMap, HashSet};
 use std::os::raw::{c_char, c_int, c_long, c_void};
@@ -36,19 +36,19 @@ pub const FLOAT_TAG: i8 = 0;
 pub const STRING_TAG: i8 = 1;
 
 // Entry point to run a program
-pub fn compile_and_run(prog: Program, files: &[String]) -> Result<(), PrintableError> {
+pub fn compile_and_run(prog: Program, files: &[String], symbolizer: &mut Symbolizer) -> Result<(), PrintableError> {
     let mut runtime = LiveRuntime::new(files.to_vec());
-    let mut codegen = CodeGen::new(&mut runtime);
+    let mut codegen = CodeGen::new(&mut runtime, symbolizer);
     codegen.compile(prog, false)?;
     codegen.run();
     Ok(())
 }
 
 // Entry point to run and debug/test a program. Use the test runtime.
-pub fn compile_and_capture(prog: Program, files: &[String]) -> Result<TestRuntime, PrintableError> {
+pub fn compile_and_capture(prog: Program, files: &[String], symbolizer: &mut Symbolizer) -> Result<TestRuntime, PrintableError> {
     let mut test_runtime = TestRuntime::new(files.to_vec());
     {
-        let mut codegen = CodeGen::new(&mut test_runtime);
+        let mut codegen = CodeGen::new(&mut test_runtime, symbolizer);
         codegen.compile(prog, true)?;
         codegen.run();
     }
@@ -63,7 +63,9 @@ struct CodeGen<'a, RuntimeT: Runtime> {
     // Stores the points to each global variable in the program
     pub(crate) context: Context,
     // The jit context
-    runtime: &'a mut RuntimeT, // Runtime provides native functions and may be used for debugging.
+    runtime: &'a mut RuntimeT,
+    // Runtime provides native functions and may be used for debugging.
+    symbolizer: &'a mut Symbolizer,
 
     array_map: HashMap<String, i32>, // Map each array name to its unique identifier
 
@@ -100,7 +102,7 @@ struct CodeGen<'a, RuntimeT: Runtime> {
 }
 
 impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
-    fn new(runtime: &'a mut RuntimeT) -> Self {
+    fn new(runtime: &'a mut RuntimeT, symbolizer: &'a mut Symbolizer) -> Self {
         let mut context = Context::new();
         let mut function = context
             .function(Abi::Cdecl, Context::float64_type(), vec![])
@@ -149,6 +151,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             break_lbl: vec![],
             function_map: HashMap::new(),
             return_lbl: None,
+            symbolizer,
         };
         codegen
     }
@@ -169,7 +172,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         // }
 
         // Compile main program
-        let main = prog.functions.get("main function").expect("main function to exist");
+        let main = prog.functions.get(&self.symbolizer.get_symbol("main function")).expect("main function to exist");
         self.compile_stmt(&main.body)?;
 
         // This is just so # strings allocated == # of strings freed which makes testing easier
@@ -401,7 +404,8 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                 // Every string constant is stored in a variable with the name " name"
                 // the space ensures we don't collide with normal variable names;
                 let string_tag = self.string_tag();
-                let mut var_ptr = self.scopes.get_scalar(&format!(" {}", str))?.clone();
+                let space_before = format!(" {}", str);
+                let mut var_ptr = self.scopes.get_scalar(&self.symbolizer.get_symbol(space_before))?.clone();
                 let var = self.load(&mut var_ptr);
                 let zero = self.function.create_float64_constant(0.0);
                 let new_ptr = self.runtime.copy_string(&mut self.function, var.pointer);
@@ -411,7 +415,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                 // Every string constant is stored in a variable with the name " name"
                 // the space ensures we don't collide with normal variable names;
                 let string_tag = self.string_tag();
-                let mut var_ptr = self.scopes.get_scalar(&format!(" {}", str))?.clone();
+                let mut var_ptr = self.scopes.get_scalar(&self.symbolizer.get_symbol(format!(" {}", str)))?.clone();
                 let var = self.load(&mut var_ptr);
                 let zero = self.function.create_float64_constant(0.0);
                 let new_ptr = self.runtime.copy_string(&mut self.function, var.pointer);

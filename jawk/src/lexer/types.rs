@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use crate::symbolizer::Symbol;
 
 #[derive(Debug, Clone, PartialOrd, PartialEq, Copy)]
 pub enum MathOp {
@@ -80,7 +81,7 @@ pub enum Token {
     // && ||
     Bang,
     String(String),
-    Ident(String),
+    Ident(Symbol),
     NumberF64(f64),
     False,
     True,

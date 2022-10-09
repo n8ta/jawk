@@ -1,9 +1,11 @@
-use crate::analyze;
+use crate::{analyze, Symbolizer};
+use crate::symbolizer::Symbol;
 
 #[cfg(test)]
 fn test_exception(program: &str, error_includes_msg: &str) {
     use crate::{lex, parse};
-    let mut ast_result = analyze(parse(lex(program).unwrap()));
+    let mut symbolizer = Symbolizer::new();
+    let mut ast_result = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer));
     if let Err(err) = ast_result {
         println!("Error msg: `{}\nShould include: `{}`", err.msg, error_includes_msg);
         assert!(err.msg.contains(error_includes_msg));
@@ -28,7 +30,8 @@ fn strip(data: &str) -> String {
 #[cfg(test)]
 fn test_it(program: &str, expected: &str) {
     use crate::{lex, parse};
-    let mut ast = analyze(parse(lex(program).unwrap())).unwrap();
+    let mut symbolizer = Symbolizer::new();
+    let mut ast = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
     println!("prog: {:?}", ast);
     let result_clean = strip(&format!("{}", ast));
     let expected_clean = strip(expected);
@@ -158,21 +161,24 @@ fn test_ternary_4() {
 #[test]
 fn test_fails() {
     use crate::{lex, parse};
-    let mut res = analyze(parse(lex("BEGIN { a = 0; a[0] = 1; }").unwrap()));
+    let mut symbolizer = Symbolizer::new();
+    let mut res = analyze(parse(lex("BEGIN { a = 0; a[0] = 1; }", &mut symbolizer).unwrap(), &mut symbolizer));
     assert!(res.is_err());
 }
 
 #[test]
 fn test_fails_2() {
     use crate::{lex, parse};
-    let mut ast = analyze(parse(lex("BEGIN { a[0] = 1; a = 0;  }").unwrap()));
+    let mut symbolizer = Symbolizer::new();
+    let mut ast = analyze(parse(lex("BEGIN { a[0] = 1; a = 0;  }", &mut symbolizer).unwrap(), &mut symbolizer));
     assert!(ast.is_err());
 }
 
 #[test]
 fn test_fails_3() {
     use crate::{lex, parse};
-    let mut ast = analyze(parse(lex("BEGIN { if(x) { a[0] = 1; } a = 0;  }").unwrap()));
+    let mut symbolizer = Symbolizer::new();
+    let mut ast = analyze(parse(lex("BEGIN { if(x) { a[0] = 1; } a = 0;  }", &mut symbolizer).unwrap(), &mut symbolizer));
     assert!(ast.is_err());
 }
 

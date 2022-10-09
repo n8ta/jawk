@@ -5,6 +5,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use immutable_chunkmap::map::Map;
 use crate::parser::{ArgT, Function, Program, ScalarType};
+use crate::symbolizer::Symbol;
 
 #[derive(Clone, Debug)]
 enum VarType {
@@ -24,12 +25,12 @@ impl Into<VarType> for ScalarType {
     }
 }
 
-pub type MapT = Map<String, ScalarType, 1000>;
+pub type MapT = Map<Symbol, ScalarType, 1000>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AnalysisResults {
-    pub global_scalars: HashSet<String>,
-    pub global_arrays: HashMap<String, i32>,
+    pub global_scalars: HashSet<Symbol>,
+    pub global_arrays: HashMap<Symbol, i32>,
     pub str_consts: HashSet<String>,
 }
 
@@ -44,18 +45,18 @@ impl AnalysisResults {
 }
 
 pub struct Call {
-    target: String,
+    target: Symbol,
     args: Vec<CallArg>,
 }
 
 pub struct CallArg {
     typ: Option<ArgT>,
-    is_arg: Option<String>,
+    is_arg: Option<Symbol>,
 }
 
 impl CallArg {
-    pub fn new<T: Into<String>>(typ: Option<ArgT>, arg: T) -> Self {
-        CallArg { typ, is_arg: Some(arg.into()) }
+    pub fn new(typ: Option<ArgT>, arg: Symbol) -> Self {
+        CallArg { typ, is_arg: Some(arg) }
     }
     pub fn new_expr(typ: Option<ArgT>) -> Self {
         CallArg { typ, is_arg: None }
@@ -63,8 +64,8 @@ impl CallArg {
 }
 
 impl Call {
-    pub fn new<T: Into<String>>(target: T, args: Vec<CallArg>) -> Self {
-        Self { target: target.into(), args }
+    pub fn new(target: Symbol, args: Vec<CallArg>) -> Self {
+        Self { target, args }
     }
 }
 
@@ -89,12 +90,12 @@ impl TypedFunc {
 }
 
 pub struct TypedProgram {
-    pub functions: HashMap<String, TypedFunc>,
+    pub functions: HashMap<Symbol, TypedFunc>,
     pub global_analysis: AnalysisResults,
 }
 
 impl TypedProgram {
-    pub fn new(functions: HashMap<String, TypedFunc>, results: AnalysisResults) -> Self {
+    pub fn new(functions: HashMap<Symbol, TypedFunc>, results: AnalysisResults) -> Self {
         Self { functions, global_analysis: results }
     }
     pub fn done(self) -> Program {

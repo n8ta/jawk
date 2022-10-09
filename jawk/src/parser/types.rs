@@ -3,7 +3,8 @@ use crate::lexer::{BinOp, LogicalOp, MathOp};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use libc::write;
-use crate::parser;
+use crate::{parser, Symbolizer};
+use crate::symbolizer::Symbol;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ScalarType {
@@ -122,22 +123,22 @@ impl Into<TypedExpr> for Expr {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
-    ScalarAssign(String, Box<TypedExpr>),
-    ArrayAssign { name: String, indices: Vec<TypedExpr>, value: Box<TypedExpr> },
+    ScalarAssign(Symbol, Box<TypedExpr>),
+    ArrayAssign { name: Symbol, indices: Vec<TypedExpr>, value: Box<TypedExpr> },
     NumberF64(f64),
     String(String),
     Concatenation(Vec<TypedExpr>),
     BinOp(Box<TypedExpr>, BinOp, Box<TypedExpr>),
     MathOp(Box<TypedExpr>, MathOp, Box<TypedExpr>),
     LogicalOp(Box<TypedExpr>, LogicalOp, Box<TypedExpr>),
-    Variable(String),
+    Variable(Symbol),
     Column(Box<TypedExpr>),
     NextLine,
     Ternary(Box<TypedExpr>, Box<TypedExpr>, Box<TypedExpr>),
     Regex(String),
-    ArrayIndex { name: String, indices: Vec<TypedExpr> },
-    InArray { name: String, indices: Vec<TypedExpr> },
-    Call { target: String, args: Vec<TypedExpr> },
+    ArrayIndex { name: Symbol, indices: Vec<TypedExpr> },
+    InArray { name: Symbol, indices: Vec<TypedExpr> },
+    Call { target: Symbol, args: Vec<TypedExpr> },
 }
 
 impl Display for TypedExpr {
@@ -228,13 +229,13 @@ impl Display for ArgT {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Arg {
-    pub name: String,
+    pub name: Symbol,
     pub typ: Option<ArgT>,
 }
 
 impl Arg {
-    pub fn new<T: Into<String>>(name: T, typ: Option<ArgT>) -> Self {
-        Self { name: name.into(), typ }
+    pub fn new(name: Symbol, typ: Option<ArgT>) -> Self {
+        Self { name, typ }
     }
 }
 
@@ -250,14 +251,14 @@ impl Display for Arg {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Function {
-    pub name: String,
+    pub name: Symbol,
     pub args: Vec<Arg>,
     pub body: Stmt,
     pub return_type: ScalarType,
 }
 
 impl Function {
-    pub fn new<T: Into<String>>(name: T, args: Vec<T>, body: Stmt) -> Self {
+    pub fn new(name: Symbol, args: Vec<Symbol>, body: Stmt) -> Self {
         Function {
             name: name.into(),
             args: args.into_iter().map(|arg| Arg { name: arg.into(), typ: None }).collect(),
