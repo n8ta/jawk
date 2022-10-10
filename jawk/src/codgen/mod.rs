@@ -20,6 +20,7 @@ use std::collections::{HashMap, HashSet};
 use std::os::raw::{c_char, c_int, c_long, c_void};
 use std::rc::Rc;
 use crate::parser::Stmt::Print;
+use crate::symbolizer::Symbol;
 use crate::typing::{TypedProgram, TypedFunc};
 
 /// ValueT is the jit values that make up a struct. It's not a tagged union
@@ -97,7 +98,7 @@ struct CodeGen<'a, RuntimeT: Runtime> {
     // Where a return should jump after storing return value
     return_lbl: Option<Label>,
 
-    function_map: HashMap<String, gnu_libjit::Function>,
+    function_map: HashMap<Symbol, gnu_libjit::Function>,
 
 }
 
@@ -133,6 +134,8 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         let var_arg_scratch = function.create_void_ptr_constant(var_arg_scratch);
 
         let subroutines = Subroutines::new(&mut context, runtime);
+        let mut function_map = HashMap::new();
+        function_map.insert(symbolizer.get("main function"), function.clone());
         let codegen = CodeGen {
             var_arg_scratch,
             array_map: HashMap::new(),
@@ -149,7 +152,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             float_tag,
             string_tag,
             break_lbl: vec![],
-            function_map: HashMap::new(),
+            function_map,
             return_lbl: None,
             symbolizer,
         };
@@ -161,58 +164,68 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         function();
     }
 
+    fn stub_all_functions(&mut self, prog: &Program) -> Result<(), PrintableError> {
+        for (name, parser_func) in &prog.functions {
+            if name.to_str() == "main function" {
+                continue;
+            }
+            let mut params = vec![];
+            for arg in &parser_func.args {
+                let arg_typ = if let Some(arg_typ) = arg.typ { arg_typ } else { continue; };
+                match arg_typ {
+                    ArgT::Scalar => {
+                        params.push(Context::sbyte_type());
+                        params.push(Context::float64_type());
+                        params.push(Context::void_ptr_type());
+                    }
+                    ArgT::Array => {
+                        params.push(Context::int_type());
+                    }
+                }
+            }
+
+            let mut function = self.context.function(Abi::Cdecl, Context::void_ptr_type(), params).unwrap();
+            self.function_map.insert(name.clone(), function);
+        }
+        Ok(())
+    }
+
     fn compile(&mut self, prog: Program, dump: bool) -> Result<(), PrintableError> {
         let zero = self.function.create_float64_constant(0.0);
         self.define_all_globals(&prog)?;
 
-        // Compile all non-main functions functions
-        // for (name, parser_func) in &prog.functions {
-        //     let func = self.compile_function(parser_func, dump)?;
-        //     self.function_map.insert(parser_func.name.clone(), func);
-        // }
+        // Since functions are can be recursive or mutually recursive we need to
+        // declare them all before we build compile bodies.
+        self.stub_all_functions(&prog)?;
 
-        // Compile main program
-        let main = prog.functions.get(&self.symbolizer.get("main function")).expect("main function to exist");
-        self.compile_stmt(&main.body)?;
-
-        // This is just so # strings allocated == # of strings freed which makes testing easier
-        for var in prog.global_analysis.global_scalars.clone() {
-            let mut var_ptrs = self.scopes.get_scalar(&var)?.clone();
-            self.drop_if_string_ptr(&mut var_ptrs, ScalarType::Variable);
+        let main = self.symbolizer.get("main function");
+        for (name, func) in prog.functions {
+            let main = name == main;
+            self.compile_function(&name, &func,
+                                  main,
+                                  &prog.global_analysis,
+                                  dump)?;
         }
+
+        let main = self.function_map.get(&self.symbolizer.get("main function")).unwrap();
+        self.function.insn_call(main, vec![]);
 
         self.function.insn_return(&zero);
         self.context.build_end();
-        if dump {
-            println!("{}", self.function.dump().unwrap());
-        }
         self.function.compile();
         Ok(())
     }
 
-    fn compile_function(&mut self, parser_func: &crate::parser::Function, dump: bool) -> Result<gnu_libjit::Function, PrintableError> {
+    fn compile_function(&mut self, name: &Symbol,
+                        parser_func: &crate::parser::Function,
+                        main: bool,
+                        global_analysis: &AnalysisResults,
+                        dump: bool) -> Result<(), PrintableError> {
         self.scopes.open_scope();
 
-        let mut params = vec![];
-        for arg in &parser_func.args {
-            let arg_typ = if let Some(arg_typ) = arg.typ { arg_typ } else { continue; };
-            match arg_typ {
-                ArgT::Scalar => {
-                    params.push(Context::sbyte_type());
-                    params.push(Context::float64_type());
-                    params.push(Context::void_ptr_type());
-                }
-                ArgT::Array => {
-                    params.push(Context::int_type());
-                }
-            }
-        }
-
-        let mut function = self.context.function(Abi::Cdecl, Context::void_ptr_type(), params).unwrap();
-        std::mem::swap(&mut self.function, &mut function);
+        let mut function = self.function_map.get_mut(&name).unwrap().clone();
 
         self.return_lbl = Some(Label::new());
-
         let mut arg_idx = 0;
         for arg in &parser_func.args {
             let arg_typ = if let Some(arg_typ) = arg.typ { arg_typ } else { continue; };
@@ -238,23 +251,34 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             }
         }
 
+        std::mem::swap(&mut self.function, &mut function);
+
         self.compile_stmt(&parser_func.body)?;
 
         self.function.insn_label(&mut self.return_lbl.clone().unwrap());
         self.return_lbl = None;
+
         // Drop all strings we may have stored in function locals
         let mut scope = self.scopes.close_scope();
         for x in scope.scalars.iter_mut() {
             self.drop_if_string_ptr(x.1, ScalarType::Variable);
         }
 
+        let zero = self.function.create_float64_constant(0.0);
+
+        if main {
+            for var in global_analysis.global_scalars.clone() {
+                let mut var_ptrs = self.scopes.get_scalar(&var)?.clone();
+                self.drop_if_string_ptr(&mut var_ptrs, ScalarType::Variable);
+            }
+        }
+        self.function.insn_return(&zero);
 
         std::mem::swap(&mut self.function, &mut function);
         if dump {
             println!("{}", function.dump().unwrap());
         }
-        function.compile();
-        Ok(function)
+        Ok(())
     }
 
     fn compile_stmt(&mut self, stmt: &Stmt) -> Result<(), PrintableError> {
@@ -360,12 +384,6 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     fn compile_expr(&mut self, expr: &TypedExpr) -> Result<ValueT, PrintableError> {
         Ok(match &expr.expr {
             Expr::Call { target, args } => {
-                // let mut compiled_args = Vec::with_capacity(args.len());
-                // let mut params = vec![];
-                // for arg in args {
-                //
-                // }
-                // let target = self.function_map.get(target).unwrap();
                 todo!()
             }
             Expr::ScalarAssign(var, value) => {

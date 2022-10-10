@@ -119,7 +119,8 @@ macro_rules! test {
 }
 
 test!(test_print_int, "{print 1;}", ONE_LINE, "1\n");
-test!(test_print_str, "{print \"abc\";}", ONE_LINE, "abc\n");
+test!(test_print_str, "BEGIN {print \"abc\";}", ONE_LINE, "abc\n");
+test!(test_print_str_loop, "{print \"abc\";}", ONE_LINE, "abc\n");
 test!(test_just_begin, "BEGIN { print 1; }", ONE_LINE, "1\n");
 test!(
     test_assign_to_undef,
@@ -956,11 +957,18 @@ test!(
     "test"
 );
 
+// test!(
+//     test_func_call,
+//     "function a(arr) { arr[0] = 123; } BEGIN { a(b); print b[0]; }",
+//     ONE_LINE,
+//     "123\n"
+// );
+
 test!(
     test_func_call,
-    "function a(arr) { arr[0] = 123; } BEGIN { a(b); print b[0]; }",
+    "function a(array) { print array[0]; } BEGIN { arr[0] = 5; a(arr) }",
     ONE_LINE,
-    "123\n"
+    "5\n"
 );
 
 test!(

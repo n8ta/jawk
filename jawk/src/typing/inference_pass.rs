@@ -55,9 +55,6 @@ fn get_types(program: &TypedProgram, link: &CallLink) -> CallInfo {
 
 fn forward_prop(program: &mut TypedProgram, link: &CallLink) -> Result<Vec<Symbol>, PrintableError> {
     let types = get_types(program, &link);
-    for (name, _) in &program.functions {
-        println!("func {}", name);
-    }
     let dest = program.functions.get_mut(&link.call.target).expect(&format!("function {} to exist", link.call.target));
     let mut updated_symbols_in_dest = vec![];
     for idx in 0..types.len() {
@@ -77,11 +74,6 @@ fn forward_prop(program: &mut TypedProgram, link: &CallLink) -> Result<Vec<Symbo
     }
     Ok(updated_symbols_in_dest)
 }
-
-// fn accept_call(func: &mut TypedFunc, arg_types: CallInfo) {
-//
-// }
-
 
 pub fn variable_inference(mut prog: TypedProgram) -> Result<TypedProgram, PrintableError> {
     let mut links: Vec<CallLink> = vec![];

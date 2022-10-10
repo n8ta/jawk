@@ -63,20 +63,21 @@ extern "C" fn column(
         "\tgetting column tag:{} float:{} ptr:{:?}",
         tag, value, pointer
     );
-    data.string_out("column");
+    data.string_out("column", &str);
     Rc::into_raw(Rc::new(str))
 }
 
 extern "C" fn free_string(data_ptr: *mut c_void, ptr: *mut String) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::FreeString);
-    data.string_in(&format!("free_string {:?}", ptr));
 
-    let data = unsafe { Rc::from_raw(ptr) };
+
+    let string_data = unsafe { Rc::from_raw(ptr) };
+    data.string_in("free_string", &*string_data);
     println!(
         "\tstring is: '{}' count is now: {}",
-        data,
-        Rc::strong_count(&data) - 1
+        string_data,
+        Rc::strong_count(&string_data) - 1
     );
     0.0
 }
@@ -99,12 +100,12 @@ extern "C" fn concat(
         }
         Err(rc) => (*rc).clone(),
     };
-    data.string_in(&format!("concat lhs {}", lhs));
-    data.string_in(&format!("concat rhs {}", rhs));
+    data.string_in("concat lhs", &*lhs);
+    data.string_in("concat rhs", &*rhs);
 
     lhs.push_str(&rhs);
     println!("\tResult: '{}'", lhs);
-    data.string_out("concat result");
+    data.string_out("concat result", &lhs);
     Rc::into_raw(Rc::new(lhs))
 }
 
@@ -112,8 +113,8 @@ extern "C" fn empty_string(data: *mut c_void) -> *const String {
     let data = cast_to_runtime_data(data);
     data.calls.log(Call::EmptyString);
     let rc = Rc::new("".to_string());
+    data.string_out("empty_string", &*rc);
     let ptr = Rc::into_raw(rc);
-    data.string_out(&format!("empty string {:?}", ptr));
     ptr
 }
 
@@ -138,7 +139,6 @@ extern "C" fn string_to_number(data_ptr: *mut c_void, ptr: *const String) -> f64
 extern "C" fn number_to_string(data_ptr: *mut c_void, value: f64) -> *const String {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::NumberToString);
-    data.string_out("number_to_string");
     println!("\tnum: {}", value);
     let value = if value.fract() == 0.0 {
         value.floor()
@@ -148,18 +148,19 @@ extern "C" fn number_to_string(data_ptr: *mut c_void, value: f64) -> *const Stri
 
     let heap_alloc_string = Rc::new(value.to_string());
 
+    data.string_out("number_to_string", &*heap_alloc_string);
     let str = (*heap_alloc_string).clone();
     let ptr = Rc::into_raw(heap_alloc_string);
-    println!("String is {:?} {}", ptr, str);
     ptr
 }
 
 extern "C" fn copy_string(data_ptr: *mut c_void, ptr: *mut String) -> *const String {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::CopyString);
-    data.string_out("copy_string");
+
 
     let original = unsafe { Rc::from_raw(ptr as *mut String) };
+    data.string_out("copy_string", &*original);
     println!(
         "\tCopying string {:?} '{}' count is {}",
         ptr,
@@ -224,12 +225,12 @@ extern "C" fn array_assign(data_ptr: *mut std::os::raw::c_void,
         Rc::from_raw(index)
     };
     data.calls.log(Call::ArrayAssign);
-    data.string_in(&*index);
+    data.string_in("array_assign_index", &*index);
 
 
     if tag == STRING_TAG {
         unsafe {
-            data.string_in(&*ptr);
+            data.string_in("array_assign_value", &*ptr);
         }
     }
 
@@ -258,7 +259,7 @@ extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
         Rc::from_raw(index)
     };
     data.calls.log(Call::ArrayAccess);
-    data.string_in(&*index);
+    data.string_in("array_access_index", &*index);
 
     let array = &mut data.arrays[array as usize];
     unsafe {
@@ -269,7 +270,7 @@ extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
                 // Data stored in hashmap is a string clone it to up the ref count
                 // and return the cloned ptr.
                 let rc = unsafe { Rc::from_raw(*str) };
-                data.string_out(&*rc);
+                data.string_out("array_access", &*rc);
                 let cloned = rc.clone();
                 Rc::into_raw(rc);
                 *out_value = Rc::into_raw(cloned) as *mut String;
@@ -288,7 +289,7 @@ extern "C" fn in_array(data_ptr: *mut c_void, array: i32, index: *mut String) ->
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::InArray);
     let indices = unsafe { Rc::from_raw(index) };
-    data.string_in(&*indices);
+    data.string_in("in_array_indices", &*indices);
     let array = &data.arrays[array as usize];
     unsafe {
         if array.contains_key(&*index) { 1.0 } else { 0.0 }
@@ -313,13 +314,12 @@ extern "C" fn concat_array_indices(
         }
         Err(rc) => (*rc).clone(),
     };
-    data.string_in(&format!("concat-indices lhs {}", lhs));
-    data.string_in(&format!("concat-indices rhs {}", rhs));
+    data.string_in("concat-indices lhs", &*lhs);
+    data.string_in("concat-indices rhs", &*rhs);
 
     lhs.push_str("-");
     lhs.push_str(&rhs);
-    println!("\tResult: '{}'", lhs);
-    data.string_out("concat indices result");
+    data.string_out("concat indices result", &lhs);
     Rc::into_raw(Rc::new(lhs))
 }
 
@@ -329,7 +329,7 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
     let base_ptr = args as *mut f64;
     unsafe {
         let fstring = Rc::from_raw(fstring);
-        data.string_in(&*fstring);
+        data.string_in("printf fstring", &*fstring);
         data.output.push_str(&*fstring);
         print!("{}", fstring);
         for i in 0..(nargs as isize) {
@@ -339,7 +339,7 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
             // args.push((tag, float, ptr));
             let str = Rc::from_raw(ptr);
             data.output.push_str(&*str);
-            data.string_in(&*str);
+            data.string_in("printf in arg", &*str);
             print!("{}", str)
         }
         // Rc::from_raw(fstring)
@@ -384,12 +384,12 @@ pub struct RuntimeData {
 }
 
 impl RuntimeData {
-    pub fn string_out(&mut self, src: &str) {
-        println!("\t===> {} (string out)", src);
+    pub fn string_out(&mut self, src: &str, string: &str) {
+        println!("\t===> {} '{}'", src, string);
         self.string_out += 1;
     }
-    pub fn string_in(&mut self, src: &str) {
-        println!("\t<=== {} (string in)", src);
+    pub fn string_in(&mut self, src: &str, string: &str) {
+        println!("\t<=== {} '{}'", src, string);
         self.strings_in += 1;
     }
     pub fn new(files: Vec<String>) -> RuntimeData {
