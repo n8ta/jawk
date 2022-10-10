@@ -212,7 +212,7 @@ impl Display for Expr {
     }
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
 pub enum ArgT {
     Scalar,
     Array,

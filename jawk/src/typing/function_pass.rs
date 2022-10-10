@@ -188,16 +188,16 @@ impl FunctionAnalysis {
                 let call_args = args.iter_mut().map(|arg| {
                     if let Expr::Variable(var_name) = &arg.expr {
                         if let Some(arg_t) = get_arg(func_state, var_name) {
-                            CallArg::new(arg_t.typ, arg_t.name.clone())
+                            CallArg::new(arg_t.name.clone())
                         } else if self.global_arrays.contains(var_name) {
-                            CallArg::new(Some(ArgT::Array), var_name.clone())
+                            CallArg::new(var_name.clone())
                         } else if self.global_scalars.get(var_name).is_some() {
-                            CallArg::new(Some(ArgT::Scalar), var_name.clone())
+                            CallArg::new(var_name.clone())
                         } else {
-                            CallArg::new(None, var_name.clone())
+                            CallArg::new(var_name.clone())
                         }
                     } else {
-                        CallArg::new_expr(Some(ArgT::Scalar))
+                        CallArg::new_scalar()
                     }
                 });
                 let call = Call::new(target.clone(), call_args.collect());

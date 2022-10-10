@@ -103,7 +103,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Program::new(self.symbolizer.get_symbol("main function"), begins, ends, pattern_actions, functions)
+        Program::new(self.symbolizer.get("main function"), begins, ends, pattern_actions, functions)
     }
 
     fn ident_consume(&mut self, error_msg: &str) -> Symbol {

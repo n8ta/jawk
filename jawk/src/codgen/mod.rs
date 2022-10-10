@@ -172,7 +172,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         // }
 
         // Compile main program
-        let main = prog.functions.get(&self.symbolizer.get_symbol("main function")).expect("main function to exist");
+        let main = prog.functions.get(&self.symbolizer.get("main function")).expect("main function to exist");
         self.compile_stmt(&main.body)?;
 
         // This is just so # strings allocated == # of strings freed which makes testing easier
@@ -405,7 +405,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                 // the space ensures we don't collide with normal variable names;
                 let string_tag = self.string_tag();
                 let space_before = format!(" {}", str);
-                let mut var_ptr = self.scopes.get_scalar(&self.symbolizer.get_symbol(space_before))?.clone();
+                let mut var_ptr = self.scopes.get_scalar(&self.symbolizer.get(space_before))?.clone();
                 let var = self.load(&mut var_ptr);
                 let zero = self.function.create_float64_constant(0.0);
                 let new_ptr = self.runtime.copy_string(&mut self.function, var.pointer);
@@ -415,7 +415,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                 // Every string constant is stored in a variable with the name " name"
                 // the space ensures we don't collide with normal variable names;
                 let string_tag = self.string_tag();
-                let mut var_ptr = self.scopes.get_scalar(&self.symbolizer.get_symbol(format!(" {}", str)))?.clone();
+                let mut var_ptr = self.scopes.get_scalar(&self.symbolizer.get(format!(" {}", str)))?.clone();
                 let var = self.load(&mut var_ptr);
                 let zero = self.function.create_float64_constant(0.0);
                 let new_ptr = self.runtime.copy_string(&mut self.function, var.pointer);

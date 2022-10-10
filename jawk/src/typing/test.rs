@@ -183,6 +183,11 @@ fn test_fails_3() {
 }
 
 #[test]
+fn test_calls() {
+
+}
+
+#[test]
 fn test_typing_scalar_function() {
     test_it("function a() { return 1; } BEGIN { print 1; }",
             "function a() { return (f 1); } print (f 1);");

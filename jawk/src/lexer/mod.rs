@@ -153,7 +153,7 @@ impl<'a> Lexer<'a> {
         } else if src == "printf" {
             self.add_token(Token::Printf);
         } else {
-            let ident = self.symbolizer.get_symbol(src);
+            let ident = self.symbolizer.get(src);
             self.add_token(Token::Ident(ident));
         }
         Ok(())
@@ -492,7 +492,7 @@ fn test_lex_assignment() {
     assert_eq!(
         lex_test(str, &mut symbolizer).unwrap(),
         vec![
-            Token::Ident(symbolizer.get_symbol("abc")),
+            Token::Ident(symbolizer.get("abc")),
             Token::Eq,
             Token::NumberF64(4.0),
             Token::EOF
@@ -510,7 +510,7 @@ fn test_ret() {
             Token::Ret,
             Token::NumberF64(1.0),
             Token::Ret,
-            Token::Ident(symbolizer.get_symbol("abc")),
+            Token::Ident(symbolizer.get("abc")),
             Token::EOF
         ]
     );
@@ -582,7 +582,7 @@ fn test_ident() {
         lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::LeftBrace,
-            Token::Ident(symbolizer.get_symbol("x")),
+            Token::Ident(symbolizer.get("x")),
             Token::RightBrace,
             Token::EOF
         ]
@@ -628,7 +628,7 @@ fn test_lex_while_l00p() {
         vec![
             Token::While,
             Token::LeftParen,
-            Token::Ident(symbolizer.get_symbol("x")),
+            Token::Ident(symbolizer.get("x")),
             Token::RightParen,
             Token::LeftBrace,
             Token::RightBrace,
@@ -660,7 +660,7 @@ fn test_lex_do_while_l00p() {
 fn test_lex_for_l00p() {
     let mut symbolizer = Symbolizer::new();
     let str = "for (a = 0;";
-    let a = Token::Ident(symbolizer.get_symbol("a"));
+    let a = Token::Ident(symbolizer.get("a"));
     assert_eq!(
         lex_test(str, &mut symbolizer).unwrap(),
         vec![
@@ -716,12 +716,12 @@ fn test_regex() {
     assert_eq!(
         lex_test(str, &mut symbolizer).unwrap(),
         vec![
-            Token::Ident(symbolizer.get_symbol("a")),
+            Token::Ident(symbolizer.get("a")),
             Token::BinOp(BinOp::MatchedBy),
-            Token::Ident(symbolizer.get_symbol("b")),
-            Token::Ident(symbolizer.get_symbol("a")),
+            Token::Ident(symbolizer.get("b")),
+            Token::Ident(symbolizer.get("a")),
             Token::BinOp(BinOp::NotMatchedBy),
-            Token::Ident(symbolizer.get_symbol("b")),
+            Token::Ident(symbolizer.get("b")),
             Token::EOF
         ]
     );
@@ -734,7 +734,7 @@ fn test_regex_slash() {
     assert_eq!(
         lex_test(str, &mut symbolizer).unwrap(),
         vec![
-            Token::Ident(symbolizer.get_symbol("a")),
+            Token::Ident(symbolizer.get("a")),
             Token::BinOp(BinOp::MatchedBy),
             Token::Regex(String::from("match")),
             Token::EOF
@@ -750,7 +750,7 @@ fn test_regex_slash_not() {
     assert_eq!(
         lex_test(str, &mut symbolizer).unwrap(),
         vec![
-            Token::Ident(symbolizer.get_symbol("a")),
+            Token::Ident(symbolizer.get("a")),
             Token::BinOp(BinOp::NotMatchedBy),
             Token::Regex("match".to_string()),
             Token::EOF
@@ -763,7 +763,7 @@ fn test_regex_slash_not() {
 fn test_array_ops_slash_not() {
     let mut symbolizer = Symbolizer::new();
     let str = "a[0] = 1; a[1,2,3,4] = 5; 6 in a";
-    let a = Token::Ident(symbolizer.get_symbol("a"));
+    let a = Token::Ident(symbolizer.get("a"));
     assert_eq!(
         lex_test(str, &mut symbolizer).unwrap(),
         vec![
@@ -804,7 +804,7 @@ fn test_function() {
         lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::Function,
-            Token::Ident(symbolizer.get_symbol("a")),
+            Token::Ident(symbolizer.get("a")),
             Token::LeftParen,
             Token::RightParen,
             Token::LeftBrace,
@@ -814,5 +814,25 @@ fn test_function() {
             Token::EOF,
         ]
     );
+}
+
+#[test]
+fn test_ident_bug_fix() {
+    let mut symbolizer = Symbolizer::new();
+    let str = "BEGIN { helper(a) }";
+    assert_eq!(
+        lex_test(str, &mut symbolizer).unwrap(),
+        vec![
+            Token::Begin,
+            Token::LeftBrace,
+            Token::Ident(symbolizer.get("helper")),
+            Token::LeftParen,
+            Token::Ident(symbolizer.get("a")),
+            Token::RightParen,
+            Token::RightBrace,
+            Token::EOF,
+        ]
+    );
+
 }
 

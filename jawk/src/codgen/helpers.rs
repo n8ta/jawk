@@ -99,7 +99,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         // the name of the variable is " a". Just a space in front to prevent collisions.
         for str_const in prog.global_analysis.str_consts.clone() {
             let mut stack_value = self.new_stack_value();
-            let space_in_front = self.symbolizer.get_symbol(format!(" {}", str_const));
+            let space_in_front = self.symbolizer.get(format!(" {}", str_const));
 
             let ptr = Rc::into_raw(Rc::new(str_const)) as *mut c_void;
             let ptr = self.function.create_void_ptr_constant(ptr);
