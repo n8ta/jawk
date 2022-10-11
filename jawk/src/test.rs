@@ -1,4 +1,4 @@
-use crate::codgen::compile_and_capture;
+use crate::codegen::compile_and_capture;
 use crate::{analyze, lex, parse, Symbolizer};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};

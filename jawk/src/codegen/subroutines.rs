@@ -1,4 +1,4 @@
-use crate::codgen::ValueT;
+use crate::codegen::ValueT;
 use crate::runtime::Runtime;
 use gnu_libjit::{Abi, Context, Function, JitType, Label};
 use std::os::raw::c_long;

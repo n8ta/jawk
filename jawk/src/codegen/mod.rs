@@ -8,8 +8,8 @@ mod subroutines;
 mod value;
 mod helpers;
 
-use crate::codgen::scopes::Scopes;
-use crate::codgen::subroutines::Subroutines;
+use crate::codegen::scopes::Scopes;
+use crate::codegen::subroutines::Subroutines;
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::printable_error::PrintableError;
@@ -128,7 +128,6 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             function.create_value_float64(),
             function.create_value_void_ptr(),
         );
-
 
         let var_arg_scratch = unsafe { libc::malloc(100 * 8) };
         let var_arg_scratch = function.create_void_ptr_constant(var_arg_scratch);
@@ -267,7 +266,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         let zero = self.function.create_float64_constant(0.0);
 
         if main {
-            for var in global_analysis.global_scalars.clone() {
+            for (var, global_idx) in global_analysis.global_scalars.clone() {
                 let mut var_ptrs = self.scopes.get_scalar(&var)?.clone();
                 self.drop_if_string_ptr(&mut var_ptrs, ScalarType::Variable);
             }

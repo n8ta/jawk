@@ -1,5 +1,5 @@
-use crate::codgen::scopes::Scopes;
-use crate::codgen::subroutines::Subroutines;
+use crate::codegen::scopes::Scopes;
+use crate::codegen::subroutines::Subroutines;
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::parser::{Program, ScalarType, Stmt, TypedExpr};
 use crate::printable_error::PrintableError;
@@ -9,7 +9,7 @@ use gnu_libjit::{Abi, Context, Function, Label, Value};
 use std::collections::HashSet;
 use std::os::raw::{c_char, c_long, c_void};
 use std::rc::Rc;
-use crate::codgen::{CodeGen, ValuePtrT, ValueT};
+use crate::codegen::{CodeGen, ValuePtrT, ValueT};
 use crate::typing::TypedProgram;
 
 fn float_to_string<RuntimeT: Runtime>(func: &mut Function, runtime: &mut RuntimeT, value: &ValueT) -> Value {
@@ -88,7 +88,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
 
     pub fn define_all_globals(&mut self, prog: &Program) -> Result<(), PrintableError> {
         // All variables are init'ed to the empty string.
-        for var in prog.global_analysis.global_scalars.clone() {
+        for (var, global_idx) in prog.global_analysis.global_scalars.clone() {
             let mut stack_value = self.new_stack_value();
             let init_value = ValueT::new(self.string_tag.clone(), self.zero_f.clone(), self.runtime.empty_string(&mut self.function));
             self.store(&mut stack_value, &init_value);

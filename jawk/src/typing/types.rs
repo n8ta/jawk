@@ -31,7 +31,7 @@ pub type MapT = Map<Symbol, ScalarType, 1000>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AnalysisResults {
-    pub global_scalars: HashSet<Symbol>,
+    pub global_scalars: HashMap<Symbol, i32>,
     pub global_arrays: HashMap<Symbol, i32>,
     pub str_consts: HashSet<String>,
 }
@@ -162,7 +162,7 @@ impl TypedFunc {
         if let Some(_type) = global_analysis.global_arrays.get(var) {
             return Err(PrintableError::new(format!("fatal: attempt to array `{}` in an scalar context", var)));
         }
-        global_analysis.global_scalars.insert(var.clone());
+        global_analysis.global_scalars.insert(var.clone(), global_analysis.global_arrays.len() as i32);
         return Ok(Some(var.clone()));
     }
 }

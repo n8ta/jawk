@@ -7,7 +7,7 @@ use gnu_libjit::{Context, Function, Value};
 pub use live::LiveRuntime;
 use std::ffi::c_void;
 pub use testing::TestRuntime;
-use crate::codgen::ValueT;
+use crate::codegen::ValueT;
 
 #[repr(C)]
 #[derive(Debug)]

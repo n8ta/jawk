@@ -30,7 +30,7 @@ fn get_type(program: &TypedProgram, function: &Symbol, name: &Symbol) -> Option<
     if let Some(typ) = get_arg(func, name) {
         return Some(typ);
     }
-    if program.global_analysis.global_scalars.contains(name) {
+    if program.global_analysis.global_scalars.contains_key(name) {
         return Some(ArgT::Scalar);
     }
     if program.global_analysis.global_arrays.contains_key(name) {
@@ -220,7 +220,7 @@ fn test_rev_inference() {
     assert_eq!(prog.functions.get(&helper).unwrap().func.args.len(), 1);
     assert_eq!(prog.functions.get(&helper).unwrap().func.args[0].typ, Some(ArgT::Array));
     assert!(prog.global_analysis.global_arrays.contains_key(&a));
-    assert!(!prog.global_analysis.global_scalars.contains(&helper));
+    assert!(!prog.global_analysis.global_scalars.contains_key(&helper));
 }
 
 
@@ -271,7 +271,7 @@ fn test_forward_chained_inference_array() {
     assert_eq!(helper2.func.args[0].typ, Some(ArgT::Array));
 
     assert!(prog.global_analysis.global_arrays.contains_key(&a));
-    assert!(!prog.global_analysis.global_scalars.contains(&a));
+    assert!(!prog.global_analysis.global_scalars.contains_key(&a));
 }
 
 
@@ -307,7 +307,7 @@ fn test_rev_chained_inference_array() {
     assert_eq!(helper2.func.args[0].typ, Some(ArgT::Array));
 
     assert!(prog.global_analysis.global_arrays.contains_key(&a));
-    assert!(!prog.global_analysis.global_scalars.contains(&a));
+    assert!(!prog.global_analysis.global_scalars.contains_key(&a));
 }
 
 #[test]
@@ -342,5 +342,5 @@ fn test_rev_chained_inference_scalar() {
     assert_eq!(helper2.func.args[0].typ, Some(ArgT::Scalar));
 
     assert!(!prog.global_analysis.global_arrays.contains_key(&a));
-    assert!(prog.global_analysis.global_scalars.contains(&a));
+    assert!(prog.global_analysis.global_scalars.contains_key(&a));
 }

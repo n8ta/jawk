@@ -8,7 +8,7 @@ use crate::symbolizer::Symbolizer;
 use crate::typing::{AnalysisResults, analyze};
 
 mod args;
-mod codgen;
+mod codegen;
 mod columns;
 mod lexer;
 mod parser;
@@ -58,11 +58,11 @@ fn main() {
 
     // 5
     if args.debug {
-        if let Err(err) = codgen::compile_and_capture(program, &args.files, &mut symbolizer) {
+        if let Err(err) = codegen::compile_and_capture(program, &args.files, &mut symbolizer) {
             eprintln!("{}", err);
         }
     } else {
-        if let Err(err) = codgen::compile_and_run(program, &args.files, &mut symbolizer) {
+        if let Err(err) = codegen::compile_and_run(program, &args.files, &mut symbolizer) {
             eprintln!("{}", err);
         }
     }

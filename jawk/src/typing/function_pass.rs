@@ -57,8 +57,12 @@ impl FunctionAnalysis {
             global_arrays.insert(name, global_arrays.len() as i32);
         }
 
+        let mut global_scalars: HashMap<Symbol, i32> = HashMap::new();
+        for (scalar, typ) in self.global_scalars.into_iter() {
+            global_scalars.insert(scalar.clone(), global_scalars.len() as i32);
+        }
         let results = AnalysisResults {
-            global_scalars: self.global_scalars.into_iter().map(|(key, val)| key.clone()).collect(),
+            global_scalars,
             str_consts: self.str_consts,
             global_arrays,
         };
