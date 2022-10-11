@@ -964,6 +964,13 @@ test!(
 //     "123\n"
 // );
 
+
+test!(test_call_global,
+    "function a() { print b; } BEGIN { b = 5; a(); }",
+    ONE_LINE,
+    "5\n"
+);
+
 test!(
     test_func_call,
     "function a(array) { print array[0]; } BEGIN { arr[0] = 5; a(arr) }",
@@ -983,4 +990,11 @@ test!(
     "function a(b,c,d) { return b  c  d; }  BEGIN { print a(\"1\",\"2\",\"3\"); }",
     ONE_LINE,
     "123\n"
+);
+
+test!(
+    test_call_simple_2,
+    "function a(arg) { return 1; } BEGIN { arr[0] = 1; a(arr); }",
+    ONE_LINE,
+    ""
 );

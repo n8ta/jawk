@@ -106,7 +106,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     fn new(runtime: &'a mut RuntimeT, symbolizer: &'a mut Symbolizer) -> Self {
         let mut context = Context::new();
         let mut function = context
-            .function(Abi::Cdecl, Context::float64_type(), vec![])
+            .function(Abi::Cdecl, &Context::float64_type(), vec![])
             .expect("to create function");
 
         let zero_ptr = Box::into_raw(Box::new("".to_string())) as *mut c_void;
@@ -184,7 +184,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                 }
             }
 
-            let mut function = self.context.function(Abi::Cdecl, Context::void_ptr_type(), params).unwrap();
+            let mut function = self.context.function(Abi::Cdecl, &Context::void_ptr_type(), params).unwrap();
             self.function_map.insert(name.clone(), function);
         }
         Ok(())

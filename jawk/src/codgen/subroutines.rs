@@ -80,7 +80,7 @@ impl Subroutines {
         let mut func = ctx
             .function(
                 Abi::Cdecl,
-                Context::int_type(),
+                &Context::int_type(),
                 vec![Context::void_ptr_type()],
             )
             .expect("unable to create a new sub routine");
@@ -96,7 +96,7 @@ impl Subroutines {
     }
     fn gen_to_float<RuntimeT: Runtime>(ctx: &mut Context, runtime: &mut RuntimeT) -> Function {
         let mut func = ctx
-            .function(Abi::Cdecl, Context::float64_type(), Subroutines::value())
+            .function(Abi::Cdecl, &Context::float64_type(), Subroutines::value())
             .expect("unable to create a new sub routine");
         let zero = func.create_sbyte_constant(0);
         let result = func.create_value_float64();
@@ -126,7 +126,7 @@ impl Subroutines {
         let mut func = ctx
             .function(
                 Abi::Cdecl,
-                Context::ubyte_type(),
+                &Context::ubyte_type(),
                 vec![Context::void_ptr_type(), Context::ulong_type()],
             )
             .unwrap();
@@ -148,7 +148,7 @@ impl Subroutines {
         let mut func = ctx
             .function(
                 Abi::Cdecl,
-                Context::ubyte_type(),
+                &Context::ubyte_type(),
                 vec![Context::void_ptr_type(), Context::ulong_type()],
             )
             .unwrap();
