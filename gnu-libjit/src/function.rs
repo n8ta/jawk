@@ -87,7 +87,7 @@ impl Function {
     }
 
     pub fn address_of(&mut self, value: &mut Value) -> Value {
-        if !value.addressable{
+        if !value.addressable {
             value.set_addressable();
         }
         let ret = unsafe {
@@ -244,6 +244,10 @@ impl Function {
         unsafe {
             jit_insn_store_relative(self.function, dest_ptr.value, offset_bytes, value.value)
         };
+    }
+
+    pub fn create_value(&mut self, typ: &JitType) -> Value {
+        Value::new(unsafe { jit_value_create(self.function, typ.inner) })
     }
 
     pub fn create_value_int(&mut self) -> Value {

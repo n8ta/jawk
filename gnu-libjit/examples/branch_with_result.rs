@@ -6,7 +6,7 @@ fn main() {
 
 
     let i32_type = Context::int_type();
-    let mut func = context.function(Abi::Cdecl, i32_type, vec![i32_type, i32_type]).unwrap();
+    let mut func = context.function(Abi::Cdecl, &i32_type, vec![i32_type, i32_type]).unwrap();
 
 
     let result = func.alloca(4);

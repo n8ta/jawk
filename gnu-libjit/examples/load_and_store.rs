@@ -6,7 +6,7 @@ fn main() {
 
     let float_type = Context::sbyte_type();
     let params = vec![float_type];
-    let mut func = context.function(Abi::Cdecl, float_type, params).unwrap();
+    let mut func = context.function(Abi::Cdecl, &float_type, params).unwrap();
 
     let x = func.arg(0).unwrap();
     let ptr1 = func.alloca(1);

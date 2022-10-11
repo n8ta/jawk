@@ -7,7 +7,7 @@ fn main() {
 
     // This function multiplies int by 2
     let int_type = Context::int_type();
-    let mut func_mult_by_2 = context.function(Abi::Cdecl, int_type, vec![int_type]).unwrap();
+    let mut func_mult_by_2 = context.function(Abi::Cdecl, &int_type, vec![int_type]).unwrap();
     let x = func_mult_by_2.arg(0).unwrap();
     let const_1 = func_mult_by_2.create_int_constant(2);
     let temp1 = func_mult_by_2.insn_mult(&x, &const_1);
@@ -15,7 +15,7 @@ fn main() {
     func_mult_by_2.compile();
 
     // This main function has 1 arg, it adds 5 to the arg and calls func_mult_by_2 and returns that value.
-    let mut func = context.function(Abi::Cdecl, int_type, vec![int_type]).unwrap();
+    let mut func = context.function(Abi::Cdecl, &int_type, vec![int_type]).unwrap();
     let arg0 = func.arg(0).unwrap();
     let five = func.create_int_constant(5);
     let arg0_plus_5 = func.insn_add(&arg0, &five);

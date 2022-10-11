@@ -7,7 +7,7 @@ fn main() {
 
     let int_type = Context::int_type();
     let params = vec![int_type, int_type, int_type];
-    let mut func = context.function(Abi::Cdecl, int_type, params).unwrap();
+    let mut func = context.function(Abi::Cdecl, &int_type, params).unwrap();
 
     let x = func.arg(0).unwrap();
     let y = func.arg(1).unwrap();
