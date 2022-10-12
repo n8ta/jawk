@@ -867,7 +867,7 @@ test!(
 );
 
 test!(
-    test_array_get,
+    test_array_get_1,
     "BEGIN { print a[0] }",
     ONE_LINE,
     "\n"

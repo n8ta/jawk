@@ -1,5 +1,4 @@
 use crate::{analyze, Symbolizer};
-use crate::symbolizer::Symbol;
 
 #[cfg(test)]
 fn test_exception(program: &str, error_includes_msg: &str) {

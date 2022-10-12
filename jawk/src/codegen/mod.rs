@@ -1,32 +1,21 @@
-mod scopes;
-// mod runtime;
-// mod subroutines;
-
 pub use value::{ValuePtrT, ValueT};
 
-mod subroutines;
 mod value;
 mod helpers;
 mod globals;
 mod codegen_consts;
 
-use crate::codegen::scopes::Scopes;
-use crate::codegen::subroutines::Subroutines;
-use crate::lexer::{BinOp, LogicalOp, MathOp};
-use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
+use crate::parser::{Program, ScalarType, Stmt, TypedExpr};
+use crate::lexer::{LogicalOp, MathOp};
 use crate::printable_error::PrintableError;
 use crate::runtime::{LiveRuntime, Runtime, TestRuntime};
 use crate::{AnalysisResults, Expr, Symbolizer};
-use gnu_libjit::{Abi, Context, Function, Label, Value};
-use std::collections::{HashMap, HashSet};
+use gnu_libjit::{Abi, Context, Label, Value};
+use std::collections::{HashMap};
 use std::os::raw::{c_char, c_int, c_long, c_void};
-use std::rc::Rc;
 use crate::codegen::codegen_consts::CodegenConsts;
 use crate::codegen::globals::Globals;
-use crate::global_scalars::GlobalScalars;
-use crate::parser::Stmt::Print;
 use crate::symbolizer::Symbol;
-use crate::typing::{TypedProgram, TypedFunc};
 
 /// ValueT is the jit values that make up a struct. It's not a tagged union
 /// just a struct with only one other field being valid to read at a time based on the tag field.
@@ -65,7 +54,6 @@ pub fn compile_and_capture(prog: Program, files: &[String], symbolizer: &mut Sym
 struct CodeGen<'a, RuntimeT: Runtime> {
     // Core stuff
     pub(crate) function: gnu_libjit::Function,
-    scopes: Scopes,
     // Stores the points to each global variable in the program
     pub(crate) context: Context,
     // The jit context
@@ -74,9 +62,6 @@ struct CodeGen<'a, RuntimeT: Runtime> {
     symbolizer: &'a mut Symbolizer,
 
     array_map: HashMap<String, i32>, // Map each array name to its unique identifier
-
-    // Used for commonly reused snippets like string-truthyness etc.
-    subroutines: Subroutines,
 
     // These are local variables that we use as scratch space.
     binop_scratch: ValuePtrT,
@@ -132,7 +117,6 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         let var_arg_scratch = unsafe { libc::malloc(100 * 8) };
         let var_arg_scratch = function.create_void_ptr_constant(var_arg_scratch);
 
-        let subroutines = Subroutines::new(&mut context, runtime);
         let mut function_map = HashMap::new();
         function_map.insert(symbolizer.get("main function"), function.clone());
         let globals = Globals::new(AnalysisResults::new(), runtime, &mut function, symbolizer);
@@ -140,10 +124,8 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             var_arg_scratch,
             array_map: HashMap::new(),
             function,
-            scopes: Scopes::new(),
             context,
             runtime,
-            subroutines,
             binop_scratch,
             ptr_scratch,
             binop_scratch_int,
@@ -191,14 +173,15 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     fn compile(&mut self, mut prog: Program, dump: bool) -> Result<(), PrintableError> {
         let zero = self.function.create_float64_constant(0.0);
 
+        let num_arrays = prog.global_analysis.global_arrays.len();
         let mut global_analysis = AnalysisResults::new();
         std::mem::swap(&mut global_analysis, &mut prog.global_analysis);
         self.globals = Globals::new(global_analysis, self.runtime, &mut self.function, self.symbolizer);
 
-        // START
         self.return_lbl = Some(Label::new());
         let main = self.symbolizer.get("main function");
         let main = prog.functions.get(&main).unwrap();
+        self.runtime.allocate_arrays(num_arrays);
         self.compile_stmt(&main.body)?;
         self.function.insn_label(&mut self.return_lbl.clone().unwrap());
 
@@ -236,7 +219,6 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     //     //     match arg_typ {
     //     //         ArgT::Scalar => {
     //     //             let mut scalar = self.new_stack_value();
-    //     //             self.scopes.insert_scalar(arg.name.clone(), scalar.clone())?;
     //     //             let tag = self.function.arg(arg_idx).unwrap();
     //     //             let float = self.function.arg(arg_idx + 1).unwrap();
     //     //             let ptr = self.function.arg(arg_idx + 2).unwrap();
@@ -400,14 +382,9 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                 ValueT::new(self.string_tag(), self.zero_f(), new_ptr)
             }
             Expr::Regex(str) => {
-                // Every string constant is stored in a variable with the name " name"
-                // the space ensures we don't collide with normal variable names;
-                let string_tag = self.string_tag();
-                let mut var_ptr = self.globals.get(&self.symbolizer.get(format!(" {}", str)), &mut self.function)?;
-                let var = self.load(&mut var_ptr);
-                let zero = self.function.create_float64_constant(0.0);
-                let new_ptr = self.runtime.copy_string(&mut self.function, var.pointer);
-                ValueT::new(string_tag, zero, new_ptr)
+                let ptr = self.function.create_void_ptr_constant(self.globals.get_const_str(&str)?);
+                let new_ptr = self.runtime.copy_string(&mut self.function, ptr);
+                ValueT::new(self.string_tag(), self.zero_f(), new_ptr)
             }
             Expr::MathOp(left_expr, op, right_expr) => {
                 // Convert left and right to floats if needed and perform the MathOp
@@ -602,7 +579,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             Expr::ArrayIndex { name, indices } => {
                 let values = self.compile_exprs_to_string(indices)?;
                 let indices = self.concat_indices(&values);
-                let array_id = self.scopes.get_array(name).unwrap().clone();
+                let array_id = self.globals.get_array(name, &mut self.function)?;
                 // Runtime will set the out_tag out_float and out_ptr pointers to a new value. Just load em
                 self.runtime.array_access(&mut self.function, array_id, indices, self.ptr_scratch.tag.clone(), self.ptr_scratch.float.clone(), self.ptr_scratch.pointer.clone());
                 let tag = self.function.insn_load_relative(&self.ptr_scratch.tag, 0, &Context::sbyte_type());
@@ -613,7 +590,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             Expr::InArray { name, indices } => {
                 let values = self.compile_exprs_to_string(indices)?;
                 let value = self.concat_indices(&values);
-                let array_id = self.scopes.get_array(name).unwrap().clone();
+                let array_id = self.globals.get_array(name, &mut self.function)?;
                 let float_result = self.runtime.in_array(&mut self.function, array_id, value);
                 ValueT::new(self.float_tag(), float_result, self.zero_ptr())
             }
@@ -621,7 +598,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                 let rhs = self.compile_expr(value)?;
                 let values = self.compile_exprs_to_string(indices)?;
                 let indices = self.concat_indices(&values);
-                let array_id = self.scopes.get_array(name).unwrap().clone();
+                let array_id = self.globals.get_array(name, &mut self.function)?;
                 let result_copy = self.copy_if_string(rhs.clone(), value.typ);
                 self.runtime.array_assign(&mut self.function, array_id, indices, rhs.tag, rhs.float, rhs.pointer);
                 result_copy

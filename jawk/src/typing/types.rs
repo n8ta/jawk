@@ -5,7 +5,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use immutable_chunkmap::map::Map;
 use libc::glob;
-use crate::global_scalars::GlobalScalars;
+use crate::global_scalars::SymbolMapping;
 use crate::parser::{Arg, ArgT, Function, Program, ScalarType};
 use crate::PrintableError;
 use crate::symbolizer::Symbol;
@@ -32,16 +32,16 @@ pub type MapT = Map<Symbol, ScalarType, 1000>;
 
 #[derive(Debug, PartialEq)]
 pub struct AnalysisResults {
-    pub global_scalars: GlobalScalars,
-    pub global_arrays: HashMap<Symbol, i32>,
+    pub global_scalars: SymbolMapping,
+    pub global_arrays: SymbolMapping,
     pub str_consts: HashSet<Symbol>,
 }
 
 impl AnalysisResults {
     pub fn new() -> Self {
         Self {
-            global_scalars: GlobalScalars::new(),
-            global_arrays: Default::default(),
+            global_scalars: SymbolMapping::new(),
+            global_arrays: SymbolMapping::new(),
             str_consts: Default::default(),
         }
     }
@@ -144,7 +144,7 @@ impl TypedFunc {
         if let Some(_type) = global_analysis.global_scalars.get(var) {
             return Err(PrintableError::new(format!("fatal: attempt to scalar `{}` in an array context", var)));
         }
-        global_analysis.global_arrays.insert(var.clone(), global_analysis.global_arrays.len() as i32);
+        global_analysis.global_arrays.insert(&var);
         return Ok(Some(var.clone()));
     }
     pub fn use_as_scalar(&mut self, var: &Symbol, global_analysis: &mut AnalysisResults) -> Result<Option<Symbol>, PrintableError> {

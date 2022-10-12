@@ -2,13 +2,13 @@ use std::collections::{HashMap, HashSet};
 use libc::{calloc, stat};
 use crate::parser::{Arg, ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
-use crate::global_scalars::GlobalScalars;
+use crate::global_scalars::SymbolMapping;
 use crate::symbolizer::Symbol;
 use crate::typing::types::{AnalysisResults, Call, CallArg, MapT, TypedFunc, TypedProgram};
 
 pub struct FunctionAnalysis {
     global_scalars: MapT,
-    global_arrays: HashSet<Symbol>,
+    global_arrays: SymbolMapping,
     func_names: HashSet<Symbol>,
     str_consts: HashSet<Symbol>,
 }
@@ -17,7 +17,7 @@ impl FunctionAnalysis {
     pub fn new() -> Self {
         Self {
             global_scalars: MapT::new(),
-            global_arrays: HashSet::new(),
+            global_arrays: SymbolMapping::new(),
             func_names: Default::default(),
             str_consts: Default::default(),
         }
@@ -53,19 +53,14 @@ impl FunctionAnalysis {
             functions.insert(name, TypedFunc::new(func, calls));
         }
 
-        let mut global_arrays = HashMap::new();
-        for name in self.global_arrays {
-            global_arrays.insert(name, global_arrays.len() as i32);
-        }
-
-        let mut global_scalars = GlobalScalars::new();
+        let mut global_scalars = SymbolMapping::new();
         for (scalar, _) in self.global_scalars.into_iter() {
             global_scalars.insert(scalar)
         }
         let results = AnalysisResults {
             global_scalars,
             str_consts: self.str_consts,
-            global_arrays,
+            global_arrays: self.global_arrays,
         };
 
         Ok(TypedProgram::new(functions, results))
@@ -85,7 +80,7 @@ impl FunctionAnalysis {
         if self.func_names.contains(var) {
             return Err(PrintableError::new(format!("fatal: attempt to use function `{}` in a scalar context", var)));
         }
-        if self.global_arrays.contains(var) {
+        if self.global_arrays.contains_key(var) {
             return Err(PrintableError::new(format!("fatal: attempt to use array `{}` in a scalar context", var)));
         }
         self.global_scalars = self.global_scalars.insert(var.clone(), typ).0;
@@ -109,7 +104,7 @@ impl FunctionAnalysis {
         if let Some(_type) = self.global_scalars.get(var) {
             return Err(PrintableError::new(format!("fatal: attempt to scalar `{}` in an array context", var)));
         }
-        self.global_arrays.insert(var.clone());
+        self.global_arrays.insert(&var);
         Ok(())
     }
 
@@ -194,7 +189,7 @@ impl FunctionAnalysis {
                     if let Expr::Variable(var_name) = &arg.expr {
                         if let Some(arg_t) = get_arg(func_state, var_name) {
                             CallArg::new(arg_t.name.clone())
-                        } else if self.global_arrays.contains(var_name) {
+                        } else if self.global_arrays.contains_key(var_name) {
                             CallArg::new(var_name.clone())
                         } else if self.global_scalars.get(var_name).is_some() {
                             CallArg::new(var_name.clone())
@@ -259,7 +254,7 @@ impl FunctionAnalysis {
                         return Err(PrintableError::new(format!("fatal: attempted to use array {} in scalar context", var)));
                     }
                     expr.typ = ScalarType::Variable;
-                } else if self.global_arrays.contains(var) && is_returned {
+                } else if self.global_arrays.contains_key(var) && is_returned {
                     return Err(PrintableError::new(format!("fatal: attempted to use array {} in scalar context", var)));
                 } else if let Some(typ) = self.global_scalars.get(var) {
                     expr.typ = *typ;

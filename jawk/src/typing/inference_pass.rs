@@ -84,24 +84,19 @@ pub fn variable_inference(mut prog: TypedProgram) -> Result<TypedProgram, Printa
         }
     };
 
-    loop {
+    while let Some(link) = links.pop() {
         // while there are links left to analyze
-        if let Some(link) = links.pop() {
-            // forward propogate any information in the source of the link to the destination
-            let updated_syms_in_dest = forward_prop(&mut prog, &link)?;
+        // forward propogate any information in the source of the link to the destination
+        let updated_syms_in_dest = forward_prop(&mut prog, &link)?;
 
-            // if the destination updated any of it's symbols push all of the destinations calls
-            // that use those symbols back onto the stack to re-propogate
-            if updated_syms_in_dest.len() == 0 { continue; }
+        // if the destination updated any of it's symbols push all of the destinations calls
+        // that use those symbols back onto the stack to re-propogate
+        if updated_syms_in_dest.len() == 0 { continue; }
 
-            for call in &prog.functions.get(&link.call.target).unwrap().calls {
-                if call.uses_any(&updated_syms_in_dest) {
-                    links.push(CallLink { source: link.call.target.clone(), call: call.clone() })
-                }
+        for call in &prog.functions.get(&link.call.target).unwrap().calls {
+            if call.uses_any(&updated_syms_in_dest) {
+                links.push(CallLink { source: link.call.target.clone(), call: call.clone() })
             }
-        } else {
-            // No more links we are done
-            break;
         }
     }
     Ok(prog)

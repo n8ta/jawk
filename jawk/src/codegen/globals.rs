@@ -1,17 +1,17 @@
-use std::alloc::alloc;
 use std::collections::HashMap;
 use std::os::raw::c_void;
 use std::rc::Rc;
 use gnu_libjit::{Context, Function, Value};
 use crate::{AnalysisResults, PrintableError, Symbolizer};
 use crate::codegen::{STRING_TAG, ValuePtrT, ValueT};
+use crate::global_scalars::SymbolMapping;
 use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
 
 pub struct Globals {
-    mapping: HashMap<Symbol, i32>,
+    mapping: SymbolMapping,
     global_scalar_allocation: Vec<i64>,
-    arrays: HashMap<Symbol, i32>,
+    arrays: SymbolMapping,
     const_str_allocation: Vec<*mut String>,
     const_str_mapping: HashMap<Symbol, usize>,
 }
@@ -22,9 +22,7 @@ impl Globals {
         runtime: &mut RuntimeT,
         function: &mut Function,
         symbolizer: &mut Symbolizer) -> Self {
-        let arrays = analysis.global_arrays;
-        let mut mapping = analysis.global_scalars.done();
-        let scalar_memory = 3 * mapping.len() + 3 * analysis.str_consts.len();
+        let scalar_memory = 3 * analysis.global_scalars.len() + 3 * analysis.str_consts.len();
         let const_str_memory = analysis.str_consts.len();
 
         let global_scalar_allocation: Vec<i64> = Vec::with_capacity(scalar_memory);
@@ -39,13 +37,13 @@ impl Globals {
 
         let mut init = Self {
             global_scalar_allocation,
-            mapping,
-            arrays,
+            mapping: analysis.global_scalars,
+            arrays: analysis.global_arrays,
             const_str_allocation,
             const_str_mapping,
         };
 
-        for (name, _) in init.mapping.clone().iter() {
+        for (name, _) in init.mapping.mapping().clone() {
             let ptr = runtime.empty_string(function);
             let val = ValueT::new(function.create_sbyte_constant(STRING_TAG), function.create_float64_constant(0.0), ptr);
             init.set(function, &name, &val)
@@ -57,7 +55,7 @@ impl Globals {
     fn ptrs(&self,
             name: &Symbol,
             function: &mut Function) -> ValuePtrT {
-        let idx = self.mapping.get(name).unwrap();
+        let idx = self.mapping.get(name).expect(&format!("symbol not mapped to a global `{}`", name));
         self.ptrs_idx(*idx, function)
     }
     fn ptrs_idx(&self,
@@ -109,10 +107,15 @@ impl Globals {
     pub fn scalars(&mut self, function: &mut Function) -> Vec<ValueT> {
         // TODO: This should return an iterator skipping the vec allocation
         let mut values: Vec<ValueT> = Vec::with_capacity(self.mapping.len());
-        for (_, idx) in &self.mapping {
+        for (_, idx) in self.mapping.mapping() {
             let ptr = self.ptrs_idx(*idx, function);
             values.push(self.load_value(ptr, function));
         }
         values
+    }
+
+    pub fn get_array(&mut self, name: &Symbol, function: &mut Function) -> Result<Value, PrintableError> {
+        let idx = self.arrays.get(name).expect(&format!("expected array to exist `{}`", name));
+        Ok(function.create_int_constant(*idx))
     }
 }

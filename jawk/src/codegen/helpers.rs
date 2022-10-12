@@ -1,16 +1,10 @@
-use crate::codegen::scopes::Scopes;
-use crate::codegen::subroutines::Subroutines;
-use crate::lexer::{BinOp, LogicalOp, MathOp};
-use crate::parser::{Program, ScalarType, Stmt, TypedExpr};
+use crate::lexer::{BinOp};
+use crate::parser::{ScalarType, TypedExpr};
 use crate::printable_error::PrintableError;
-use crate::runtime::{LiveRuntime, Runtime, TestRuntime};
-use crate::Expr;
-use gnu_libjit::{Abi, Context, Function, Label, Value};
-use std::collections::HashSet;
-use std::os::raw::{c_char, c_long, c_void};
-use std::rc::Rc;
+use crate::runtime::{Runtime};
+use gnu_libjit::{Context, Function, Label, Value};
+use std::os::raw::{c_long};
 use crate::codegen::{CodeGen, ValuePtrT, ValueT};
-use crate::typing::TypedProgram;
 
 fn float_to_string<RuntimeT: Runtime>(func: &mut Function, runtime: &mut RuntimeT, value: &ValueT) -> Value {
     runtime.number_to_string(func, value.float.clone())
@@ -83,54 +77,22 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         self.function.insn_load(&temp_storage)
     }
 
-    pub fn new_stack_value(&mut self) -> ValuePtrT {
-        ValuePtrT::new(
-            self.function.create_value_int(),
-            self.function.create_value_float64(),
-            self.function.create_value_void_ptr())
-    }
-
-    pub fn define_all_globals(&mut self, prog: &Program) -> Result<(), PrintableError> {
-
-        // for (sym, idx) in prog.global_analysis.global_scalars.mapping() {
-        // }
-        //
-        // for (var, idx) in prog.global_analysis.global_scalars.mapping() {
-        //     let mut stack_value = self.new_stack_value();
-        //     let init_value = ValueT::new(self.c.string_tag.clone(), self.zero_f.clone(), self.runtime.empty_string(&mut self.function));
-        //     self.store(&mut stack_value, &init_value);
-        //     self.scopes.insert_scalar(var.clone(), stack_value)?;
-        // }
-
-        // // All string constants like a in `print "a"`; are stored in a variable
-        // // the name of the variable is " a". Just a space in front to prevent collisions.
-        // for str_const in prog.global_analysis.str_consts.clone() {
-        //     let mut stack_value = self.new_stack_value();
-        //     let space_in_front = self.symbolizer.get(format!(" {}", str_const));
-        //
-        //     let ptr = Rc::into_raw(Rc::new(str_const)) as *mut c_void;
-        //     let ptr = self.function.create_void_ptr_constant(ptr);
-        //     let defaults = ValueT::new(self.c.string_tag.clone(), self.zero_f.clone(), ptr);
-        //
-        //     self.store(&mut stack_value, &defaults);
-        //     self.scopes.insert_scalar(space_in_front, stack_value)?;
-        // }
-        Ok(())
-    }
-
-    pub fn float_is_truthy_ret_int(&mut self, value: &Value) -> Value {
-        let zero_f = self.function.create_float64_constant(0.0);
-        self.function.insn_ne(&value, &zero_f)
-    }
-
     pub fn val_to_float(&mut self, value: &ValueT, typ: ScalarType) -> Value {
         if typ == ScalarType::Float {
             return value.float.clone();
         }
-        self.function.insn_call(
-            &self.subroutines.to_float(&mut self.context, self.runtime),
-            value.into(),
-        )
+
+        let zero = self.function.create_sbyte_constant(0);
+        let mut done_lbl = Label::new();
+        self.function.insn_store(&&self.binop_scratch.float, &value.float);
+        let is_float = self.function.insn_eq(&value.tag, &zero);
+        self.function.insn_branch_if(&is_float, &mut done_lbl);
+
+        let res = self.runtime.string_to_number(&mut self.function, value.pointer.clone());
+        self.function.insn_store(&&self.binop_scratch.float, &res);
+
+        self.function.insn_label(&mut done_lbl);
+        self.function.insn_load(&self.binop_scratch.float)
     }
 
     pub fn val_to_string(&mut self, value: &ValueT, typ: ScalarType) -> Value {
@@ -144,15 +106,6 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             float_to_string,
             string_to_string,
         )
-    }
-
-    // Free the value in the value pointer if it's a string
-    pub fn drop_if_string_ptr(&mut self, value: &mut ValuePtrT, typ: ScalarType) {
-        if let ScalarType::Float = typ {
-            return;
-        }
-        let value = self.load(value);
-        self.drop_if_str(&value, typ)
     }
 
     // Free the value if it's a string

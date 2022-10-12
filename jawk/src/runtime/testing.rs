@@ -266,7 +266,8 @@ extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
     data.calls.log(Call::ArrayAccess);
     data.string_in("array_access_index", &*index);
 
-    let array = &mut data.arrays[array as usize];
+    let msg = format!("Array {} exist", array);
+    let array = &mut data.arrays.get(array as usize).expect(&msg);
     unsafe {
         if let Some((tag, float, str)) = array.get(&*index) {
             *out_tag = *tag;

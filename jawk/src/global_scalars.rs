@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use crate::symbolizer::Symbol;
 
 #[derive(Debug, PartialEq)]
-pub struct GlobalScalars {
+pub struct SymbolMapping {
     mapping: HashMap<Symbol, i32>,
 }
 
-impl GlobalScalars {
+impl SymbolMapping {
     pub fn new() -> Self { Self { mapping: HashMap::new() } }
     pub fn insert(&mut self, symbol: &Symbol) {
         if self.mapping.contains_key(&symbol) {
@@ -27,7 +27,7 @@ impl GlobalScalars {
         self.mapping.contains_key(symbol)
     }
 
-    pub fn done(self) -> HashMap<Symbol, i32> {
-        self.mapping
+    pub fn len(&self) -> usize {
+        self.mapping.len()
     }
 }
