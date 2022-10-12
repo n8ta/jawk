@@ -1,0 +1,33 @@
+use std::collections::HashMap;
+use crate::symbolizer::Symbol;
+
+#[derive(Debug, PartialEq)]
+pub struct GlobalScalars {
+    mapping: HashMap<Symbol, i32>,
+}
+
+impl GlobalScalars {
+    pub fn new() -> Self { Self { mapping: HashMap::new() } }
+    pub fn insert(&mut self, symbol: &Symbol) {
+        if self.mapping.contains_key(&symbol) {
+            return;
+        } else {
+            self.mapping.insert(symbol.clone(), self.mapping.len() as i32)
+        };
+    }
+    pub fn get(&self, symbol: &Symbol) -> Option<&i32> {
+        self.mapping.get(symbol)
+    }
+
+    pub fn mapping(&self) -> &HashMap<Symbol, i32> {
+        &self.mapping
+    }
+
+    pub fn contains_key(&self, symbol: &Symbol) -> bool {
+        self.mapping.contains_key(symbol)
+    }
+
+    pub fn done(self) -> HashMap<Symbol, i32> {
+        self.mapping
+    }
+}

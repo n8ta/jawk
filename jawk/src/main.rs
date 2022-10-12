@@ -18,6 +18,7 @@ mod runtime;
 mod test;
 mod typing;
 mod symbolizer;
+mod global_scalars;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

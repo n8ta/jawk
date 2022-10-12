@@ -70,10 +70,14 @@ extern "C" fn column(
 extern "C" fn free_string(data_ptr: *mut c_void, ptr: *mut String) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::FreeString);
+    println!("string is {:?}", ptr);
 
 
     let string_data = unsafe { Rc::from_raw(ptr) };
     data.string_in("free_string", &*string_data);
+    if Rc::strong_count(&string_data) > 1000 {
+        panic!("count is very large! {}", Rc::strong_count(&string_data));
+    }
     println!(
         "\tstring is: '{}' count is now: {}",
         string_data,
@@ -115,6 +119,7 @@ extern "C" fn empty_string(data: *mut c_void) -> *const String {
     let rc = Rc::new("".to_string());
     data.string_out("empty_string", &*rc);
     let ptr = Rc::into_raw(rc);
+    println!("\tstring is {:?}", ptr);
     ptr
 }
 

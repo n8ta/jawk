@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use libc::{calloc, stat};
 use crate::parser::{Arg, ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
+use crate::global_scalars::GlobalScalars;
 use crate::symbolizer::Symbol;
 use crate::typing::types::{AnalysisResults, Call, CallArg, MapT, TypedFunc, TypedProgram};
 
@@ -9,7 +10,7 @@ pub struct FunctionAnalysis {
     global_scalars: MapT,
     global_arrays: HashSet<Symbol>,
     func_names: HashSet<Symbol>,
-    str_consts: HashSet<String>,
+    str_consts: HashSet<Symbol>,
 }
 
 impl FunctionAnalysis {
@@ -57,9 +58,9 @@ impl FunctionAnalysis {
             global_arrays.insert(name, global_arrays.len() as i32);
         }
 
-        let mut global_scalars: HashMap<Symbol, i32> = HashMap::new();
-        for (scalar, typ) in self.global_scalars.into_iter() {
-            global_scalars.insert(scalar.clone(), global_scalars.len() as i32);
+        let mut global_scalars = GlobalScalars::new();
+        for (scalar, _) in self.global_scalars.into_iter() {
+            global_scalars.insert(scalar)
         }
         let results = AnalysisResults {
             global_scalars,
@@ -211,7 +212,7 @@ impl FunctionAnalysis {
                 expr.typ = ScalarType::Float;
             }
             Expr::String(str) => {
-                self.str_consts.insert(str.to_string());
+                self.str_consts.insert(str.clone());
                 expr.typ = ScalarType::String;
             }
             Expr::BinOp(left, _op, right) => {
@@ -234,8 +235,8 @@ impl FunctionAnalysis {
                 self.use_as_scalar(var, value.typ, func_state)?;
                 expr.typ = value.typ;
             }
-            Expr::Regex(str) => {
-                self.str_consts.insert(str.to_string());
+            Expr::Regex(sym) => {
+                self.str_consts.insert(sym.clone());
                 expr.typ = ScalarType::String;
             }
             Expr::Ternary(cond, expr1, expr2) => {

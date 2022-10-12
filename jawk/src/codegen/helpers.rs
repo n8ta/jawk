@@ -40,13 +40,17 @@ fn truthy_string<RuntimeT: Runtime>(function: &mut Function, _runtime: &mut Runt
 impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     // Helpers for commonly used values
     pub fn float_tag(&self) -> Value {
-        self.float_tag.clone()
+        self.c.float_tag.clone()
     }
     pub fn string_tag(&self) -> Value {
-        self.string_tag.clone()
+        self.c.string_tag.clone()
     }
     pub fn zero_f(&self) -> Value {
-        self.zero_f.clone()
+        self.c.zero_f.clone()
+    }
+
+    pub fn zero_ptr(&self) -> Value {
+        self.c.zero_ptr.clone()
     }
 
     pub fn cases(
@@ -87,34 +91,30 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     }
 
     pub fn define_all_globals(&mut self, prog: &Program) -> Result<(), PrintableError> {
-        // All variables are init'ed to the empty string.
-        for (var, global_idx) in prog.global_analysis.global_scalars.clone() {
-            let mut stack_value = self.new_stack_value();
-            let init_value = ValueT::new(self.string_tag.clone(), self.zero_f.clone(), self.runtime.empty_string(&mut self.function));
-            self.store(&mut stack_value, &init_value);
-            self.scopes.insert_scalar(var.clone(), stack_value)?;
-        }
 
-        // All string constants like a in `print "a"`; are stored in a variable
-        // the name of the variable is " a". Just a space in front to prevent collisions.
-        for str_const in prog.global_analysis.str_consts.clone() {
-            let mut stack_value = self.new_stack_value();
-            let space_in_front = self.symbolizer.get(format!(" {}", str_const));
+        // for (sym, idx) in prog.global_analysis.global_scalars.mapping() {
+        // }
+        //
+        // for (var, idx) in prog.global_analysis.global_scalars.mapping() {
+        //     let mut stack_value = self.new_stack_value();
+        //     let init_value = ValueT::new(self.c.string_tag.clone(), self.zero_f.clone(), self.runtime.empty_string(&mut self.function));
+        //     self.store(&mut stack_value, &init_value);
+        //     self.scopes.insert_scalar(var.clone(), stack_value)?;
+        // }
 
-            let ptr = Rc::into_raw(Rc::new(str_const)) as *mut c_void;
-            let ptr = self.function.create_void_ptr_constant(ptr);
-            let defaults = ValueT::new(self.string_tag.clone(), self.zero_f.clone(), ptr);
-
-            self.store(&mut stack_value, &defaults);
-            self.scopes.insert_scalar(space_in_front, stack_value)?;
-        }
-
-        self.runtime.allocate_arrays(prog.global_analysis.global_arrays.len());
-
-        for (name, idx) in prog.global_analysis.global_arrays.clone() {
-            let int_value = self.function.create_int_constant(idx);
-            self.scopes.insert_array(name.clone(), int_value)?;
-        }
+        // // All string constants like a in `print "a"`; are stored in a variable
+        // // the name of the variable is " a". Just a space in front to prevent collisions.
+        // for str_const in prog.global_analysis.str_consts.clone() {
+        //     let mut stack_value = self.new_stack_value();
+        //     let space_in_front = self.symbolizer.get(format!(" {}", str_const));
+        //
+        //     let ptr = Rc::into_raw(Rc::new(str_const)) as *mut c_void;
+        //     let ptr = self.function.create_void_ptr_constant(ptr);
+        //     let defaults = ValueT::new(self.c.string_tag.clone(), self.zero_f.clone(), ptr);
+        //
+        //     self.store(&mut stack_value, &defaults);
+        //     self.scopes.insert_scalar(space_in_front, stack_value)?;
+        // }
         Ok(())
     }
 
@@ -197,7 +197,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                 let mut done = Label::new();
                 let is_string = self.function.insn_eq(&str_tag, &value.tag);
                 self.function
-                    .insn_store(&self.binop_scratch.pointer, &self.zero_ptr);
+                    .insn_store(&self.binop_scratch.pointer, &self.c.zero_ptr);
                 self.function.insn_branch_if_not(&is_string, &mut done);
                 let ptr = self.runtime.copy_string(&mut self.function, value.pointer);
                 self.function.insn_store(&self.binop_scratch.pointer, &ptr);

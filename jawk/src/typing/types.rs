@@ -5,6 +5,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use immutable_chunkmap::map::Map;
 use libc::glob;
+use crate::global_scalars::GlobalScalars;
 use crate::parser::{Arg, ArgT, Function, Program, ScalarType};
 use crate::PrintableError;
 use crate::symbolizer::Symbol;
@@ -29,17 +30,17 @@ impl Into<VarType> for ScalarType {
 
 pub type MapT = Map<Symbol, ScalarType, 1000>;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct AnalysisResults {
-    pub global_scalars: HashMap<Symbol, i32>,
+    pub global_scalars: GlobalScalars,
     pub global_arrays: HashMap<Symbol, i32>,
-    pub str_consts: HashSet<String>,
+    pub str_consts: HashSet<Symbol>,
 }
 
 impl AnalysisResults {
     pub fn new() -> Self {
         Self {
-            global_scalars: Default::default(),
+            global_scalars: GlobalScalars::new(),
             global_arrays: Default::default(),
             str_consts: Default::default(),
         }
@@ -162,7 +163,7 @@ impl TypedFunc {
         if let Some(_type) = global_analysis.global_arrays.get(var) {
             return Err(PrintableError::new(format!("fatal: attempt to array `{}` in an scalar context", var)));
         }
-        global_analysis.global_scalars.insert(var.clone(), global_analysis.global_arrays.len() as i32);
+        global_analysis.global_scalars.insert(&var);
         return Ok(Some(var.clone()));
     }
 }

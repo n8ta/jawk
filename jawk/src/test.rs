@@ -158,6 +158,7 @@ test!(
     ONE_LINE,
     "1\n2\n3\n"
 );
+test!(test_empty, "BEGIN { }", ONE_LINE, "");
 test!(test_1_assgn, "BEGIN {x = 1; }", ONE_LINE, "");
 test!(test_4_assgn, "BEGIN {x = 4; print x }", ONE_LINE, "4\n");
 test!(test_cmpop2, "BEGIN { print (3 < 5) }", ONE_LINE, "1\n");

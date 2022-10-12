@@ -533,8 +533,8 @@ fn string_concat() {
 #[test]
 fn string_concat2() {
     actual!(actual, "{ print (\"a\" \"b\") } ", symbolizer);
-    let a = texpr!(Expr::String("a".to_string()));
-    let b = texpr!(Expr::String("b".to_string()));
+    let a = texpr!(Expr::String(symbolizer.get("a")));
+    let b = texpr!(Expr::String(symbolizer.get("b")));
     let print = Stmt::Print(texpr!(Expr::Concatenation(vec![a, b])));
     assert_eq!(actual, sprogram!(print, &mut symbolizer));
 }
@@ -720,7 +720,7 @@ fn test_printf_simple() {
 #[test]
 fn test_printf_multi() {
     actual!(actual, "{ printf \"%s%s%s\", 1, 2, 3 }", symbolizer);
-    let stmt = Stmt::Printf { fstring: Expr::String("%s%s%s".to_string()).into(), args: vec![num!(1.0), num!(2.0), num!(3.0)] }.into();
+    let stmt = Stmt::Printf { fstring: Expr::String(symbolizer.get("%s%s%s")).into(), args: vec![num!(1.0), num!(2.0), num!(3.0)] }.into();
     assert_eq!(actual, sprogram!(stmt, &mut symbolizer));
 }
 
@@ -742,7 +742,7 @@ fn test_call() {
     let a = symbolizer.get("a");
     let args = vec![
         Expr::NumberF64(1.0).into(),
-        Expr::String("2".to_string()).into(),
+        Expr::String(symbolizer.get("2")).into(),
     ];
     let begin = Stmt::Expr(Expr::Call { target: a, args }.into());
     assert_eq!(actual, Program::new(symbolizer.get("main function"), vec![begin], vec![], vec![], vec![]))
