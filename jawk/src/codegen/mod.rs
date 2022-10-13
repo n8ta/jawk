@@ -316,7 +316,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                     self.drop_if_str(&test_value, test.typ);
                     let mut done_lbl = Label::new();
                     self.function.insn_branch_if_not(&bool_value, &mut done_lbl);
-                    self.compile_stmt(if_so);
+                    self.compile_stmt(if_so)?;
                     self.function.insn_label(&mut done_lbl);
                 }
             }
@@ -577,11 +577,31 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                 self.load(&mut self.binop_scratch.clone())
             }
             Expr::ArrayIndex { name, indices } => {
-                let values = self.compile_exprs_to_string(indices)?;
-                let indices = self.concat_indices(&values);
                 let array_id = self.globals.get_array(name, &mut self.function)?;
-                // Runtime will set the out_tag out_float and out_ptr pointers to a new value. Just load em
-                self.runtime.array_access(&mut self.function, array_id, indices, self.ptr_scratch.tag.clone(), self.ptr_scratch.float.clone(), self.ptr_scratch.pointer.clone());
+
+                if indices.len() == 1 {
+                    let val = self.compile_expr(&indices[0])?;
+                    self.runtime.array_access(&mut self.function, array_id,
+                                              val.tag,
+                                              val.float,
+                                              val.pointer,
+                                              self.ptr_scratch.tag.clone(),
+                                              self.ptr_scratch.float.clone(),
+                                              self.ptr_scratch.pointer.clone());
+                } else {
+                    let values = self.compile_exprs_to_string(indices)?;
+                    let indices = self.concat_indices(&values);
+                    // Runtime will set the out_tag out_float and out_ptr pointers to a new value. Just load em
+                    let str_tag = self.string_tag();
+                    let zero_f = self.zero_f();
+                    self.runtime.array_access(&mut self.function, array_id,
+                                              str_tag,
+                                              zero_f,
+                                              indices,
+                                              self.ptr_scratch.tag.clone(),
+                                              self.ptr_scratch.float.clone(),
+                                              self.ptr_scratch.pointer.clone());
+                }
                 let tag = self.function.insn_load_relative(&self.ptr_scratch.tag, 0, &Context::sbyte_type());
                 let float = self.function.insn_load_relative(&self.ptr_scratch.float, 0, &Context::float64_type());
                 let pointer = self.function.insn_load_relative(&self.ptr_scratch.pointer, 0, &Context::void_ptr_type());
@@ -591,17 +611,38 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                 let values = self.compile_exprs_to_string(indices)?;
                 let value = self.concat_indices(&values);
                 let array_id = self.globals.get_array(name, &mut self.function)?;
-                let float_result = self.runtime.in_array(&mut self.function, array_id, value);
+                let str_tag = self.string_tag();
+                let zero_f = self.zero_f();
+                let float_result = self.runtime.in_array(&mut self.function, array_id, str_tag, zero_f, value);
                 ValueT::new(self.float_tag(), float_result, self.zero_ptr())
             }
             Expr::ArrayAssign { name, indices, value } => {
-                let rhs = self.compile_expr(value)?;
-                let values = self.compile_exprs_to_string(indices)?;
-                let indices = self.concat_indices(&values);
                 let array_id = self.globals.get_array(name, &mut self.function)?;
-                let result_copy = self.copy_if_string(rhs.clone(), value.typ);
-                self.runtime.array_assign(&mut self.function, array_id, indices, rhs.tag, rhs.float, rhs.pointer);
-                result_copy
+                let rhs = self.compile_expr(value)?;
+                if indices.len() == 1 {
+                    let indices = self.compile_expr(&indices[0])?;
+
+                    let result_copy = self.copy_if_string(rhs.clone(), value.typ);
+                    self.runtime.array_assign(&mut self.function, array_id,
+                                              indices.tag,
+                                              indices.float,
+                                              indices.pointer,
+                                              rhs.tag, rhs.float, rhs.pointer);
+                    result_copy
+                } else {
+                    let values = self.compile_exprs_to_string(indices)?;
+                    let indices = self.concat_indices(&values);
+                    let result_copy = self.copy_if_string(rhs.clone(), value.typ);
+                    let str_tag = self.string_tag();
+                    let zero_f = self.zero_f();
+
+                    self.runtime.array_assign(&mut self.function, array_id,
+                                              str_tag,
+                                              zero_f,
+                                              indices,
+                                              rhs.tag, rhs.float, rhs.pointer);
+                    result_copy
+                }
             }
         })
     }

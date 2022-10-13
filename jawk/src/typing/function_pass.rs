@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use libc::{calloc, stat};
 use crate::parser::{Arg, ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
 use crate::global_scalars::SymbolMapping;
@@ -38,7 +37,7 @@ struct FuncState<'a> {
 }
 
 impl FunctionAnalysis {
-    pub fn analyze_program(mut self, mut prog: Program) -> Result<TypedProgram, PrintableError> {
+    pub fn analyze_program(mut self, prog: Program) -> Result<TypedProgram, PrintableError> {
         for (name, _) in &prog.functions {
             self.func_names.insert(name.clone());
         }

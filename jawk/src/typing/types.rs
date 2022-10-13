@@ -1,10 +1,5 @@
-use std::borrow::{Borrow, BorrowMut};
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
-use std::rc::Rc;
 use immutable_chunkmap::map::Map;
-use libc::glob;
 use crate::global_scalars::SymbolMapping;
 use crate::parser::{Arg, ArgT, Function, Program, ScalarType};
 use crate::PrintableError;

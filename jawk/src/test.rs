@@ -909,6 +909,13 @@ test!(
 );
 
 test!(
+    test_perf_array,
+    "BEGIN { while (x<500000) { arr[x] = 1+x++  }; sum = 0; x = 0; while (x++ < 500000) { sum += arr[x] }; print sum}",
+    ONE_LINE,
+    "125000250000\n"
+);
+
+test!(
     test_in_array_3,
     "BEGIN { a[4] = 4; a[1,2,3] = 3; print (1,2,3) in a; print (123 in a) }",
     ONE_LINE,

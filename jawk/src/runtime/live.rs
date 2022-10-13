@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use std::env::var;
 use crate::codegen::{FLOAT_TAG, STRING_TAG, ValueT};
 use crate::columns::Columns;
@@ -9,8 +9,10 @@ use std::ffi::c_void;
 use std::fmt::{Write as FmtWrite};
 use std::io::{BufWriter, StdoutLock, Write};
 use std::rc::Rc;
+use hashbrown::hash_map::{DefaultHashBuilder, Entry};
 use mawk_regex::Regex;
 use lru_cache::LruCache;
+use crate::runtime::arrays::{Arrays, MapValue};
 
 // Live runtime used by most programs.
 // A pointer to the runtime data is provided for all calls but only used for some.
@@ -104,8 +106,8 @@ extern "C" fn binop(
             let reg = match data.regex_cache.get_mut(&*right) {
                 Some(cachedRegex) => cachedRegex,
                 None => {
-                    let RE = Regex::new(&right);
-                    data.regex_cache.insert((&*right).clone(), RE);
+                    let re = Regex::new(&right);
+                    data.regex_cache.insert((&*right).clone(), re);
                     data.regex_cache.get_mut(&*right).unwrap()
                 }
             };
@@ -115,8 +117,8 @@ extern "C" fn binop(
             let reg = match data.regex_cache.get_mut(&*right) {
                 Some(cachedRegex) => cachedRegex,
                 None => {
-                    let RE = Regex::new(&right);
-                    data.regex_cache.insert((&*right).clone(), RE);
+                    let re = Regex::new(&right);
+                    data.regex_cache.insert((&*right).clone(), re);
                     data.regex_cache.get_mut(&*right).unwrap()
                 }
             };
@@ -149,7 +151,8 @@ extern "C" fn number_to_string(_data: *mut c_void, value: f64) -> *const String 
     } else {
         value
     };
-    Rc::into_raw(Rc::new(value.to_string()))
+    let str = value.to_string();
+    Rc::into_raw(Rc::new(str))
 }
 
 extern "C" fn copy_string(_data: *mut c_void, ptr: *mut String) -> *const String {
@@ -165,61 +168,63 @@ extern "C" fn print_error(data: *mut std::os::raw::c_void, code: ErrorCode) {
 
 extern "C" fn array_assign(data_ptr: *mut std::os::raw::c_void,
                            array: i32,
-                           index: *mut String, tag: i8, float: f64, ptr: *mut String) {
+                           key_tag: i8,
+                           key_num: f64,
+                           key_ptr: *mut String,
+                           tag: i8,
+                           float: f64,
+                           ptr: *mut String) {
     let data = cast_to_runtime_data(data_ptr);
-    let index = unsafe {
-        Rc::from_raw(index)
-    };
-    let array = &mut data.arrays[array as usize];
-
-    if let Some(val) = array.get_mut(&*index) {
-        if val.0 == STRING_TAG {
-            free_string(data_ptr, val.2);
+    let res = data.arrays.assign(array, (key_tag, key_num, key_ptr), (tag, float, ptr));
+    match res {
+        None => {}
+        Some((existing_tag, existing_float, existing_ptr)) => {
+            if existing_tag == STRING_TAG {
+                free_string(data_ptr, existing_ptr);
+            }
         }
-        val.0 = tag;
-        val.1 = float;
-        val.2 = ptr;
-    } else {
-        array.insert(index, (tag, float, ptr));
     }
 }
 
 extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
                            array: i32,
-                           index: *mut String,
+                           in_tag: i8,
+                           in_float: f64,
+                           in_ptr: *mut String,
                            out_tag: *mut i8,
                            out_float: *mut f64,
                            out_value: *mut (*mut String)) {
     let data = cast_to_runtime_data(data_ptr);
-    let index = unsafe {
-        Rc::from_raw(index)
-    };
-
-    let array = &mut data.arrays[array as usize];
-    unsafe {
-        if let Some((tag, float, str)) = array.get(&*index) {
-            *out_tag = *tag;
-            *out_float = *float;
-            if *tag == STRING_TAG {
-                let rc = unsafe { Rc::from_raw(*str) };
-                let cloned = rc.clone();
-                Rc::into_raw(rc);
-                *out_value = Rc::into_raw(cloned) as *mut String;
+    match data.arrays.access(array, (in_tag, in_float, in_ptr)) {
+        None => {
+            unsafe {
+                *out_tag = STRING_TAG;
+                *out_value = empty_string(data_ptr) as *mut String;
             }
-        } else {
-            *out_tag = STRING_TAG;
-            *out_value = empty_string(data_ptr) as *mut String;
+        }
+        Some((tag, float, str)) => {
+            unsafe {
+                *out_tag = *tag;
+                *out_float = *float;
+                if *tag == STRING_TAG {
+                    let rc = unsafe { Rc::from_raw(*str) };
+                    let cloned = rc.clone();
+                    Rc::into_raw(rc);
+                    *out_value = Rc::into_raw(cloned) as *mut String;
+                }
+            }
         }
     }
 }
 
 extern "C" fn in_array(data_ptr: *mut c_void, array: i32, index: *mut String) -> f64 {
-    let indices = unsafe { Rc::from_raw(index) };
-    let data = cast_to_runtime_data(data_ptr);
-    let array = &data.arrays[array as usize];
-    unsafe {
-        if array.contains_key(&*index) { 1.0 } else { 0.0 }
-    }
+    // let indices = unsafe { Rc::from_raw(index) };
+    // let data = cast_to_runtime_data(data_ptr);
+    // let array = &data.arrays[array as usize];
+    // unsafe {
+    //     if array.contains_key(&*index) { 1.0 } else { 0.0 }
+    // }
+    1.1
 }
 
 extern "C" fn concat_array_indices(
@@ -256,7 +261,6 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
         }
         // Rc::from_raw(fstring)
     };
-
 }
 
 extern "C" fn helper(_data_ptr: *mut std::os::raw::c_void, _str: usize, _size: usize) -> f64 {
@@ -300,7 +304,7 @@ pub struct RuntimeData {
     buffer: String,
     stdout: BufWriter<StdoutLock<'static>>,
     regex_cache: LruCache<String, Regex>,
-    arrays: Vec<HashMap<Rc<String>, (i8, f64, *mut String)>>,
+    arrays: Arrays,
 }
 
 impl RuntimeData {
@@ -310,7 +314,7 @@ impl RuntimeData {
             columns: Columns::new(files),
             stdout: BufWriter::new(std::io::stdout().lock()),
             regex_cache: LruCache::new(10),
-            arrays: vec![],
+            arrays: Arrays::new(),
         }
     }
 }
@@ -356,9 +360,7 @@ impl Runtime for LiveRuntime {
 
     fn allocate_arrays(&mut self, count: usize) {
         unsafe {
-            for _ in 0..count {
-                (*self.runtime_data).arrays.push(HashMap::new());
-            }
+            (*self.runtime_data).arrays.allocate(count)
         }
     }
 
@@ -462,7 +464,7 @@ impl Runtime for LiveRuntime {
             self.binop,
             vec![data_ptr, ptr1, ptr2, binop],
             Some(Context::float64_type()),
-            Abi::Cdecl
+            Abi::Cdecl,
         )
     }
 
@@ -473,23 +475,35 @@ impl Runtime for LiveRuntime {
             self.print_error,
             vec![data_ptr, binop],
             None,
-            Abi::Cdecl
+            Abi::Cdecl,
         );
     }
 
-    fn array_access(&mut self, func: &mut Function, array: Value, index: Value, out_tag_ptr: Value, out_float_ptr: Value, out_ptr_ptr: Value) {
+    fn array_access(&mut self, func: &mut Function, array: Value,
+                    key_tag: Value,
+                    key_num: Value,
+                    key_ptr: Value,
+                    out_tag_ptr: Value, out_float_ptr: Value, out_ptr_ptr: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.array_access, vec![data_ptr, array, index, out_tag_ptr, out_float_ptr, out_ptr_ptr], None, Abi::Cdecl);
+        func.insn_call_native(self.array_access, vec![data_ptr, array, key_tag, key_num, key_ptr, out_tag_ptr, out_float_ptr, out_ptr_ptr], None, Abi::Cdecl);
     }
 
-    fn array_assign(&mut self, func: &mut Function, array: Value, index: Value, tag: Value, float: Value, ptr: Value) {
+    fn array_assign(&mut self, func: &mut Function, array: Value,
+                    key_tag: Value,
+                    key_num: Value,
+                    key_ptr: Value,
+                    tag: Value, float: Value, ptr: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.array_assign, vec![data_ptr, array, index, tag, float, ptr], None, Abi::Cdecl);
+        func.insn_call_native(self.array_assign, vec![data_ptr, array, key_tag, key_num, key_ptr, tag, float, ptr], None, Abi::Cdecl);
     }
 
-    fn in_array(&mut self, func: &mut Function, array: Value, index: Value) -> Value {
+    fn in_array(&mut self, func: &mut Function, array: Value,
+                key_tag: Value,
+                key_num: Value,
+                key_ptr: Value,
+    ) -> Value {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.in_array, vec![data_ptr, array, index], Some(Context::float64_type()), Abi::Cdecl)
+        func.insn_call_native(self.in_array, vec![data_ptr, array, key_tag, key_num, key_ptr], Some(Context::float64_type()), Abi::Cdecl)
     }
 
     fn printf(&mut self, func: &mut Function, fstring: Value, nargs: Value, args: Value) {
