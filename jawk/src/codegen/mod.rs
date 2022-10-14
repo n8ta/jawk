@@ -144,32 +144,6 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         function();
     }
 
-    // fn stub_all_functions(&mut self, prog: &Program) -> Result<(), PrintableError> {
-    //     for (name, parser_func) in &prog.functions {
-    //         if name.to_str() == "main function" {
-    //             continue;
-    //         }
-    //         let mut params = vec![];
-    //         for arg in &parser_func.args {
-    //             let arg_typ = if let Some(arg_typ) = arg.typ { arg_typ } else { continue; };
-    //             match arg_typ {
-    //                 ArgT::Scalar => {
-    //                     params.push(Context::sbyte_type());
-    //                     params.push(Context::float64_type());
-    //                     params.push(Context::void_ptr_type());
-    //                 }
-    //                 ArgT::Array => {
-    //                     params.push(Context::int_type());
-    //                 }
-    //             }
-    //         }
-    //
-    //         let mut function = self.context.function(Abi::Cdecl, &Context::void_ptr_type(), params).unwrap();
-    //         self.function_map.insert(name.clone(), function);
-    //     }
-    //     Ok(())
-    // }
-
     fn compile(&mut self, mut prog: Program, dump: bool) -> Result<(), PrintableError> {
         let zero = self.function.create_float64_constant(0.0);
 
@@ -187,7 +161,6 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
 
         if dump {
             for value in self.globals.scalars(&mut self.function) {
-                // let v/alue = self.globals.get(name, &mut self.function)?;
                 self.drop_if_str(&value, ScalarType::Variable);
             }
         }

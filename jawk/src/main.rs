@@ -14,6 +14,7 @@ mod args;
 mod codegen;
 mod columns;
 mod lexer;
+mod integration_tests;
 mod parser;
 mod printable_error;
 mod runtime;

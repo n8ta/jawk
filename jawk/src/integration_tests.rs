@@ -1,4 +1,6 @@
-use jawk::{analyze, lex, parse, Symbolizer, compile_and_capture};
+use std::fs;
+use std::io::Write;
+use crate::{analyze, lex, parse, Symbolizer, compile_and_capture};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tempfile::tempdir;
@@ -57,7 +59,19 @@ fn test_against(interpreter: &str, prog: &str, oracle_output: &str, file: &PathB
 
 const PERF_RUNS: u128 = 10;
 
-fn test_perf(interpreter: &str, prog: &str, oracle_output: &str, file: &PathBuf) {
+fn append_result(test_name: &str, interp: &str, our_total: u128, other_total: u128) {
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .append(true)
+        .create(true)
+        .open("text_results")
+        .unwrap();
+
+    let str = format!("{}\t{}\t{}\t{}\t{}\n", test_name, interp, our_total, other_total, other_total/our_total);
+    file.write_all(str.as_bytes()).unwrap();
+}
+
+fn test_perf(test_name: &str, interpreter: &str, prog: &str, oracle_output: &str, file: &PathBuf) {
     match std::process::Command::new(interpreter).output() {
         Ok(_) => {}
         Err(err) => return, // this interpreter doesn't exist
@@ -74,10 +88,11 @@ fn test_perf(interpreter: &str, prog: &str, oracle_output: &str, file: &PathBuf)
     our_total /= PERF_RUNS;
     other_total /= PERF_RUNS;
 
+    append_result(test_name, interpreter, our_total, other_total);
     assert!(our_total < other_total || our_total < 5 * 1000, "perf-test: jawk={}ms {}={}ms", our_total / 1000, interpreter, other_total / 1000);
 }
 
-fn test_it<S: AsRef<str>>(prog: &str, file: S, oracle_output: &str) {
+fn test_it<S: AsRef<str>>(test_name: &str, prog: &str, file: S, oracle_output: &str) {
     println!("Program:\n{}", prog);
     let mut symbolizer = Symbolizer::new();
     let mut program = analyze(parse(lex(&prog, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
@@ -96,15 +111,15 @@ fn test_it<S: AsRef<str>>(prog: &str, file: S, oracle_output: &str) {
     assert_eq!(res.output(), oracle_output, "LEFT jawk -- RIGHT oracle, did not match");
 
     test_against("awk", prog, oracle_output, &file_path);
-    test_against("mawk", prog, oracle_output, &file_path);
+    // test_against("mawk", prog, oracle_output, &file_path);
     test_against("goawk", prog, oracle_output, &file_path);
     test_against("onetrueawk", prog, oracle_output, &file_path);
 
     if std::env::vars().any(|f| f.0 == "jperf" && (f.1 == "true" || f.1 == "true\n")) {
-        test_perf("awk", prog, oracle_output, &file_path);
-        test_perf("mawk", prog, oracle_output, &file_path);
-        test_perf("goawk", prog, oracle_output, &file_path);
-        test_perf("onetrueawk", prog, oracle_output, &file_path);
+        test_perf(test_name, "awk", prog, oracle_output, &file_path);
+        test_perf(test_name, "mawk", prog, oracle_output, &file_path);
+        test_perf(test_name, "goawk", prog, oracle_output, &file_path);
+        test_perf(test_name, "onetrueawk", prog, oracle_output, &file_path);
     }
 }
 
@@ -112,7 +127,7 @@ macro_rules! test {
     ($name:ident,$prog:expr,$file:expr,$stdout:expr) => {
         #[test]
         fn $name() {
-            test_it($prog, $file, $stdout);
+            test_it(stringify!($name), $prog, $file, $stdout);
         }
     };
 }

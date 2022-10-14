@@ -16,10 +16,6 @@ hashbrown = "0.12.3"
 name = "jawk"
 path = "src/main.rs"
 
-[lib]
-name = "jawk"
-path = "src/main.rs"
-
 [profile.release]
 lto = true
 codegen-units = 1
