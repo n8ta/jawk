@@ -185,7 +185,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         self.compile_stmt(&main.body)?;
         self.function.insn_label(&mut self.return_lbl.clone().unwrap());
 
-        if (dump) {
+        if dump {
             for value in self.globals.scalars(&mut self.function) {
                 // let v/alue = self.globals.get(name, &mut self.function)?;
                 self.drop_if_str(&value, ScalarType::Variable);

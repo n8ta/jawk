@@ -1,11 +1,14 @@
-extern crate core;
-
 use crate::args::AwkArgs;
-use crate::lexer::lex;
-use crate::parser::{Expr, parse};
+use crate::parser::{Expr};
 use crate::printable_error::PrintableError;
-use crate::symbolizer::Symbolizer;
-use crate::typing::{AnalysisResults, analyze};
+
+use crate::typing::{AnalysisResults};
+
+pub use crate::codegen::{compile_and_capture, compile_and_run};
+pub use crate::typing::{analyze};
+pub use crate::lexer::{lex};
+pub use crate::parser::{parse};
+pub use crate::symbolizer::Symbolizer;
 
 mod args;
 mod codegen;
@@ -14,8 +17,6 @@ mod lexer;
 mod parser;
 mod printable_error;
 mod runtime;
-#[allow(dead_code)]
-mod test;
 mod typing;
 mod symbolizer;
 mod global_scalars;
