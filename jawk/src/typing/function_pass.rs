@@ -165,16 +165,16 @@ impl FunctionAnalysis {
         Ok(())
     }
 
-    fn resolve(&self, var: &Symbol, func_state: &mut FuncState) -> Option<ArgT> {
-        if let Some(arg) = get_arg(func_state, var) {
-            return arg.typ.clone();
-        } else if self.global_scalars.get(var).is_some() {
-            return ArgT::Scalar.into();
-        } else if self.global_arrays.get(var).is_some() {
-            return ArgT::Array.into();
-        }
-        None
-    }
+    // fn resolve(&self, var: &Symbol, func_state: &mut FuncState) -> Option<ArgT> {
+    //     if let Some(arg) = get_arg(func_state, var) {
+    //         return arg.typ.clone();
+    //     } else if self.global_scalars.get(var).is_some() {
+    //         return ArgT::Scalar.into();
+    //     } else if self.global_arrays.get(var).is_some() {
+    //         return ArgT::Array.into();
+    //     }
+    //     None
+    // }
 
     fn analyze_expr(&mut self, expr: &mut TypedExpr, func_state: &mut FuncState, is_returned: bool) -> Result<(), PrintableError> {
         match &mut expr.expr {

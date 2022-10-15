@@ -5,6 +5,7 @@ use gnu_libjit::{Context, Function, Value};
 use crate::{AnalysisResults, PrintableError, Symbolizer};
 use crate::codegen::{STRING_TAG, ValuePtrT, ValueT};
 use crate::global_scalars::SymbolMapping;
+use crate::parser::ScalarType;
 use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
 
@@ -21,7 +22,7 @@ impl Globals {
         analysis: AnalysisResults,
         runtime: &mut RuntimeT,
         function: &mut Function,
-        symbolizer: &mut Symbolizer) -> Self {
+        _symbolizer: &mut Symbolizer) -> Self {
         let scalar_memory = 3 * analysis.global_scalars.len() + 3 * analysis.str_consts.len();
         let const_str_memory = analysis.str_consts.len();
 
@@ -45,7 +46,7 @@ impl Globals {
 
         for (name, _) in init.mapping.mapping().clone() {
             let ptr = runtime.empty_string(function);
-            let val = ValueT::new(function.create_sbyte_constant(STRING_TAG), function.create_float64_constant(0.0), ptr);
+            let val = ValueT::string(function.create_sbyte_constant(STRING_TAG), function.create_float64_constant(0.0), ptr);
             init.set(function, &name, &val)
         }
 
@@ -69,7 +70,7 @@ impl Globals {
             let tag_ptr_const = function.create_void_ptr_constant(tag as *mut c_void);
             let float_ptr_const = function.create_void_ptr_constant(float as *mut c_void);
             let ptr_ptr_const = function.create_void_ptr_constant(ptr as *mut c_void);
-            ValuePtrT::new(tag_ptr_const, float_ptr_const, ptr_ptr_const)
+            ValuePtrT::new(tag_ptr_const, float_ptr_const, ptr_ptr_const, ScalarType::Variable)
         }
     }
 
@@ -92,16 +93,13 @@ impl Globals {
         let tag = function.insn_load_relative(&ptrs.tag, 0, &Context::sbyte_type());
         let float = function.insn_load_relative(&ptrs.float, 0, &Context::float64_type());
         let ptr = function.insn_load_relative(&ptrs.pointer, 0, &Context::void_ptr_type());
-        ValueT::new(tag, float, ptr)
+        ValueT::var(tag, float, ptr)
     }
 
     pub fn get_const_str(&mut self, name: &Symbol) -> Result<*mut c_void, PrintableError> {
         let idx = self.const_str_mapping.get(name).unwrap();
-
-        unsafe {
-            let alloc_ptr = self.const_str_allocation[*idx];
-            Ok(alloc_ptr as *mut c_void)
-        }
+        let alloc_ptr = self.const_str_allocation[*idx];
+        Ok(alloc_ptr as *mut c_void)
     }
 
     pub fn scalars(&mut self, function: &mut Function) -> Vec<ValueT> {

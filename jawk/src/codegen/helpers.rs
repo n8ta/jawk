@@ -109,9 +109,9 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     }
 
     // Free the value if it's a string
-    pub fn drop_if_str(&mut self, value: &ValueT, typ: ScalarType) {
+    pub fn drop_if_str(&mut self, value: &ValueT) {
         // self.runtime.column(&mut self.function, value.tag.clone(), value.float.clone(), value.pointer.clone());
-        match typ {
+        match value.typ {
             ScalarType::String => {
                 self.drop(&value.pointer);
             }
@@ -136,13 +136,17 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         self.cases(value, typ, false, truthy_float, truthy_string)
     }
 
+    pub fn no_op_value(&self) -> ValueT {
+        ValueT::new(self.float_tag(), self.zero_f(), self.zero_ptr(), ScalarType::Float)
+    }
+
     pub fn copy_if_string(&mut self, value: ValueT, typ: ScalarType) -> ValueT {
         let zero = self.function.create_float64_constant(0.0);
         let str_tag = self.string_tag();
         match typ {
             ScalarType::String => {
                 let ptr = self.runtime.copy_string(&mut self.function, value.pointer);
-                ValueT::new(str_tag, zero, ptr)
+                ValueT::new(str_tag, zero, ptr, ScalarType::String)
             }
             ScalarType::Float => value, // Float copy is a no-op
             ScalarType::Variable => {
@@ -156,7 +160,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                 self.function.insn_store(&self.binop_scratch.pointer, &ptr);
                 self.function.insn_label(&mut done);
                 let string = self.function.insn_load(&self.binop_scratch.pointer);
-                ValueT::new(value.tag, value.float, string)
+                ValueT::string(value.tag, value.float, string)
             }
         }
     }
@@ -192,7 +196,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     pub fn compile_exprs_to_string(&mut self, exprs: &Vec<TypedExpr>) -> Result<Vec<Value>, PrintableError> {
         let mut expressions = Vec::with_capacity(exprs.len());
         for expr in exprs {
-            let val = self.compile_expr(expr)?;
+            let val = self.compile_expr(expr, false)?;
             let string = self.val_to_string(&val, expr.typ);
             expressions.push(string)
         }
@@ -211,7 +215,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                 result = self.runtime.concat(&mut self.function, result, var.clone());
             }
         }
-        ValueT::new(self.string_tag(), self.zero_f(), result)
+        ValueT::string(self.string_tag(), self.zero_f(), result)
     }
 
     // Concat indices all values MUST be strings
@@ -239,7 +243,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         let tag = self.function.insn_load_relative(&ptr_tag, 0, &Context::sbyte_type());
         let val = self.function.insn_load_relative(&ptr_float, 0, &Context::float64_type());
         let ptr = self.function.insn_load_relative(&ptr_ptr, 0, &Context::void_ptr_type());
-        ValueT::new(tag, val, ptr)
+        ValueT::var(tag, val, ptr)
     }
 
     pub fn store(&mut self, ptr: &mut ValuePtrT, value: &ValueT) {

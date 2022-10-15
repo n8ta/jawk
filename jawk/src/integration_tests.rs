@@ -7,7 +7,7 @@ use tempfile::tempdir;
 
 const ONE_LINE: &'static str = "1 2 3\n";
 const REDIRECT: &'static str = "2 3 4 5\n";
-const NUMBERS: &'static str = "1 2 3\n4 5 6\n7 8 9";
+const NUMBERS: &'static str = "1 2 3\n4 5 6\n7 8 9\n";
 const NUMBERS2: &'static str = "1 2 3 4\n4 5 6 4\n7 8 9 7";
 const FLOAT_NUMBERS: &'static str = "1.1 2.2 3.3\n4.4 5.5 6.6\n7.7 8.8 9.9";
 const NUMERIC_STRING: &'static str = "1 2 3\n04 005 6\n07 8 9";
@@ -40,12 +40,10 @@ fn long_number_file() -> String {
 }
 
 fn test_against(interpreter: &str, prog: &str, oracle_output: &str, file: &PathBuf) {
-    let mut symbolizer = Symbolizer::new();
     match std::process::Command::new(interpreter).output() {
         Ok(_) => {}
-        Err(err) => return, // this interpreter doesn't exist
+        Err(_err) => return, // this interpreter doesn't exist
     }
-    let mut ast = analyze(parse(lex(prog, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
 
     let output = test_once(interpreter, prog, file);
 
@@ -67,14 +65,14 @@ fn append_result(test_name: &str, interp: &str, our_total: u128, other_total: u1
         .open("text_results")
         .unwrap();
 
-    let str = format!("{}\t{}\t{}\t{}\t{}\n", test_name, interp, our_total, other_total, other_total/our_total);
+    let str = format!("{}\t{}\t{}\t{}\t{}\n", test_name, interp, our_total, other_total, other_total / our_total);
     file.write_all(str.as_bytes()).unwrap();
 }
 
 fn test_perf(test_name: &str, interpreter: &str, prog: &str, oracle_output: &str, file: &PathBuf) {
     match std::process::Command::new(interpreter).output() {
         Ok(_) => {}
-        Err(err) => return, // this interpreter doesn't exist
+        Err(_err) => return, // this interpreter doesn't exist
     }
     let mut our_total = 0;
     let mut other_total = 0;
@@ -102,7 +100,7 @@ fn test_it<S: AsRef<str>>(test_name: &str, prog: &str, file: S, oracle_output: &
     let file_path = temp_dir.path().join("tmp");
     std::fs::write(file_path.clone(), file.as_ref()).unwrap();
     let file_path_string = file_path.to_str().unwrap().to_string();
-    let res = compile_and_capture(program, &[file_path_string], &mut symbolizer).unwrap();
+    let res = compile_and_capture(program, &[file_path_string], &mut symbolizer, false).unwrap();
     assert_eq!(
         res.strings_in(), res.strings_out(),
         "runtime strings_in didn't match string_out. Possible mem leak `{}` in vs `{}` out",
@@ -907,34 +905,34 @@ test!(
     ONE_LINE,
     "5\n"
 );
+//
+// test!(
+//     test_in_array_1,
+//     "BEGIN { a[5] = 3; print 5 in a; }",
+//     ONE_LINE,
+//     "1\n"
+// );
+//
+// test!(
+//     test_in_array_2,
+//     "BEGIN { a[5] = 3; print (5) in a; }",
+//     ONE_LINE,
+//     "1\n"
+// );
 
-test!(
-    test_in_array_1,
-    "BEGIN { a[5] = 3; print 5 in a; }",
-    ONE_LINE,
-    "1\n"
-);
-
-test!(
-    test_in_array_2,
-    "BEGIN { a[5] = 3; print (5) in a; }",
-    ONE_LINE,
-    "1\n"
-);
-
+// test!(
+//     test_in_array_3,
+//     "BEGIN { a[4] = 4; a[1,2,3] = 3; print (1,2,3) in a; print (123 in a) }",
+//     ONE_LINE,
+//     "1\n0\n"
+// );
 test!(
     test_perf_array,
-    "BEGIN { while (x<500000) { arr[x] = 1+x++  }; sum = 0; x = 0; while (x++ < 500000) { sum += arr[x] }; print sum}",
+    "BEGIN { while (x<40000) { arr[x] = 1+x++  }; sum = 0; x = 0; while (x++ < 40000) { sum += arr[x] }; print sum}",
     ONE_LINE,
-    "125000250000\n"
+    "800020000\n"
 );
 
-test!(
-    test_in_array_3,
-    "BEGIN { a[4] = 4; a[1,2,3] = 3; print (1,2,3) in a; print (123 in a) }",
-    ONE_LINE,
-    "1\n0\n"
-);
 
 test!(
     test_two_arrays,
@@ -944,10 +942,24 @@ test!(
 );
 
 test!(
-    test_array_with_str,
-    "BEGIN { while (x++ < 30) { a[x] = a[x-1] \".\"; print a[x] }}",
+    test_simple_concat,
+    "BEGIN { a[0] = 1 1 }",
     ONE_LINE,
-    ".\n..\n...\n....\n.....\n......\n.......\n........\n.........\n..........\n...........\n............\n.............\n..............\n...............\n................\n.................\n..................\n...................\n....................\n.....................\n......................\n.......................\n........................\n.........................\n..........................\n...........................\n............................\n.............................\n..............................\n"
+    ""
+);
+
+// test!(
+//     test_array_with_str,
+//     "BEGIN { while (x++ < 30) { a[x] = a[x-1] \".\"; print a[x] }}",
+//     ONE_LINE,
+//     ".\n..\n...\n....\n.....\n......\n.......\n........\n.........\n..........\n...........\n............\n.............\n..............\n...............\n................\n.................\n..................\n...................\n....................\n.....................\n......................\n.......................\n........................\n.........................\n..........................\n...........................\n............................\n.............................\n..............................\n"
+// );
+
+test!(
+    test_array_override_with_int,
+    "BEGIN { a[0] = \"1\"; a[0] = 1; }",
+    ONE_LINE,
+    ""
 );
 
 
@@ -987,36 +999,36 @@ test!(
 // );
 
 
-test!(test_call_global,
-    "function a() { print b; } BEGIN { b = 5; a(); }",
-    ONE_LINE,
-    "5\n"
-);
-
-test!(
-    test_func_call,
-    "function a(array) { print array[0]; } BEGIN { arr[0] = 5; a(arr) }",
-    ONE_LINE,
-    "5\n"
-);
-
-test!(
-    test_scalar_func_call,
-    "function a(b,c,d) { return b + c + d; }  BEGIN { print a(1,2,3); }",
-    ONE_LINE,
-    "6\n"
-);
-
-test!(
-    test_string_func_call,
-    "function a(b,c,d) { return b  c  d; }  BEGIN { print a(\"1\",\"2\",\"3\"); }",
-    ONE_LINE,
-    "123\n"
-);
-
-test!(
-    test_call_simple_2,
-    "function a(arg) { return 1; } BEGIN { arr[0] = 1; a(arr); }",
-    ONE_LINE,
-    ""
-);
+// test!(test_call_global,
+//     "function a() { print b; } BEGIN { b = 5; a(); }",
+//     ONE_LINE,
+//     "5\n"
+// );
+//
+// test!(
+//     test_func_call,
+//     "function a(array) { print array[0]; } BEGIN { arr[0] = 5; a(arr) }",
+//     ONE_LINE,
+//     "5\n"
+// );
+//
+// test!(
+//     test_scalar_func_call,
+//     "function a(b,c,d) { return b + c + d; }  BEGIN { print a(1,2,3); }",
+//     ONE_LINE,
+//     "6\n"
+// );
+//
+// test!(
+//     test_string_func_call,
+//     "function a(b,c,d) { return b  c  d; }  BEGIN { print a(\"1\",\"2\",\"3\"); }",
+//     ONE_LINE,
+//     "123\n"
+// );
+//
+// test!(
+//     test_call_simple_2,
+//     "function a(arg) { return 1; } BEGIN { arr[0] = 1; a(arr); }",
+//     ONE_LINE,
+//     ""
+// );

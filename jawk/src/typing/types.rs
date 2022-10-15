@@ -9,7 +9,6 @@ use crate::symbolizer::Symbol;
 enum VarType {
     Float,
     String,
-    Array,
     Variable,
 }
 
@@ -49,19 +48,6 @@ pub struct Call {
 }
 
 impl Call {
-    pub fn uses(&self, name: &Symbol) -> bool {
-        for arg in self.args.iter() {
-            match arg {
-                CallArg::Variable(arg_name) => {
-                    if arg_name == name {
-                        return true;
-                    }
-                }
-                CallArg::Scalar => {}
-            }
-        }
-        false
-    }
     pub fn uses_any(&self, symbols: &[Symbol]) -> bool {
         for arg in self.args.iter() {
             match arg {
@@ -111,9 +97,6 @@ impl TypedFunc {
             callers: HashSet::new(),
             calls,
         }
-    }
-    pub fn done(self) -> Function {
-        self.func
     }
     pub fn get_arg(&mut self, name: &Symbol) -> Option<&mut Arg> {
         if let Some(arg) = self.func.args.iter_mut().find(|a| a.name == *name) {

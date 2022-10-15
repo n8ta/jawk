@@ -1,8 +1,5 @@
-use std::collections::{HashMap, HashSet};
-use crate::parser::{Function, PatternAction, Stmt, TypedExpr};
-use crate::{parser, Expr};
-use crate::lexer::Token::Print;
-use crate::printable_error::PrintableError;
+use crate::parser::{PatternAction, Stmt, TypedExpr};
+use crate::{Expr};
 
 fn group_vec_of_stmt(mut stmts: Vec<Stmt>) -> Stmt {
     if stmts.len() == 1 {

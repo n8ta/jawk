@@ -1,3 +1,5 @@
+#![deny(unused_must_use)]
+
 use crate::args::AwkArgs;
 use crate::parser::{Expr};
 use crate::printable_error::PrintableError;
@@ -22,6 +24,7 @@ mod typing;
 mod symbolizer;
 mod global_scalars;
 
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let args = match AwkArgs::new(args) {
@@ -43,7 +46,7 @@ fn main() {
 
     let mut symbolizer = Symbolizer::new();
     // 1,2,3
-    let mut ast = analyze(parse(lex(&source, &mut symbolizer).unwrap(), &mut symbolizer));
+    let ast = analyze(parse(lex(&source, &mut symbolizer).unwrap(), &mut symbolizer));
 
     // 4
     let program = match ast {
@@ -61,7 +64,7 @@ fn main() {
 
     // 5
     if args.debug {
-        if let Err(err) = codegen::compile_and_capture(program, &args.files, &mut symbolizer) {
+        if let Err(err) = codegen::compile_and_capture(program, &args.files, &mut symbolizer, true) {
             eprintln!("{}", err);
         }
     } else {

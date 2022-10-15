@@ -3,8 +3,7 @@ mod transformer;
 mod test;
 
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter, write};
-use std::process::id;
+use std::fmt::{Display, Formatter};
 use crate::lexer::{BinOp, LogicalOp, MathOp, Token, TokenType};
 pub use crate::parser::types::PatternAction;
 pub use types::{Expr, Function, ScalarType, Stmt, TypedExpr, Arg, ArgT};
@@ -363,7 +362,7 @@ impl<'a> Parser<'a> {
     }
 
     fn assignment(&mut self) -> TypedExpr {
-        let mut expr = self.ternary();
+        let expr = self.ternary();
         if let Expr::Variable(var) = &expr.expr {
             let var = var.clone();
             if self.matches(&[TokenType::Eq]) {
@@ -398,7 +397,7 @@ impl<'a> Parser<'a> {
     }
 
     fn ternary(&mut self) -> TypedExpr {
-        let mut cond = self.logical_or();
+        let cond = self.logical_or();
         while self.matches(&[TokenType::Question]) {
             let expr1 = self.ternary();
             self.consume(TokenType::Colon, "Expected a colon after question mark in a ternary!");
@@ -621,9 +620,9 @@ impl<'a> Parser<'a> {
             self.advance();
 
             if let Token::Ident(name) = self.previous().unwrap() {
-                let varExpr = Expr::Variable(name.clone()).into();
+                let var_expr = Expr::Variable(name.clone()).into();
                 let increment = Expr::MathOp(
-                    Box::new(varExpr),
+                    Box::new(var_expr),
                     MathOp::Plus,
                     Box::new(Expr::NumberF64(1.0).into()),
                 )

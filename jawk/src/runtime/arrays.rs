@@ -11,6 +11,7 @@ impl HashFloat {
     pub fn new(num: f64) -> Self {
         Self { bytes: num.to_le_bytes() }
     }
+    #[allow(dead_code)]
     pub fn to_float64(&self) -> f64 {
         f64::from_le_bytes(self.bytes)
     }
@@ -23,9 +24,10 @@ enum MapKey {
 }
 
 
-pub type MapValue = (i8, f64, *mut String);
+pub type MapValue = (i8, f64, *const String);
 
 impl MapKey {
+    // Does not drop the Rc<String> count
     pub fn new(val: MapValue) -> Self {
         let tag = val.0;
         let num = val.1;
@@ -34,10 +36,12 @@ impl MapKey {
             MapKey::Float(HashFloat::new(num))
         } else {
             let str = unsafe { Rc::from_raw(str) };
-            match str.parse::<f64>() {
+            let res = match str.parse::<f64>() {
                 Ok(float) => MapKey::Float(HashFloat::new(float)),
-                Err(err) => MapKey::String(str)
-            }
+                Err(_err) => MapKey::String(str.clone())
+            };
+            Rc::into_raw(str);
+            res
         }
     }
 }
@@ -55,6 +59,9 @@ impl AwkMap {
     }
     fn new() -> Self {
         Self { map: HashMap::new() }
+    }
+    fn in_array(&mut self, key: &MapKey) -> bool {
+        self.map.contains_key(key)
     }
 }
 
@@ -85,7 +92,14 @@ impl Arrays {
                   indices: MapValue,
                   value: MapValue,
     ) -> Option<MapValue> {
-        let array = self.arrays.get_mut(array_id as usize).expect("array to exist based on id");
+        let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize)};
         array.assign(&MapKey::new(indices), value)
+    }
+
+    pub fn in_array(&mut self,
+                    array_id: i32,
+                    indices: MapValue) -> bool {
+        let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize)};
+        array.in_array(&MapKey::new(indices))
     }
 }

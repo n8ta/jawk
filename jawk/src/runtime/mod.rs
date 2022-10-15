@@ -4,14 +4,13 @@ mod testing;
 mod arrays;
 
 use crate::lexer::BinOp;
-use gnu_libjit::{Context, Function, Value};
+use gnu_libjit::{Function, Value};
 pub use live::LiveRuntime;
-use std::ffi::c_void;
 pub use testing::TestRuntime;
-use crate::codegen::ValueT;
 
 #[repr(C)]
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum ErrorCode {
     Error1,
     Error2,

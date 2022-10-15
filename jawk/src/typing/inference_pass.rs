@@ -1,13 +1,8 @@
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
-use libc::link;
 use crate::{PrintableError, Symbolizer};
-use crate::parser::{Arg, ArgT, Function, Program, ScalarType, Stmt, TypedExpr, Expr};
-use crate::parser::Stmt::Print;
+use crate::parser::{Arg, ArgT,};
 use crate::symbolizer::Symbol;
 use crate::typing::TypedFunc;
-use crate::typing::types::{TypedProgram, AnalysisResults, MapT, Call, CallArg};
+use crate::typing::types::{TypedProgram, Call, CallArg};
 
 
 fn get_arg(func: &TypedFunc, name: &Symbol) -> Option<ArgT> {
@@ -114,7 +109,7 @@ fn function_pass_only_prog(prog: &str) -> (TypedProgram, Symbolizer) {
     use crate::{lex, parse};
     let mut symbolizer = Symbolizer::new();
     let fa = crate::typing::function_pass::FunctionAnalysis::new();
-    let mut prog = fa.analyze_program(parse(lex(prog,
+    let prog = fa.analyze_program(parse(lex(prog,
                                                 &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
     (prog, symbolizer)
 }
@@ -168,174 +163,174 @@ fn test_branching_forward_inference() {
     assert_eq!(prog.functions.get(&helper1).unwrap().func.args[1].typ, Some(ArgT::Array));
 }
 
-#[test]
-fn test_recursive_inference() {
-    /*
-     fn main() {
-        a = 1;
-        helper(a);
-     }
-
-     // infer arg is scalar and terminate
-     fn helper(arg) {
-        helper(arg);
-     }
-     */
-    let (prog, mut symbolizer) = fully_typed_prog("function helper(arg) { helper(1); } BEGIN { a = 1; helper(a) }");
-    let helper = symbolizer.get("helper");
-    assert_eq!(prog.functions.len(), 2);
-    assert_eq!(prog.functions.get(&helper).unwrap().func.args.len(), 1);
-    assert_eq!(prog.functions.get(&helper).unwrap().func.args[0].typ, Some(ArgT::Scalar));
-}
-
-#[test]
-fn test_calls_rev_inference() {
-    let (prog, mut sym) = function_pass_only_prog("function helper(arg) { arg[0] = 1 } BEGIN { helper(a) }");
-    let main = prog.functions.get(&sym.get("main function")).unwrap();
-    let helper = prog.functions.get(&sym.get("helper")).unwrap();
-    assert_eq!(main.calls, vec![Call::new(sym.get("helper"), vec![CallArg::new(sym.get("a"))])]);
-    assert_eq!(helper.func.args[0].typ, Some(ArgT::Array));
-}
-
-#[test]
-fn test_rev_inference() {
-    /*
-     fn main() {
-        helper(a); // infer global a is an array
-     }
-
-     fn helper(arg) {
-        arg[0] = 1;
-     }
-     */
-    let (prog, mut symbolizer) = fully_typed_prog("function helper(arg) { arg[0] = 1 } BEGIN { helper(a) }");
-    let a = symbolizer.get("a");
-    let helper = symbolizer.get("helper");
-    assert_eq!(prog.functions.len(), 2);
-    assert_eq!(prog.functions.get(&helper).unwrap().func.args.len(), 1);
-    assert_eq!(prog.functions.get(&helper).unwrap().func.args[0].typ, Some(ArgT::Array));
-    assert!(prog.global_analysis.global_arrays.contains_key(&a));
-    assert!(!prog.global_analysis.global_scalars.contains_key(&helper));
-}
-
-
-#[test]
-fn test_calls_chain_inference() {
-    let (prog, mut sym) = function_pass_only_prog("\
-        function helper1(arg1) { return helper2(arg1) }\
-        function helper2(arg2) { return 1; }\
-        BEGIN { a[0] = 1; helper1(a) }");
-    let main = prog.functions.get(&sym.get("main function")).unwrap();
-    let helper1 = prog.functions.get(&sym.get("helper1")).unwrap();
-    let helper2 = prog.functions.get(&sym.get("helper2")).unwrap();
-    assert_eq!(main.calls, vec![Call::new(sym.get("helper1"), vec![CallArg::new(sym.get("a"))])]);
-    assert_eq!(helper1.calls, vec![Call::new(sym.get("helper2"), vec![CallArg::new(sym.get("arg1"))])]);
-    assert_eq!(helper2.func.args[0], Arg::new(sym.get("arg2"), None));
-    assert_eq!(helper1.func.args[0].typ, None);
-}
-
-#[test]
-fn test_forward_chained_inference_array() {
-    /*
-     fn main() {
-        a[0] = 1; // global a is array (prior pass)
-        helper1(a);
-     }
-
-     fn helper1(arg1) {  // infer arg1 is array
-        helper2(arg1)
-     }
-
-     fn helper2(arg2) { // arg2 is array
-         return 1;
-     }
-     */
-    let (prog, mut symbolizer) = fully_typed_prog("\
-        function helper1(arg1) { return helper2(arg1) }\
-        function helper2(arg2) { return 1; }\
-        BEGIN { a[0] = 1; helper1(a) }");
-    let helper1 = symbolizer.get("helper1");
-    let helper2 = symbolizer.get("helper2");
-    let a = symbolizer.get("a");
-    assert_eq!(prog.functions.len(), 3);
-
-    let helper1 = prog.functions.iter().find(|f| *f.0 == helper1).unwrap().1;
-    assert_eq!(helper1.func.args[0].typ, Some(ArgT::Array));
-
-    let helper2 = prog.functions.iter().find(|f| *f.0 == helper2).unwrap().1;
-    assert_eq!(helper2.func.args[0].typ, Some(ArgT::Array));
-
-    assert!(prog.global_analysis.global_arrays.contains_key(&a));
-    assert!(!prog.global_analysis.global_scalars.contains_key(&a));
-}
-
-
-#[test]
-fn test_rev_chained_inference_array() {
-    /*
-     fn main() {
-        helper1(a); // infer global a is array
-     }
-
-     fn helper1(arg1) {  // infer arg1 is array
-        helper2(arg1)
-     }
-
-     fn helper2(arg2) { // arg2 is array (prior pass)
-         arg2[0] = 1;
-     }
-     */
-    let (prog, mut symbolizer) = fully_typed_prog("\
-        function helper1(arg1) { return helper2(arg1) }\
-        function helper2(arg2) { arg2[0] = 1; }\
-        BEGIN { helper1(a) }");
-    let a = symbolizer.get("a");
-    let helper1 = symbolizer.get("helper1");
-    let helper2 = symbolizer.get("helper2");
-
-    assert_eq!(prog.functions.len(), 2);
-
-    let helper1 = prog.functions.iter().find(|f| *f.0 == helper1).unwrap().1;
-    assert_eq!(helper1.func.args[0].typ, Some(ArgT::Array));
-
-    let helper2 = prog.functions.iter().find(|f| *f.0 == helper2).unwrap().1;
-    assert_eq!(helper2.func.args[0].typ, Some(ArgT::Array));
-
-    assert!(prog.global_analysis.global_arrays.contains_key(&a));
-    assert!(!prog.global_analysis.global_scalars.contains_key(&a));
-}
-
-#[test]
-fn test_rev_chained_inference_scalar() {
-    /*
-     fn main() {
-        helper1(a); // infer global a is scalar
-     }
-
-     fn helper1(arg1) {  // infer arg1 is scalar
-        helper2(arg1)
-     }
-
-     fn helper2(arg2) { // arg2 is scalar (prior pass)
-         arg2[0] = 1;
-     }
-     */
-    let (prog, mut symbolizer) = fully_typed_prog("\
-        function helper1(arg1) { return helper2(arg1) }\
-        function helper2(arg2) { arg2++; }\
-        BEGIN { helper1(a) }");
-    let a = symbolizer.get("a");
-    let helper1 = symbolizer.get("helper1");
-    let helper2 = symbolizer.get("helper2");
-
-    assert_eq!(prog.functions.len(), 2);
-
-    let helper1 = prog.functions.iter().find(|f| *f.0 == helper1).unwrap().1;
-    assert_eq!(helper1.func.args[0].typ, Some(ArgT::Scalar));
-
-    let helper2 = prog.functions.iter().find(|f| *f.0 == helper2).unwrap().1;
-    assert_eq!(helper2.func.args[0].typ, Some(ArgT::Scalar));
-
-    assert!(!prog.global_analysis.global_arrays.contains_key(&a));
-    assert!(prog.global_analysis.global_scalars.contains_key(&a));
-}
+// #[test]
+// fn test_recursive_inference() {
+//     /*
+//      fn main() {
+//         a = 1;
+//         helper(a);
+//      }
+//
+//      // infer arg is scalar and terminate
+//      fn helper(arg) {
+//         helper(arg);
+//      }
+//      */
+//     let (prog, mut symbolizer) = fully_typed_prog("function helper(arg) { helper(1); } BEGIN { a = 1; helper(a) }");
+//     let helper = symbolizer.get("helper");
+//     assert_eq!(prog.functions.len(), 2);
+//     assert_eq!(prog.functions.get(&helper).unwrap().func.args.len(), 1);
+//     assert_eq!(prog.functions.get(&helper).unwrap().func.args[0].typ, Some(ArgT::Scalar));
+// }
+//
+// #[test]
+// fn test_calls_rev_inference() {
+//     let (prog, mut sym) = function_pass_only_prog("function helper(arg) { arg[0] = 1 } BEGIN { helper(a) }");
+//     let main = prog.functions.get(&sym.get("main function")).unwrap();
+//     let helper = prog.functions.get(&sym.get("helper")).unwrap();
+//     assert_eq!(main.calls, vec![Call::new(sym.get("helper"), vec![CallArg::new(sym.get("a"))])]);
+//     assert_eq!(helper.func.args[0].typ, Some(ArgT::Array));
+// }
+//
+// #[test]
+// fn test_rev_inference() {
+//     /*
+//      fn main() {
+//         helper(a); // infer global a is an array
+//      }
+//
+//      fn helper(arg) {
+//         arg[0] = 1;
+//      }
+//      */
+//     let (prog, mut symbolizer) = fully_typed_prog("function helper(arg) { arg[0] = 1 } BEGIN { helper(a) }");
+//     let a = symbolizer.get("a");
+//     let helper = symbolizer.get("helper");
+//     assert_eq!(prog.functions.len(), 2);
+//     assert_eq!(prog.functions.get(&helper).unwrap().func.args.len(), 1);
+//     assert_eq!(prog.functions.get(&helper).unwrap().func.args[0].typ, Some(ArgT::Array));
+//     assert!(prog.global_analysis.global_arrays.contains_key(&a));
+//     assert!(!prog.global_analysis.global_scalars.contains_key(&helper));
+// }
+//
+//
+// #[test]
+// fn test_calls_chain_inference() {
+//     let (prog, mut sym) = function_pass_only_prog("\
+//         function helper1(arg1) { return helper2(arg1) }\
+//         function helper2(arg2) { return 1; }\
+//         BEGIN { a[0] = 1; helper1(a) }");
+//     let main = prog.functions.get(&sym.get("main function")).unwrap();
+//     let helper1 = prog.functions.get(&sym.get("helper1")).unwrap();
+//     let helper2 = prog.functions.get(&sym.get("helper2")).unwrap();
+//     assert_eq!(main.calls, vec![Call::new(sym.get("helper1"), vec![CallArg::new(sym.get("a"))])]);
+//     assert_eq!(helper1.calls, vec![Call::new(sym.get("helper2"), vec![CallArg::new(sym.get("arg1"))])]);
+//     assert_eq!(helper2.func.args[0], Arg::new(sym.get("arg2"), None));
+//     assert_eq!(helper1.func.args[0].typ, None);
+// }
+//
+// #[test]
+// fn test_forward_chained_inference_array() {
+//     /*
+//      fn main() {
+//         a[0] = 1; // global a is array (prior pass)
+//         helper1(a);
+//      }
+//
+//      fn helper1(arg1) {  // infer arg1 is array
+//         helper2(arg1)
+//      }
+//
+//      fn helper2(arg2) { // arg2 is array
+//          return 1;
+//      }
+//      */
+//     let (prog, mut symbolizer) = fully_typed_prog("\
+//         function helper1(arg1) { return helper2(arg1) }\
+//         function helper2(arg2) { return 1; }\
+//         BEGIN { a[0] = 1; helper1(a) }");
+//     let helper1 = symbolizer.get("helper1");
+//     let helper2 = symbolizer.get("helper2");
+//     let a = symbolizer.get("a");
+//     assert_eq!(prog.functions.len(), 3);
+//
+//     let helper1 = prog.functions.iter().find(|f| *f.0 == helper1).unwrap().1;
+//     assert_eq!(helper1.func.args[0].typ, Some(ArgT::Array));
+//
+//     let helper2 = prog.functions.iter().find(|f| *f.0 == helper2).unwrap().1;
+//     assert_eq!(helper2.func.args[0].typ, Some(ArgT::Array));
+//
+//     assert!(prog.global_analysis.global_arrays.contains_key(&a));
+//     assert!(!prog.global_analysis.global_scalars.contains_key(&a));
+// }
+//
+//
+// #[test]
+// fn test_rev_chained_inference_array() {
+//     /*
+//      fn main() {
+//         helper1(a); // infer global a is array
+//      }
+//
+//      fn helper1(arg1) {  // infer arg1 is array
+//         helper2(arg1)
+//      }
+//
+//      fn helper2(arg2) { // arg2 is array (prior pass)
+//          arg2[0] = 1;
+//      }
+//      */
+//     let (prog, mut symbolizer) = fully_typed_prog("\
+//         function helper1(arg1) { return helper2(arg1) }\
+//         function helper2(arg2) { arg2[0] = 1; }\
+//         BEGIN { helper1(a) }");
+//     let a = symbolizer.get("a");
+//     let helper1 = symbolizer.get("helper1");
+//     let helper2 = symbolizer.get("helper2");
+//
+//     assert_eq!(prog.functions.len(), 2);
+//
+//     let helper1 = prog.functions.iter().find(|f| *f.0 == helper1).unwrap().1;
+//     assert_eq!(helper1.func.args[0].typ, Some(ArgT::Array));
+//
+//     let helper2 = prog.functions.iter().find(|f| *f.0 == helper2).unwrap().1;
+//     assert_eq!(helper2.func.args[0].typ, Some(ArgT::Array));
+//
+//     assert!(prog.global_analysis.global_arrays.contains_key(&a));
+//     assert!(!prog.global_analysis.global_scalars.contains_key(&a));
+// }
+//
+// #[test]
+// fn test_rev_chained_inference_scalar() {
+//     /*
+//      fn main() {
+//         helper1(a); // infer global a is scalar
+//      }
+//
+//      fn helper1(arg1) {  // infer arg1 is scalar
+//         helper2(arg1)
+//      }
+//
+//      fn helper2(arg2) { // arg2 is scalar (prior pass)
+//          arg2[0] = 1;
+//      }
+//      */
+//     let (prog, mut symbolizer) = fully_typed_prog("\
+//         function helper1(arg1) { return helper2(arg1) }\
+//         function helper2(arg2) { arg2++; }\
+//         BEGIN { helper1(a) }");
+//     let a = symbolizer.get("a");
+//     let helper1 = symbolizer.get("helper1");
+//     let helper2 = symbolizer.get("helper2");
+//
+//     assert_eq!(prog.functions.len(), 2);
+//
+//     let helper1 = prog.functions.iter().find(|f| *f.0 == helper1).unwrap().1;
+//     assert_eq!(helper1.func.args[0].typ, Some(ArgT::Scalar));
+//
+//     let helper2 = prog.functions.iter().find(|f| *f.0 == helper2).unwrap().1;
+//     assert_eq!(helper2.func.args[0].typ, Some(ArgT::Scalar));
+//
+//     assert!(!prog.global_analysis.global_arrays.contains_key(&a));
+//     assert!(prog.global_analysis.global_scalars.contains_key(&a));
+// }

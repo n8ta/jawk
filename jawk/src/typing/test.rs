@@ -4,7 +4,7 @@ use crate::{analyze, Symbolizer};
 fn test_exception(program: &str, error_includes_msg: &str) {
     use crate::{lex, parse};
     let mut symbolizer = Symbolizer::new();
-    let mut ast_result = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer));
+    let ast_result = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer));
     if let Err(err) = ast_result {
         println!("Error msg: `{}\nShould include: `{}`", err.msg, error_includes_msg);
         assert!(err.msg.contains(error_includes_msg));
@@ -30,7 +30,7 @@ fn strip(data: &str) -> String {
 fn test_it(program: &str, expected: &str) {
     use crate::{lex, parse};
     let mut symbolizer = Symbolizer::new();
-    let mut ast = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
+    let ast = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
     println!("prog: {:?}", ast);
     let result_clean = strip(&format!("{}", ast));
     let expected_clean = strip(expected);
@@ -161,7 +161,7 @@ fn test_ternary_4() {
 fn test_fails() {
     use crate::{lex, parse};
     let mut symbolizer = Symbolizer::new();
-    let mut res = analyze(parse(lex("BEGIN { a = 0; a[0] = 1; }", &mut symbolizer).unwrap(), &mut symbolizer));
+    let res = analyze(parse(lex("BEGIN { a = 0; a[0] = 1; }", &mut symbolizer).unwrap(), &mut symbolizer));
     assert!(res.is_err());
 }
 
@@ -169,7 +169,7 @@ fn test_fails() {
 fn test_fails_2() {
     use crate::{lex, parse};
     let mut symbolizer = Symbolizer::new();
-    let mut ast = analyze(parse(lex("BEGIN { a[0] = 1; a = 0;  }", &mut symbolizer).unwrap(), &mut symbolizer));
+    let ast = analyze(parse(lex("BEGIN { a[0] = 1; a = 0;  }", &mut symbolizer).unwrap(), &mut symbolizer));
     assert!(ast.is_err());
 }
 
@@ -177,7 +177,7 @@ fn test_fails_2() {
 fn test_fails_3() {
     use crate::{lex, parse};
     let mut symbolizer = Symbolizer::new();
-    let mut ast = analyze(parse(lex("BEGIN { if(x) { a[0] = 1; } a = 0;  }", &mut symbolizer).unwrap(), &mut symbolizer));
+    let ast = analyze(parse(lex("BEGIN { if(x) { a[0] = 1; } a = 0;  }", &mut symbolizer).unwrap(), &mut symbolizer));
     assert!(ast.is_err());
 }
 
@@ -186,11 +186,11 @@ fn test_calls() {
 
 }
 
-#[test]
-fn test_typing_scalar_function() {
-    test_it("function a() { return 1; } BEGIN { print 1; }",
-            "function a() { return (f 1); } print (f 1);");
-}
+// #[test]
+// fn test_typing_scalar_function() {
+//     test_it("function a() { return 1; } BEGIN { print 1; }",
+//             "function a() { return (f 1); } print (f 1);");
+// }
 
 #[test]
 fn test_arr_typing() {
@@ -198,11 +198,11 @@ fn test_arr_typing() {
             "(s b[(f 0)] = (s d))");
 }
 
-#[test]
-fn test_func_arg_typing() {
-    test_it("function a(b,c,d) { b[0] = 1; c[0] = 1; return d } BEGIN { }",
-            "function a((ab), (ac), (ud)) {     (f b[(f0)]=(f1)) (f c[(f0)]= (f1)) return(vd)  }");
-}
+// #[test]
+// fn test_func_arg_typing() {
+//     test_it("function a(b,c,d) { b[0] = 1; c[0] = 1; return d } BEGIN { }",
+//             "function a((ab), (ac), (ud)) {     (f b[(f0)]=(f1)) (f c[(f0)]= (f1)) return(vd)  }");
+// }
 
 #[test]
 fn test_typing_array_fails_mixed_ret() {
@@ -229,8 +229,8 @@ fn mixed_scalar_array() {
     test_exception("BEGIN { a[0] = 1; a = 5; }", "attempt to use")
 }
 
-#[test]
-fn call_func_with_arr_args() {
-    test_it("function a(b) { b[0] = 1; } BEGIN { a(d) }",
-            "function a((ab)) {     (f b[(f0)]=(f1)) } BEGIN { a(a-d) ");
-}
+// #[test]
+// fn call_func_with_arr_args() {
+//     test_it("function a(b) { b[0] = 1; } BEGIN { a(d) }",
+//             "function a((ab)) {     (f b[(f0)]=(f1)) } BEGIN { a(a-d) ");
+// }

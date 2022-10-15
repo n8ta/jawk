@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use crate::codegen::{FLOAT_TAG, STRING_TAG, ValueT};
+use crate::codegen::{FLOAT_TAG, STRING_TAG};
 use crate::columns::Columns;
 use crate::lexer::BinOp;
 use crate::runtime::call_log::{Call, CallLog};
@@ -24,7 +23,7 @@ pub extern "C" fn print_string(data: *mut c_void, value: *mut String) {
     };
     data.output.push_str(&res);
     println!("{}", str);
-    Rc::into_raw(str);
+    data.string_in("print_string", &res)
 }
 
 pub extern "C" fn print_float(data: *mut c_void, value: f64) {
@@ -68,10 +67,10 @@ extern "C" fn column(
     Rc::into_raw(Rc::new(str))
 }
 
-extern "C" fn free_string(data_ptr: *mut c_void, ptr: *mut String) -> f64 {
+extern "C" fn free_string(data_ptr: *mut c_void, ptr: *const String) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::FreeString);
-    println!("string is {:?}", ptr);
+    println!("\tfreeing ptr {:?}", ptr);
 
 
     let string_data = unsafe { Rc::from_raw(ptr) };
@@ -82,7 +81,7 @@ extern "C" fn free_string(data_ptr: *mut c_void, ptr: *mut String) -> f64 {
     println!(
         "\tstring is: '{}' count is now: {}",
         string_data,
-        Rc::strong_count(&string_data) - 1
+        Rc::strong_count(&string_data).saturating_sub(1)
     );
     0.0
 }
@@ -120,7 +119,7 @@ extern "C" fn empty_string(data: *mut c_void) -> *const String {
     let rc = Rc::new("".to_string());
     data.string_out("empty_string", &*rc);
     let ptr = Rc::into_raw(rc);
-    println!("\tstring is {:?}", ptr);
+    println!("\tempty string is {:?}", ptr);
     ptr
 }
 
@@ -146,16 +145,14 @@ extern "C" fn number_to_string(data_ptr: *mut c_void, value: f64) -> *const Stri
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::NumberToString);
     println!("\tnum: {}", value);
-    let value = if value.fract() == 0.0 {
+    let value = if   value.fract() == 0.0 {
         value.floor()
     } else {
         value
     };
 
     let heap_alloc_string = Rc::new(value.to_string());
-
     data.string_out("number_to_string", &*heap_alloc_string);
-    let str = (*heap_alloc_string).clone();
     let ptr = Rc::into_raw(heap_alloc_string);
     ptr
 }
@@ -201,12 +198,12 @@ extern "C" fn binop(
         BinOp::BangEq => left != right,
         BinOp::EqEq => left == right,
         BinOp::MatchedBy => {
-            let RE = Regex::new(&right);
-            RE.matches(&left)
+            let regex = Regex::new(&right);
+            regex.matches(&left)
         }
         BinOp::NotMatchedBy => {
-            let RE = Regex::new(&right);
-            !RE.matches(&left)
+            let regex = Regex::new(&right);
+            !regex.matches(&left)
         }
     };
     let res = if res { 1.0 } else { 0.0 };
@@ -219,7 +216,7 @@ extern "C" fn binop(
     res
 }
 
-extern "C" fn print_error(data: *mut std::os::raw::c_void, code: ErrorCode) {
+extern "C" fn print_error(_data_ptr: *mut std::os::raw::c_void, code: ErrorCode) {
     eprintln!("error {:?}", code)
 }
 
@@ -232,36 +229,42 @@ extern "C" fn array_assign(data_ptr: *mut std::os::raw::c_void,
                            float: f64,
                            ptr: *mut String) {
     let data = cast_to_runtime_data(data_ptr);
-    if key_tag == STRING_TAG {
-        let str = unsafe { Rc::from_raw(key_ptr) };
-        data.string_in("array_assign", &*str);
-        Rc::into_raw(str);
-    }
+    data.calls.log(Call::ArrayAssign);
     let res = data.arrays.assign(array, (key_tag, key_num, key_ptr), (tag, float, ptr));
     match res {
         None => {}
-        Some((existing_tag, existing_float, existing_ptr)) => {
+        Some((existing_tag, _existing_float, existing_ptr)) => {
             if existing_tag == STRING_TAG {
-                free_string(data_ptr, existing_ptr);
+                 unsafe { Rc::from_raw(existing_ptr) };
+                // implicitly drop RC here. Do not report as a string_in our out since it was
+                // already stored in the runtime and droped from the runtime.
             }
         }
     }
+    if key_tag == STRING_TAG {
+        let rc = unsafe { Rc::from_raw(key_ptr) };
+        data.string_in("array_access_key", &*rc);
+        // implicitly drop here
+    };
+    if tag == STRING_TAG {
+        let val = unsafe { Rc::from_raw(ptr) };
+        data.string_in("array_access_val", &*val);
+        // We don't drop it here because it is now stored in the hashmap.
+        Rc::into_raw(val);
+    }
+
 }
 
 extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
                            array: i32,
                            in_tag: i8,
                            in_float: f64,
-                           in_ptr: *mut String,
+                           mut in_ptr: *const String,
                            out_tag: *mut i8,
                            out_float: *mut f64,
-                           out_value: *mut (*mut String)) {
+                           out_value: *mut *mut String) {
     let data = cast_to_runtime_data(data_ptr);
-    if in_tag == STRING_TAG {
-        let rc = unsafe { Rc::from_raw(in_ptr) };
-        data.string_in("array_access_ind", &* rc);
-        Rc::into_raw(rc);
-    }
+    data.calls.log(Call::ArrayAccess);
     match data.arrays.access(array, (in_tag, in_float, in_ptr)) {
         None => {
             unsafe {
@@ -274,24 +277,41 @@ extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
                 *out_tag = *tag;
                 *out_float = *float;
                 if *tag == STRING_TAG {
-                    let rc = unsafe { Rc::from_raw(*str) };
+                    let rc = Rc::from_raw(*str);
                     let cloned = rc.clone();
+                    data.string_out("array_access", &*cloned);
+
                     Rc::into_raw(rc);
+
                     *out_value = Rc::into_raw(cloned) as *mut String;
                 }
             }
         }
     }
+    if in_tag == STRING_TAG {
+        let rc = unsafe { Rc::from_raw(in_ptr) };
+        data.string_in("input_str_to_array_access", &*rc);
+    }
 }
 
-extern "C" fn in_array(data_ptr: *mut c_void, array: i32, index: *mut String) -> f64 {
-    // let indices = unsafe { Rc::from_raw(index) };
-    // let data = cast_to_runtime_data(data_ptr);
-    // let array = &data.arrays[array as usize];
-    // unsafe {
-    //     if array.contains_key(&*index) { 1.0 } else { 0.0 }
-    // }
-    1.1
+extern "C" fn in_array(data_ptr: *mut c_void,
+                       array: i32,
+                       in_tag: i8,
+                       in_float: f64,
+                       in_ptr: *mut String) -> f64 {
+    let data = cast_to_runtime_data(data_ptr);
+    let ret = if data.arrays.in_array(array, (in_tag, in_float, in_ptr)) {
+        1.0
+    } else {
+        0.0
+    };
+    if in_tag == STRING_TAG {
+        let rc = unsafe { Rc::from_raw(in_ptr) };
+        data.string_in("array_access_ind", &*rc);
+        Rc::into_raw(rc);
+        free_string(data_ptr, in_ptr);
+    }
+    ret
 }
 
 extern "C" fn concat_array_indices(
@@ -318,7 +338,9 @@ extern "C" fn concat_array_indices(
     lhs.push_str("-");
     lhs.push_str(&rhs);
     data.string_out("concat indices result", &lhs);
-    Rc::into_raw(Rc::new(lhs))
+    let res = Rc::into_raw(Rc::new(lhs));
+    println!("\treturning {:?}", res);
+    res
 }
 
 extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: *mut c_void) {
@@ -331,8 +353,8 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
         data.output.push_str(&*fstring);
         print!("{}", fstring);
         for i in 0..(nargs as isize) {
-            let tag = *(base_ptr.offset(i * 3) as *const i8);
-            let float = *(base_ptr.offset(i * 3 + 1) as *const f64);
+            let _tag = *(base_ptr.offset(i * 3) as *const i8);
+            let _float = *(base_ptr.offset(i * 3 + 1) as *const f64);
             let ptr = *(base_ptr.offset(i * 3 + 2) as *const *mut String);
             // args.push((tag, float, ptr));
             let str = Rc::from_raw(ptr);
@@ -423,7 +445,7 @@ impl TestRuntime {
             val.clone()
         } else {
             let val = func.create_void_ptr_constant(self.runtime_data as *mut c_void);
-            self.runtime_data_constant.insert(val.clone());
+            let _ = self.runtime_data_constant.insert(val.clone());
             val
         }
     }

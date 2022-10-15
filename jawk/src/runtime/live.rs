@@ -1,18 +1,14 @@
-use hashbrown::HashMap;
-use std::env::var;
-use crate::codegen::{FLOAT_TAG, STRING_TAG, ValueT};
+use crate::codegen::{FLOAT_TAG, STRING_TAG};
 use crate::columns::Columns;
 use crate::lexer::BinOp;
 use crate::runtime::{ErrorCode, Runtime};
 use gnu_libjit::{Abi, Context, Function, Value};
 use std::ffi::c_void;
-use std::fmt::{Write as FmtWrite};
 use std::io::{BufWriter, StdoutLock, Write};
 use std::rc::Rc;
-use hashbrown::hash_map::{DefaultHashBuilder, Entry};
 use mawk_regex::Regex;
 use lru_cache::LruCache;
-use crate::runtime::arrays::{Arrays, MapValue};
+use crate::runtime::arrays::{Arrays};
 
 // Live runtime used by most programs.
 // A pointer to the runtime data is provided for all calls but only used for some.
@@ -27,7 +23,7 @@ pub extern "C" fn print_string(data: *mut c_void, value: *mut String) {
         data.stdout.write_all(str.as_bytes()).expect("failed to write to stdout");
         data.stdout.write_all("\n".as_bytes()).expect("failed to write to stdout");
     }
-    Rc::into_raw(str);
+    // implicitly consuming str here.
 }
 
 pub extern "C" fn print_float(data: *mut c_void, value: f64) {
@@ -61,7 +57,7 @@ extern "C" fn column(
     Rc::into_raw(Rc::new(data.columns.get(idx))) as *mut String
 }
 
-extern "C" fn free_string(_data: *mut c_void, string: *mut String) -> f64 {
+extern "C" fn free_string(_data: *mut c_void, string: *const String) -> f64 {
     unsafe { Rc::from_raw(string) };
     0.0
 }
@@ -104,7 +100,7 @@ extern "C" fn binop(
         BinOp::EqEq => left == right,
         BinOp::MatchedBy => {
             let reg = match data.regex_cache.get_mut(&*right) {
-                Some(cachedRegex) => cachedRegex,
+                Some(cached_regex) => cached_regex,
                 None => {
                     let re = Regex::new(&right);
                     data.regex_cache.insert((&*right).clone(), re);
@@ -115,7 +111,7 @@ extern "C" fn binop(
         }
         BinOp::NotMatchedBy => {
             let reg = match data.regex_cache.get_mut(&*right) {
-                Some(cachedRegex) => cachedRegex,
+                Some(cached_regex) => cached_regex,
                 None => {
                     let re = Regex::new(&right);
                     data.regex_cache.insert((&*right).clone(), re);
@@ -162,7 +158,7 @@ extern "C" fn copy_string(_data: *mut c_void, ptr: *mut String) -> *const String
     Rc::into_raw(copy)
 }
 
-extern "C" fn print_error(data: *mut std::os::raw::c_void, code: ErrorCode) {
+extern "C" fn print_error(_data: *mut std::os::raw::c_void, code: ErrorCode) {
     eprintln!("error {:?}", code)
 }
 
@@ -178,12 +174,24 @@ extern "C" fn array_assign(data_ptr: *mut std::os::raw::c_void,
     let res = data.arrays.assign(array, (key_tag, key_num, key_ptr), (tag, float, ptr));
     match res {
         None => {}
-        Some((existing_tag, existing_float, existing_ptr)) => {
+        Some((existing_tag, _existing_float, existing_ptr)) => {
             if existing_tag == STRING_TAG {
-                free_string(data_ptr, existing_ptr);
+                unsafe { Rc::from_raw(existing_ptr) };
+                // implicitly drop RC here. Do not report as a string_in our out since it was
+                // already stored in the runtime and droped from the runtime.
             }
         }
     }
+    if key_tag == STRING_TAG {
+        let rc = unsafe { Rc::from_raw(key_ptr) };
+        // implicitly drop here
+    };
+    if tag == STRING_TAG {
+        let val = unsafe { Rc::from_raw(ptr) };
+        // We don't drop it here because it is now stored in the hashmap.
+        Rc::into_raw(val);
+    }
+
 }
 
 extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
@@ -193,7 +201,7 @@ extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
                            in_ptr: *mut String,
                            out_tag: *mut i8,
                            out_float: *mut f64,
-                           out_value: *mut (*mut String)) {
+                           out_value: *mut *mut String) {
     let data = cast_to_runtime_data(data_ptr);
     match data.arrays.access(array, (in_tag, in_float, in_ptr)) {
         None => {
@@ -207,7 +215,7 @@ extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
                 *out_tag = *tag;
                 *out_float = *float;
                 if *tag == STRING_TAG {
-                    let rc = unsafe { Rc::from_raw(*str) };
+                    let rc = Rc::from_raw(*str);
                     let cloned = rc.clone();
                     Rc::into_raw(rc);
                     *out_value = Rc::into_raw(cloned) as *mut String;
@@ -215,16 +223,26 @@ extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
             }
         }
     }
+    if in_tag == STRING_TAG {
+        free_string(data_ptr, in_ptr);
+    }
 }
 
-extern "C" fn in_array(data_ptr: *mut c_void, array: i32, index: *mut String) -> f64 {
-    // let indices = unsafe { Rc::from_raw(index) };
-    // let data = cast_to_runtime_data(data_ptr);
-    // let array = &data.arrays[array as usize];
-    // unsafe {
-    //     if array.contains_key(&*index) { 1.0 } else { 0.0 }
-    // }
-    1.1
+extern "C" fn in_array(data_ptr: *mut c_void,
+                       array: i32,
+                       in_tag: i8,
+                       in_float: f64,
+                       in_ptr: *mut String) -> f64 {
+    let data = cast_to_runtime_data(data_ptr);
+    let ret = if data.arrays.in_array(array, (in_tag, in_float, in_ptr)) {
+        1.0
+    } else {
+        0.0
+    };
+    if in_tag == STRING_TAG {
+        free_string(data_ptr, in_ptr);
+    }
+    ret
 }
 
 extern "C" fn concat_array_indices(
@@ -263,6 +281,7 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
     };
 }
 
+#[allow(dead_code)]
 extern "C" fn helper(_data_ptr: *mut std::os::raw::c_void, _str: usize, _size: usize) -> f64 {
     return 1.1;
 }
@@ -325,7 +344,7 @@ impl LiveRuntime {
             val.clone()
         } else {
             let val = func.create_void_ptr_constant(self.runtime_data as *mut c_void);
-            self.runtime_data_constant.insert(val.clone());
+            let _ = self.runtime_data_constant.insert(val.clone());
             val
         }
     }

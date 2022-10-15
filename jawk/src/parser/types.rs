@@ -1,9 +1,5 @@
-use std::collections::HashSet;
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use std::fmt::{Display, Formatter};
-use std::hash::Hash;
-use libc::write;
-use crate::{parser, Symbolizer};
 use crate::symbolizer::Symbol;
 
 #[derive(PartialEq, Clone, Copy, Debug)]

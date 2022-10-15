@@ -1,7 +1,5 @@
 use crate::parser::{Program, parse, PatternAction, Stmt, TypedExpr, Expr, Function};
-use crate::{lex};
 use crate::lexer::{MathOp, BinOp, LogicalOp};
-use crate::symbolizer::Symbol;
 
 #[cfg(test)]
 use crate::symbolizer::Symbolizer;
@@ -747,11 +745,3 @@ fn test_call() {
     let begin = Stmt::Expr(Expr::Call { target: a, args }.into());
     assert_eq!(actual, Program::new(symbolizer.get("main function"), vec![begin], vec![], vec![], vec![]))
 }
-
-
-#[test]
-fn test_ident_bug_fix_parser() {
-    let mut symbolizer = Symbolizer::new();
-    let str = "BEGIN { helper(a) }";
-}
-
