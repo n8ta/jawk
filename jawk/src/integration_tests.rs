@@ -905,27 +905,56 @@ test!(
     ONE_LINE,
     "5\n"
 );
-//
-// test!(
-//     test_in_array_1,
-//     "BEGIN { a[5] = 3; print 5 in a; }",
-//     ONE_LINE,
-//     "1\n"
-// );
-//
-// test!(
-//     test_in_array_2,
-//     "BEGIN { a[5] = 3; print (5) in a; }",
-//     ONE_LINE,
-//     "1\n"
-// );
 
-// test!(
-//     test_in_array_3,
-//     "BEGIN { a[4] = 4; a[1,2,3] = 3; print (1,2,3) in a; print (123 in a) }",
-//     ONE_LINE,
-//     "1\n0\n"
-// );
+test!(
+    test_in_array_1,
+    "BEGIN { a[5] = 3; print 5 in a; }",
+    ONE_LINE,
+    "1\n"
+);
+
+test!(
+    test_in_array_2,
+    "BEGIN { a[5] = 3; print (5) in a; }",
+    ONE_LINE,
+    "1\n"
+);
+
+test!(
+    test_in_array_3,
+    "BEGIN { a[4] = 4; a[1,2,3] = 3; print (1,2,3) in a; print (123 in a) }",
+    ONE_LINE,
+    "1\n0\n"
+);
+
+test!(
+    test_multidim_array_in,
+    "BEGIN {a[0,1] = 3 ; print a[0,1]; }",
+    ONE_LINE,
+    "3\n"
+);
+
+test!(
+    test_multidim_array_in_str,
+    "BEGIN {a[\"0-1\"] = 3 ; print a[\"0-1\"]; }",
+    ONE_LINE,
+    "3\n"
+);
+
+test!(
+    test_mixed_array,
+    "BEGIN {SUBSEP = \"-\"; a[0,1] = 3 ; print a[\"0-1\"]; }",
+    ONE_LINE,
+    "3\n"
+);
+
+test!(
+    test_multi_in_array_1,
+    "BEGIN { a[5] = 3; b[3] = 2; b[2] = 1; b[1] = 5; print 3 in b in b; }",
+    ONE_LINE,
+    "1\n"
+);
+
 test!(
     test_perf_array,
     "BEGIN { while (x<40000) { arr[x] = 1+x++  }; sum = 0; x = 0; while (x++ < 40000) { sum += arr[x] }; print sum}",

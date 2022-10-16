@@ -145,7 +145,7 @@ extern "C" fn number_to_string(data_ptr: *mut c_void, value: f64) -> *const Stri
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::NumberToString);
     println!("\tnum: {}", value);
-    let value = if   value.fract() == 0.0 {
+    let value = if value.fract() == 0.0 {
         value.floor()
     } else {
         value
@@ -235,7 +235,7 @@ extern "C" fn array_assign(data_ptr: *mut std::os::raw::c_void,
         None => {}
         Some((existing_tag, _existing_float, existing_ptr)) => {
             if existing_tag == STRING_TAG {
-                 unsafe { Rc::from_raw(existing_ptr) };
+                unsafe { Rc::from_raw(existing_ptr) };
                 // implicitly drop RC here. Do not report as a string_in our out since it was
                 // already stored in the runtime and droped from the runtime.
             }
@@ -252,7 +252,6 @@ extern "C" fn array_assign(data_ptr: *mut std::os::raw::c_void,
         // We don't drop it here because it is now stored in the hashmap.
         Rc::into_raw(val);
     }
-
 }
 
 extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
@@ -294,24 +293,19 @@ extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
     }
 }
 
-extern "C" fn in_array(data_ptr: *mut c_void,
+extern "C" fn in_array(data_ptr: *mut std::os::raw::c_void,
                        array: i32,
                        in_tag: i8,
                        in_float: f64,
-                       in_ptr: *mut String) -> f64 {
+                       in_ptr: *const String) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
-    let ret = if data.arrays.in_array(array, (in_tag, in_float, in_ptr)) {
-        1.0
-    } else {
-        0.0
-    };
+    data.calls.log(Call::InArray);
+    let res = data.arrays.in_array(array, (in_tag, in_float, in_ptr));
     if in_tag == STRING_TAG {
         let rc = unsafe { Rc::from_raw(in_ptr) };
-        data.string_in("array_access_ind", &*rc);
-        Rc::into_raw(rc);
-        free_string(data_ptr, in_ptr);
+        data.string_in("input_str_to_array_access", &*rc);
     }
-    ret
+    if res { 1.0 } else { 0.0 }
 }
 
 extern "C" fn concat_array_indices(

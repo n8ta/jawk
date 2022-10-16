@@ -228,21 +228,17 @@ extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
     }
 }
 
-extern "C" fn in_array(data_ptr: *mut c_void,
+extern "C" fn in_array(data_ptr: *mut std::os::raw::c_void,
                        array: i32,
                        in_tag: i8,
                        in_float: f64,
-                       in_ptr: *mut String) -> f64 {
+                       in_ptr: *const String) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
-    let ret = if data.arrays.in_array(array, (in_tag, in_float, in_ptr)) {
-        1.0
-    } else {
-        0.0
-    };
+    let res = data.arrays.in_array(array, (in_tag, in_float, in_ptr));
     if in_tag == STRING_TAG {
-        free_string(data_ptr, in_ptr);
+        unsafe { Rc::from_raw(in_ptr) };
     }
-    ret
+    if res { 1.0 } else { 0.0 }
 }
 
 extern "C" fn concat_array_indices(

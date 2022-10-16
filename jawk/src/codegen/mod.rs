@@ -524,29 +524,23 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             Expr::ArrayIndex { name, indices } => {
                 let array_id = self.globals.get_array(name, &mut self.function)?;
 
-                if indices.len() == 1 {
-                    let val = self.compile_expr(&indices[0], false)?;
-                    self.runtime.array_access(&mut self.function, array_id,
-                                              val.tag,
-                                              val.float,
-                                              val.pointer,
-                                              self.ptr_scratch.tag.clone(),
-                                              self.ptr_scratch.float.clone(),
-                                              self.ptr_scratch.pointer.clone());
+                let indices_value = if indices.len() == 1 {
+                    self.compile_expr(&indices[0], false)?
                 } else {
                     let values = self.compile_exprs_to_string(indices)?;
                     let indices = self.concat_indices(&values);
                     // Runtime will set the out_tag out_float and out_ptr pointers to a new value. Just load em
                     let str_tag = self.string_tag();
                     let zero_f = self.zero_f();
-                    self.runtime.array_access(&mut self.function, array_id,
-                                              str_tag,
-                                              zero_f,
-                                              indices,
-                                              self.ptr_scratch.tag.clone(),
-                                              self.ptr_scratch.float.clone(),
-                                              self.ptr_scratch.pointer.clone());
-                }
+                    ValueT::var(str_tag, zero_f, indices)
+                };
+                self.runtime.array_access(&mut self.function, array_id,
+                                          indices_value.tag,
+                                          indices_value.float,
+                                          indices_value.pointer,
+                                          self.ptr_scratch.tag.clone(),
+                                          self.ptr_scratch.float.clone(),
+                                          self.ptr_scratch.pointer.clone());
                 let tag = self.function.insn_load_relative(&self.ptr_scratch.tag, 0, &Context::sbyte_type());
                 let float = self.function.insn_load_relative(&self.ptr_scratch.float, 0, &Context::float64_type());
                 let pointer = self.function.insn_load_relative(&self.ptr_scratch.pointer, 0, &Context::void_ptr_type());
@@ -565,7 +559,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                     let str_tag = self.string_tag();
                     let zero_f = self.zero_f();
                     let float_result = self.runtime.in_array(&mut self.function, array_id, str_tag, zero_f, value);
-                    ValueT::var(self.float_tag(), float_result, self.zero_ptr())
+                    ValueT::float(self.float_tag(), float_result, self.zero_ptr())
                 }
             }
             Expr::ArrayAssign { name, indices: indices_arr, value } => {
