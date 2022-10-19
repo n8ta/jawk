@@ -59,6 +59,7 @@ impl Globals {
         let idx = self.mapping.get(name).expect(&format!("symbol not mapped to a global `{}`", name));
         self.ptrs_idx(*idx, function)
     }
+
     fn ptrs_idx(&self,
                 idx: i32,
                 function: &mut Function) -> ValuePtrT {
@@ -74,7 +75,7 @@ impl Globals {
         }
     }
 
-    pub fn set(&mut self,
+    pub fn set(&self,
                function: &mut Function,
                name: &Symbol,
                value: &ValueT) {
@@ -84,7 +85,7 @@ impl Globals {
         function.insn_store_relative(&ptrs.pointer, 0, &value.pointer);
     }
 
-    pub fn get(&mut self, name: &Symbol, function: &mut Function) -> Result<ValueT, PrintableError> {
+    pub fn get(&self, name: &Symbol, function: &mut Function) -> Result<ValueT, PrintableError> {
         let ptrs = self.ptrs(&name, function);
         Ok(self.load_value(ptrs, function))
     }
@@ -96,13 +97,13 @@ impl Globals {
         ValueT::var(tag, float, ptr)
     }
 
-    pub fn get_const_str(&mut self, name: &Symbol) -> Result<*mut c_void, PrintableError> {
+    pub fn get_const_str(&self, name: &Symbol) -> Result<*mut c_void, PrintableError> {
         let idx = self.const_str_mapping.get(name).unwrap();
         let alloc_ptr = self.const_str_allocation[*idx];
         Ok(alloc_ptr as *mut c_void)
     }
 
-    pub fn scalars(&mut self, function: &mut Function) -> Vec<ValueT> {
+    pub fn scalars(&self, function: &mut Function) -> Vec<ValueT> {
         // TODO: This should return an iterator skipping the vec allocation
         let mut values: Vec<ValueT> = Vec::with_capacity(self.mapping.len());
         for (_, idx) in self.mapping.mapping() {
@@ -112,7 +113,7 @@ impl Globals {
         values
     }
 
-    pub fn get_array(&mut self, name: &Symbol, function: &mut Function) -> Result<Value, PrintableError> {
+    pub fn get_array(&self, name: &Symbol, function: &mut Function) -> Result<Value, PrintableError> {
         let idx = self.arrays.get(name).expect(&format!("expected array to exist `{}`", name));
         Ok(function.create_int_constant(*idx))
     }

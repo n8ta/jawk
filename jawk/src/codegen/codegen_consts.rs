@@ -5,7 +5,6 @@ pub struct CodegenConsts {
     pub zero_ptr: Value,
     // Used to init the float section of value. Safe to use but using it is a bug.
     pub zero_f: Value,
-
     // To avoid creating tons of constants just reuse the tags here
     pub float_tag: Value,
     pub string_tag: Value,

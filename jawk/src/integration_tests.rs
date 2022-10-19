@@ -100,7 +100,7 @@ fn test_it<S: AsRef<str>>(test_name: &str, prog: &str, file: S, oracle_output: &
     let file_path = temp_dir.path().join("tmp");
     std::fs::write(file_path.clone(), file.as_ref()).unwrap();
     let file_path_string = file_path.to_str().unwrap().to_string();
-    let res = compile_and_capture(program, &[file_path_string], &mut symbolizer, false).unwrap();
+    let res = compile_and_capture(program, &[file_path_string], &mut symbolizer, true).unwrap();
     assert_eq!(
         res.strings_in(), res.strings_out(),
         "runtime strings_in didn't match string_out. Possible mem leak `{}` in vs `{}` out",
@@ -130,6 +130,7 @@ macro_rules! test {
     };
 }
 
+test!(test_print_begin_int, "BEGIN {print 1;}", ONE_LINE, "1\n");
 test!(test_print_int, "{print 1;}", ONE_LINE, "1\n");
 test!(test_print_str, "BEGIN {print \"abc\";}", ONE_LINE, "abc\n");
 test!(test_print_str_loop, "{print \"abc\";}", ONE_LINE, "abc\n");
@@ -170,6 +171,7 @@ test!(
     ONE_LINE,
     "1\n2\n3\n"
 );
+test!(test_str_leak, "BEGIN { a = \"b\"; }", ONE_LINE, "");
 test!(test_empty, "BEGIN { }", ONE_LINE, "");
 test!(test_1_assgn, "BEGIN {x = 1; }", ONE_LINE, "");
 test!(test_4_assgn, "BEGIN {x = 4; print x }", ONE_LINE, "4\n");
