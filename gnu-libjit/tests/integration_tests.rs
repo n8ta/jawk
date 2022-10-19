@@ -9,7 +9,7 @@ fn make_test<RetT>(test: TestT, expected: RetT, jit_type: JitType) where RetT: D
     let mut context = Context::new();
     context.build_start();
     let mut func = context.function(Abi::Cdecl, &jit_type, vec![]).unwrap();
-    test(&mut func, &mut context);
+    test(&mut func, &mut context) ;
     println!("{}", func.dump().unwrap());
     func.compile();
     context.build_end();

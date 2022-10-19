@@ -10,7 +10,7 @@ use crate::parser::{Program, ScalarType, Stmt, TypedExpr};
 use crate::lexer::{LogicalOp, MathOp};
 use crate::printable_error::PrintableError;
 use crate::runtime::{LiveRuntime, Runtime, TestRuntime};
-use crate::{AnalysisResults, Expr, Symbolizer};
+use crate::{AnalysisResults, Expr, main, Symbolizer};
 use gnu_libjit::{Abi, Context, Function, Label, Value};
 use std::os::raw::{c_char, c_int, c_long, c_void};
 use libc::symlink;
@@ -35,8 +35,7 @@ pub const STRING_TAG: i8 = 1;
 // Entry point to run a program
 pub fn compile_and_run(prog: Program, files: &[String], symbolizer: &mut Symbolizer) -> Result<(), PrintableError> {
     let mut runtime = LiveRuntime::new(files.to_vec());
-    let mut codegen = CodeGen::new(&mut runtime, symbolizer);
-    codegen.compile(prog, false, false)?;
+    let mut codegen = CodeGen::compile(&mut runtime, symbolizer, prog, false, false)?;
     codegen.run();
     Ok(())
 }
@@ -45,8 +44,7 @@ pub fn compile_and_run(prog: Program, files: &[String], symbolizer: &mut Symboli
 pub fn compile_and_capture(prog: Program, files: &[String], symbolizer: &mut Symbolizer, dump: bool) -> Result<TestRuntime, PrintableError> {
     let mut test_runtime = TestRuntime::new(files.to_vec());
     {
-        let mut codegen = CodeGen::new(&mut test_runtime, symbolizer);
-        codegen.compile(prog, true, dump)?;
+        let mut codegen = CodeGen::compile(&mut test_runtime, symbolizer, prog, true, dump)?;
         codegen.run();
     }
     assert_eq!(test_runtime.strings_in(), test_runtime.strings_out(), "LEFT strings in does not match RIGHT strings out. This program caused a memory leak.");
@@ -68,18 +66,26 @@ struct CodeGen<'a, RuntimeT: Runtime> {
 }
 
 impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
-    fn new(runtime: &'a mut RuntimeT, symbolizer: &'a mut Symbolizer) -> Self {
+    fn compile(runtime: &'a mut RuntimeT,
+               symbolizer: &'a mut Symbolizer,
+               prog: Program,
+               debug_asserts: bool,
+               dump: bool
+
+    ) -> Result<Self,PrintableError> {
         let mut context = Context::new();
-        let mut entry_function = context
+
+        let mut main_function = context
             .function(Abi::Cdecl, &Context::int_type(), vec![])
             .expect("to create function");
 
-        let globals = Globals::new(AnalysisResults::new(), runtime, &mut entry_function, symbolizer);
+        let globals = Globals::new(AnalysisResults::new(), runtime, &mut main_function, symbolizer);
 
         let var_arg_scratch = unsafe { libc::malloc(100 * 8) };
-        let var_arg_scratch = entry_function.create_void_ptr_constant(var_arg_scratch);
+        let var_arg_scratch = main_function.create_void_ptr_constant(var_arg_scratch);
 
-        let codegen = CodeGen {
+        let main_sym = symbolizer.get("main function");
+        let mut codegen = CodeGen {
             context,
             runtime,
             symbolizer,
@@ -87,7 +93,9 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             var_arg_scratch,
             function_map: HashMap::new(),
         };
-        codegen
+        codegen.function_map.insert(main_sym, main_function);
+        codegen.compile_inner(prog, debug_asserts, dump)?;
+        Ok(codegen)
     }
 
     fn run(&mut self) {
@@ -98,15 +106,16 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     }
 
 
-    fn compile(&mut self, mut prog: Program, debug_asserts: bool, dump: bool) -> Result<(), PrintableError> {
+    fn compile_inner(&mut self, mut prog: Program, debug_asserts: bool, dump: bool) -> Result<(), PrintableError> {
         let num_arrays = prog.global_analysis.global_arrays.len();
         let mut global_analysis = AnalysisResults::new();
         std::mem::swap(&mut global_analysis, &mut prog.global_analysis);
 
         self.runtime.allocate_arrays(num_arrays);
 
-        // Gen stubs for each function
+        // Gen stubs for each function, main already created
         for (name, func) in &prog.functions {
+            if name.to_str() == "main function" { continue; }
             let func = self.context.function(Abi::Cdecl, &Context::int_type(), vec![]).unwrap();
             self.function_map.insert(name.clone(), func);
         }
