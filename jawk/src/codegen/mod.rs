@@ -52,16 +52,11 @@ pub fn compile_and_capture(prog: Program, files: &[String], symbolizer: &mut Sym
 }
 
 struct CodeGen<'a, RuntimeT: Runtime> {
-    pub(crate) context: Context,
-
+    context: Context,
     runtime: &'a mut RuntimeT,
-
     symbolizer: &'a mut Symbolizer,
-
     globals: Globals,
-
     var_arg_scratch: Value,
-
     function_map: HashMap<Symbol, Function>,
 }
 
@@ -85,16 +80,18 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         let var_arg_scratch = main_function.create_void_ptr_constant(var_arg_scratch);
 
         let main_sym = symbolizer.get("main function");
+        let mut function_map = HashMap::new();
+        function_map.insert(main_sym.clone(), main_function);
+
         let mut codegen = CodeGen {
             context,
             runtime,
             symbolizer,
             globals,
             var_arg_scratch,
-            function_map: HashMap::new(),
+            function_map,
         };
-        codegen.function_map.insert(main_sym, main_function);
-        codegen.compile_inner(prog, debug_asserts, dump)?;
+        codegen.compile_inner(prog, debug_asserts, dump, main_sym)?;
         Ok(codegen)
     }
 
@@ -106,7 +103,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     }
 
 
-    fn compile_inner(&mut self, mut prog: Program, debug_asserts: bool, dump: bool) -> Result<(), PrintableError> {
+    fn compile_inner(&mut self, mut prog: Program, debug_asserts: bool, dump: bool, main_sym: Symbol) -> Result<(), PrintableError> {
         let num_arrays = prog.global_analysis.global_arrays.len();
         let mut global_analysis = AnalysisResults::new();
         std::mem::swap(&mut global_analysis, &mut prog.global_analysis);
@@ -115,15 +112,14 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
 
         // Gen stubs for each function, main already created
         for (name, func) in &prog.functions {
-            if name.to_str() == "main function" { continue; }
+            if *name == main_sym { continue };
             let func = self.context.function(Abi::Cdecl, &Context::int_type(), vec![]).unwrap();
             self.function_map.insert(name.clone(), func);
         }
 
-        let main_function = self.symbolizer.get("main function");
         {
             // Init globals in main function
-            let main = self.function_map.get_mut(&main_function).unwrap();
+            let main = self.function_map.get_mut(&main_sym).expect("main function to exist");
             self.globals = Globals::new(global_analysis, self.runtime, main, self.symbolizer);
         }
 
@@ -136,7 +132,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                                             &mut self.globals,
                                             self.symbolizer,
                                             &self.var_arg_scratch,
-                                            name.to_str() == "main function",
+                                            *name == main_sym,
                                             debug_asserts,
                                             dump,
             )?;

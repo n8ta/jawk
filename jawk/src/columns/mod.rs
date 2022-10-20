@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use std::path::PathBuf;
 
 type Line = HashMap<usize, String>;

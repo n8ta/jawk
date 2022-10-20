@@ -65,7 +65,7 @@ fn append_result(test_name: &str, interp: &str, our_total: u128, other_total: u1
         .open("text_results")
         .unwrap();
 
-    let str = format!("{}\t{}\t{}\t{}\t{}\n", test_name, interp, our_total, other_total, other_total / our_total);
+    let str = format!("{}\t{}\t{}\tjawk\t{}\n", test_name, interp, other_total, our_total);
     file.write_all(str.as_bytes()).unwrap();
 }
 
@@ -87,6 +87,7 @@ fn test_perf(test_name: &str, interpreter: &str, prog: &str, oracle_output: &str
     other_total /= PERF_RUNS;
 
     append_result(test_name, interpreter, our_total, other_total);
+
     assert!(our_total < other_total || our_total < 5 * 1000, "perf-test: jawk={}ms {}={}ms", our_total / 1000, interpreter, other_total / 1000);
 }
 
@@ -100,7 +101,7 @@ fn test_it<S: AsRef<str>>(test_name: &str, prog: &str, file: S, oracle_output: &
     let file_path = temp_dir.path().join("tmp");
     std::fs::write(file_path.clone(), file.as_ref()).unwrap();
     let file_path_string = file_path.to_str().unwrap().to_string();
-    let res = compile_and_capture(program, &[file_path_string], &mut symbolizer, true).unwrap();
+    let res = compile_and_capture(program, &[file_path_string], &mut symbolizer, false).unwrap();
     assert_eq!(
         res.strings_in(), res.strings_out(),
         "runtime strings_in didn't match string_out. Possible mem leak `{}` in vs `{}` out",
@@ -888,7 +889,7 @@ test!(
 );
 
 test!(
-    test_array_set_get,
+    test_array_set_get_single,
     "BEGIN { a[0] = 5; print a[0]; a[1] = 2; print a[1]; a[1] = 3; print a[1]; }",
     ONE_LINE,
     "5\n2\n3\n"

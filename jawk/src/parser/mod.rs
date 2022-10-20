@@ -56,6 +56,31 @@ impl Display for Program {
     }
 }
 
+const STRING_CONCAT_SKIPS: u64 =
+    TokenType::InplaceAssign as u64 |
+        TokenType::Less as u64 |
+        TokenType::LessEq as u64 |
+        TokenType::BangEq as u64 |
+        TokenType::EqEq as u64 |
+        TokenType::Greater as u64 |
+        TokenType::GreaterEq as u64 |
+        TokenType::And as u64 |
+        TokenType::Or as u64 |
+        TokenType::Eq as u64 |
+        TokenType::Semicolon as u64 |
+        TokenType::RightBrace as u64 |
+        TokenType::RightParen as u64 |
+        TokenType::LeftBrace as u64 |
+        TokenType::Question as u64 |
+        TokenType::Colon as u64 |
+        TokenType::MatchedBy as u64 |
+        TokenType::NotMatchedBy as u64 |
+        TokenType::Comma as u64 |
+        TokenType::In as u64 |
+        TokenType::LeftBracket as u64 |
+        TokenType::RightBracket as u64 |
+        TokenType::Printf as u64;
+
 pub fn parse(tokens: Vec<Token>, symbolizer: &mut Symbolizer) -> Program {
     let mut parser = Parser { tokens, current: 0, symbolizer };
     parser.parse()
@@ -67,6 +92,12 @@ struct Parser<'a> {
     symbolizer: &'a mut Symbolizer,
 }
 
+macro_rules! flags {
+    // Base case:
+    ($x:expr) => ($x as u64);
+    ($x:expr, $($y:expr),+) => ( flags!($x) | flags!($($y),+))
+}
+
 impl<'a> Parser<'a> {
     fn parse(&mut self) -> Program {
         let mut begins = vec![];
@@ -74,7 +105,7 @@ impl<'a> Parser<'a> {
         let mut pattern_actions = vec![];
         let mut functions = vec![];
         while !self.is_at_end() {
-            if self.matches(&[TokenType::Function]) {
+            if self.matches(flags!(TokenType::Function)) {
                 let name = self.ident_consume("Function name must follow function keyword");
                 self.consume(TokenType::LeftParen, "Function name must be followed by '('");
                 let mut args = vec![];
@@ -107,7 +138,7 @@ impl<'a> Parser<'a> {
 
     fn ident_consume(&mut self, error_msg: &str) -> Symbol {
         if let Token::Ident(ident) = self.consume(TokenType::Ident, error_msg) {
-            return ident
+            return ident;
         }
         unreachable!()
     }
@@ -134,16 +165,14 @@ impl<'a> Parser<'a> {
     }
 
 
-    fn matches(&mut self, tokens: &[TokenType]) -> bool {
+    fn matches(&mut self, tokens: u64) -> bool {
         let tkn = match self.tokens.get(self.current) {
             None => return false,
             Some(t) => t.ttype().clone(),
         };
-        for expected in tokens.iter() {
-            if *expected == tkn {
-                self.advance();
-                return true;
-            }
+        if (tokens & tkn as u64) != 0 {
+            self.advance();
+            return true;
         }
         false
     }
@@ -187,18 +216,18 @@ impl<'a> Parser<'a> {
     }
 
     fn pattern_action(&mut self) -> PAType {
-        let b = if self.matches(&[TokenType::LeftBrace]) {
+        let b = if self.matches(flags!(TokenType::LeftBrace)) {
             // { print 1; }
             let pa = PAType::Normal(PatternAction::new_action_only(self.stmts()));
             self.consume(TokenType::RightBrace, "Expected '}' after action block");
             pa
-        } else if self.matches(&[TokenType::Begin]) {
+        } else if self.matches(flags!(TokenType::Begin)) {
             // BEGIN { print 1; }
             self.consume(TokenType::LeftBrace, "Expected a '{' after a begin");
             let pa = PAType::Begin(self.stmts());
             self.consume(TokenType::RightBrace, "Begin action should end with '}'");
             pa
-        } else if self.matches(&[TokenType::End]) {
+        } else if self.matches(flags!(TokenType::End)) {
             // END { print 1; }
             self.consume(TokenType::LeftBrace, "Expected a {' after a end");
             let pa = PAType::End(self.stmts());
@@ -206,7 +235,7 @@ impl<'a> Parser<'a> {
             pa
         } else {
             let test = self.expression();
-            if self.matches(&[TokenType::LeftBrace]) {
+            if self.matches(flags!(TokenType::LeftBrace)) {
                 // test { print 1; }
                 let pa = PAType::Normal(PatternAction::new(Some(test), self.stmts()));
                 self.consume(TokenType::RightBrace, "Patern action should end with '}'");
@@ -235,25 +264,25 @@ impl<'a> Parser<'a> {
     }
 
     fn stmt(&mut self) -> Stmt {
-        let stmt = if self.matches(&[TokenType::Print]) {
+        let stmt = if self.matches(flags!(TokenType::Print)) {
             Stmt::Print(self.expression()) // TODO: print 1,2,3
-        } else if self.matches(&[TokenType::Ret]) {
+        } else if self.matches(flags!(TokenType::Ret)) {
             if self.peek().ttype() != TokenType::RightBrace && self.peek_next().ttype() != TokenType::Semicolon {
                 let expr = self.expression();
                 Stmt::Return(Some(expr))
             } else {
                 Stmt::Return(None)
             }
-        } else if self.matches(&[TokenType::Printf]) {
+        } else if self.matches(flags!(TokenType::Printf)) {
             let fstring = self.expression();
             let mut args = vec![];
-            while self.matches(&[TokenType::Comma]) {
+            while self.matches(flags!(TokenType::Comma)) {
                 args.push(self.expression());
             }
             Stmt::Printf { fstring, args }
-        } else if self.matches(&[TokenType::Break]) {
+        } else if self.matches(flags!(TokenType::Break)) {
             Stmt::Break
-        } else if self.matches(&[TokenType::For]) {
+        } else if self.matches(flags!(TokenType::For)) {
             self.consume(TokenType::LeftParen, "Expected a '(' after the for keyword");
             let init = self.stmt();
             self.consume(
@@ -292,7 +321,7 @@ impl<'a> Parser<'a> {
             )))
             // } else if self.any_match(&[TokenType::Ret]) {
             //     self.return_stmt()
-        } else if self.matches(&[TokenType::While]) {
+        } else if self.matches(flags!(TokenType::While)) {
             self.consume(TokenType::LeftParen, "Must have paren after while");
             let expr = self.expression();
             self.consume(
@@ -303,12 +332,12 @@ impl<'a> Parser<'a> {
             let stmts = self.stmts();
             self.consume(TokenType::RightBrace, "While loop must be followed by '}'");
             Stmt::While(expr, Box::new(stmts))
-        } else if self.matches(&[TokenType::Print]) {
+        } else if self.matches(flags!(TokenType::Print)) {
             let expr = self.expression();
             Stmt::Print(expr)
-        } else if self.matches(&[TokenType::If]) {
+        } else if self.matches(flags!(TokenType::If)) {
             self.if_stmt()
-        } else if self.matches(&[TokenType::LeftBrace]) {
+        } else if self.matches(flags!(TokenType::LeftBrace)) {
             let s = self.stmts();
             self.consume(
                 TokenType::RightBrace,
@@ -344,7 +373,7 @@ impl<'a> Parser<'a> {
             self.stmt()
         };
 
-        let else_blk = if self.matches(&[TokenType::Else]) {
+        let else_blk = if self.matches(flags!(TokenType::Else)) {
             let else_blk = if self.peek().ttype() == TokenType::LeftBrace {
                 self.group()
             } else {
@@ -365,10 +394,10 @@ impl<'a> Parser<'a> {
         let expr = self.ternary();
         if let Expr::Variable(var) = &expr.expr {
             let var = var.clone();
-            if self.matches(&[TokenType::Eq]) {
+            if self.matches(flags!(TokenType::Eq)) {
                 // =
                 return TypedExpr::new(Expr::ScalarAssign(var, Box::new(self.assignment())));
-            } else if self.matches(&[TokenType::InplaceAssign]) {
+            } else if self.matches(flags!(TokenType::InplaceAssign)) {
                 // ?=
                 let math_op = if let Token::InplaceEq(math_op) = self.previous().unwrap() { math_op } else { unreachable!() };
                 let expr = Expr::MathOp(
@@ -385,7 +414,7 @@ impl<'a> Parser<'a> {
         if let Expr::ArrayIndex { .. } = &expr.expr {
             is_array_index = true;
         }
-        if is_array_index && self.matches(&[TokenType::Eq]) {
+        if is_array_index && self.matches(flags!(TokenType::Eq)) {
             if let Expr::ArrayIndex { name, indices } = expr.expr {
                 let value = Box::new(self.assignment());
                 return Expr::ArrayAssign { name, indices, value }.into();
@@ -398,7 +427,7 @@ impl<'a> Parser<'a> {
 
     fn ternary(&mut self) -> TypedExpr {
         let cond = self.logical_or();
-        while self.matches(&[TokenType::Question]) {
+        while self.matches(flags!(TokenType::Question)) {
             let expr1 = self.ternary();
             self.consume(TokenType::Colon, "Expected a colon after question mark in a ternary!");
             let expr2 = self.ternary();
@@ -413,7 +442,7 @@ impl<'a> Parser<'a> {
 
     fn logical_or(&mut self) -> TypedExpr {
         let mut expr = self.logical_and();
-        while self.matches(&[TokenType::Or]) {
+        while self.matches(flags!(TokenType::Or)) {
             expr = TypedExpr::new(Expr::LogicalOp(
                 Box::new(expr),
                 LogicalOp::Or,
@@ -425,7 +454,7 @@ impl<'a> Parser<'a> {
 
     fn logical_and(&mut self) -> TypedExpr {
         let mut expr = self.array_membership();
-        while self.matches(&[TokenType::And]) {
+        while self.matches(flags!(TokenType::And)) {
             expr = TypedExpr::new(Expr::LogicalOp(
                 Box::new(expr),
                 LogicalOp::And,
@@ -438,7 +467,7 @@ impl<'a> Parser<'a> {
     fn array_membership(&mut self) -> TypedExpr {
         // <expr> in array_name
         let mut expr = self.multi_dim_array_membership();
-        while self.matches(&[TokenType::In]) {
+        while self.matches(flags!(TokenType::In)) {
             let name = if let Token::Ident(name) = self.consume(TokenType::Ident, "An array name must follow `<expr> in`") { name } else { unreachable!() };
             expr = Expr::InArray { name, indices: vec![expr] }.into()
         }
@@ -448,7 +477,7 @@ impl<'a> Parser<'a> {
     fn helper_multi_dim_array(&mut self) -> TypedExpr {
         self.consume(TokenType::LeftParen, "Multidimensional array must begin with left paren");
         let mut exprs = vec![self.regex()];
-        while self.matches(&[TokenType::Comma]) {
+        while self.matches(flags!(TokenType::Comma)) {
             if self.peek().ttype() == TokenType::RightParen { break; }
             exprs.push(self.regex());
         }
@@ -458,7 +487,7 @@ impl<'a> Parser<'a> {
         let ident = if let Token::Ident(ident) = ident { ident } else { unreachable!("compiler bug consumed ident but got something else") };
 
         let mut expr = TypedExpr::new(Expr::InArray { name: ident, indices: exprs });
-        while self.matches(&[TokenType::In]) {
+        while self.matches(flags!(TokenType::In)) {
             let ident = self.consume(TokenType::Ident, "Multidimensional array access must be followed by an array name. Eg: (1,2,3) in ARRAY_NAME");
             let ident = if let Token::Ident(ident) = ident { ident } else { unreachable!("compiler bug consumed ident but got something else") };
             expr = Expr::InArray { name: ident, indices: vec![expr.into()] }.into();
@@ -482,7 +511,7 @@ impl<'a> Parser<'a> {
     fn regex(&mut self) -> TypedExpr {
         // "a ~ /match/"
         let mut expr = self.compare();
-        while self.matches(&[TokenType::MatchedBy, TokenType::NotMatchedBy]) {
+        while self.matches(flags!(TokenType::MatchedBy, TokenType::NotMatchedBy)) {
             expr = Expr::BinOp(
                 Box::new(expr),
                 if self.previous().unwrap().ttype() == TokenType::MatchedBy { BinOp::MatchedBy } else { BinOp::NotMatchedBy },
@@ -493,14 +522,7 @@ impl<'a> Parser<'a> {
 
     fn compare(&mut self) -> TypedExpr {
         let mut expr = self.string_concat();
-        while self.matches(&[
-            TokenType::GreaterEq,
-            TokenType::Greater,
-            TokenType::Less,
-            TokenType::LessEq,
-            TokenType::EqEq,
-            TokenType::BangEq,
-        ]) {
+        while self.matches(flags!(TokenType::GreaterEq, TokenType::Greater, TokenType::Less, TokenType::LessEq, TokenType::EqEq, TokenType::BangEq)) {
             let op = match self.previous().unwrap() {
                 Token::BinOp(BinOp::Less) => BinOp::Less,
                 Token::BinOp(BinOp::LessEq) => BinOp::LessEq,
@@ -515,34 +537,15 @@ impl<'a> Parser<'a> {
         expr
     }
 
+    #[inline(always)]
+    fn types_contain(bitflag_union: u64, flag: u64) -> bool {
+        bitflag_union & flag != 0
+    }
+
     fn string_concat(&mut self) -> TypedExpr {
         let mut expr = self.plus_minus();
-        let not_these = vec![
-            TokenType::InplaceAssign,
-            TokenType::Less,
-            TokenType::LessEq,
-            TokenType::BangEq,
-            TokenType::EqEq,
-            TokenType::Greater,
-            TokenType::GreaterEq,
-            TokenType::And,
-            TokenType::Or,
-            TokenType::Eq,
-            TokenType::Semicolon,
-            TokenType::RightBrace,
-            TokenType::RightParen,
-            TokenType::LeftBrace,
-            TokenType::Question,
-            TokenType::Colon,
-            TokenType::MatchedBy,
-            TokenType::NotMatchedBy,
-            TokenType::Comma,
-            TokenType::In,
-            TokenType::LeftBracket,
-            TokenType::RightBracket,
-            TokenType::Printf,
-        ];
-        while !self.is_at_end() && !not_these.contains(&self.peek().ttype()) {
+        while !self.is_at_end() &&
+            !Parser::types_contain(STRING_CONCAT_SKIPS, self.peek().ttype() as u64) {
             if let Expr::Concatenation(vals) = &mut expr.expr {
                 vals.push(self.plus_minus());
             } else {
@@ -554,7 +557,7 @@ impl<'a> Parser<'a> {
 
     fn plus_minus(&mut self) -> TypedExpr {
         let mut expr = self.term();
-        while self.matches(&[TokenType::Plus, TokenType::Minus]) {
+        while self.matches(flags!(TokenType::Plus, TokenType::Minus)) {
             let op = match self.previous().unwrap() {
                 Token::MathOp(MathOp::Minus) => MathOp::Minus,
                 Token::MathOp(MathOp::Plus) => MathOp::Plus,
@@ -567,7 +570,7 @@ impl<'a> Parser<'a> {
 
     fn term(&mut self) -> TypedExpr {
         let mut expr = self.unary();
-        while self.matches(&[TokenType::Star, TokenType::Slash, TokenType::Modulo]) {
+        while self.matches(flags!(TokenType::Star, TokenType::Slash, TokenType::Modulo)) {
             let op = match self.previous().unwrap() {
                 Token::MathOp(MathOp::Star) => MathOp::Star,
                 Token::MathOp(MathOp::Slash) => MathOp::Slash,
@@ -584,7 +587,7 @@ impl<'a> Parser<'a> {
             && self.peek_next().ttype() == TokenType::Minus)
             && !(self.peek().ttype() == TokenType::Plus
             && self.peek_next().ttype() == TokenType::Plus)
-            && self.matches(&[TokenType::Minus, TokenType::Plus, TokenType::Bang])
+            && self.matches(flags!(TokenType::Minus, TokenType::Plus, TokenType::Bang))
         {
             let p = self.previous().unwrap().ttype();
             let rhs = self.unary();
@@ -603,7 +606,7 @@ impl<'a> Parser<'a> {
 
     fn exp(&mut self) -> TypedExpr {
         let mut expr = self.pre_op();
-        while self.matches(&[TokenType::Exponent]) {
+        while self.matches(flags!(TokenType::Exponent)) {
             let op = MathOp::Exponent;
             expr = Expr::MathOp(Box::new(expr), op, Box::new(self.pre_op())).into()
         }
@@ -700,7 +703,7 @@ impl<'a> Parser<'a> {
 
     fn column(&mut self) -> TypedExpr {
         let mut num_cols: usize = 0;
-        while self.matches(&[TokenType::Column]) {
+        while self.matches(flags!(TokenType::Column)) {
             num_cols += 1;
         }
         let mut expr = self.primary();
@@ -730,9 +733,9 @@ impl<'a> Parser<'a> {
             Token::Ident(name) => {
                 self.consume(TokenType::Ident, "Expected to parse an ident here");
 
-                if self.matches(&[TokenType::LeftBracket]) {
+                if self.matches(flags!(TokenType::LeftBracket)) {
                     self.array_index(name)
-                } else if self.matches(&[TokenType::LeftParen]) {
+                } else if self.matches(flags!(TokenType::LeftParen)) {
                     self.call(name)
                 } else {
                     Expr::Variable(name).into()
@@ -753,14 +756,14 @@ impl<'a> Parser<'a> {
     fn call(&mut self, target: Symbol) -> TypedExpr {
         let mut args = vec![];
         loop {
-            if self.matches(&[TokenType::RightParen]) {
+            if self.matches(flags!(TokenType::RightParen)) {
                 break;
             }
             if self.peek().ttype() == TokenType::EOF {
                 panic!("Hit EOF while parsing function args")
             }
             args.push(self.expression());
-            if self.matches(&[TokenType::Comma]) {
+            if self.matches(flags!(TokenType::Comma)) {
                 continue;
             } else {
                 self.consume(TokenType::RightParen, "Expected a right paren ')' after a function call");
@@ -772,7 +775,7 @@ impl<'a> Parser<'a> {
 
     fn array_index(&mut self, name: Symbol) -> TypedExpr {
         let mut indices = vec![self.expression()];
-        while self.matches(&[TokenType::Comma]) && self.peek().ttype() != TokenType::RightBracket {
+        while self.matches(flags!(TokenType::Comma)) && self.peek().ttype() != TokenType::RightBracket {
             indices.push(self.expression());
         }
         self.consume(TokenType::RightBracket, "Array indexing must end with a right bracket.");

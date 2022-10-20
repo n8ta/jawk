@@ -1,5 +1,7 @@
 mod types;
 
+use std::iter::Peekable;
+use std::str::Chars;
 pub use types::{BinOp, LogicalOp, MathOp, Token, TokenType};
 use crate::Symbolizer;
 
@@ -16,40 +18,46 @@ fn lex_test(str: &str, symbolizer: &mut Symbolizer) -> LexerResult {
     Ok(lexer.tokens)
 }
 
-struct Lexer<'a> {
-    src: Vec<char>,
+struct Lexer<'a, 'b> {
+    src: Peekable<Chars<'a>>,
+    buffer: String,
     start: usize,
-    current: usize,
     line: usize,
     tokens: Vec<Token>,
-    symbolizer: &'a mut Symbolizer
+    symbolizer: &'b mut Symbolizer
 }
 
 type LexerResult = Result<Vec<Token>, (String, usize)>;
 
-impl<'a> Lexer<'a> {
-    fn new(src: &str, symbolizer: &'a mut Symbolizer) -> Lexer<'a> {
+impl<'a, 'b> Lexer<'a, 'b> {
+    fn new(src: &'a str, symbolizer: &'b mut Symbolizer) -> Lexer<'a, 'b> {
         Lexer {
-            src: src.chars().collect(),
+            src: src.chars().peekable(),
             start: 0,
-            current: 0,
             line: 0,
-            tokens: vec![],
+            tokens: Vec::with_capacity(1000),
+            buffer: String::with_capacity(30),
             symbolizer
         }
     }
-    fn is_at_end(&self) -> bool {
-        self.current >= self.src.len()
+    fn is_at_end(&mut self) -> bool {
+        !self.src.peek().is_some()
+    }
+    fn collect_buffer(&mut self) -> String {
+        let mut string: String = String::new();
+        std::mem::swap(&mut self.buffer, &mut string);
+        string
     }
     fn advance(&mut self) -> char {
-        let x = *self.src.get(self.current).unwrap();
-        self.current += 1;
-        x
+        let next = self.src.next().unwrap();
+        self.buffer.push(next);
+        next
     }
     fn add_token(&mut self, tt: Token) {
         self.tokens.push(tt);
     }
     fn string(&mut self) -> Result<(), String> {
+        self.buffer.clear();
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
@@ -57,24 +65,18 @@ impl<'a> Lexer<'a> {
             self.advance();
         }
         if self.is_at_end() {
-            let string: String = self.src[self.start..self.src.len() - self.start]
-                .iter()
-                .collect();
+            let string = self.collect_buffer();
             return Err(format!("Unterminated String: {}", string));
         }
+        let str = self.collect_buffer();
         self.advance();
-        let str = self
-            .src
-            .iter()
-            .skip(self.start + 1)
-            .take(self.current - self.start - 2)
-            .collect::<String>();
         self.add_token(Token::String(str));
         return Ok(());
     }
     fn regex(&mut self) -> Result<(), String> {
         // a ~ b 
         // a ~ /match/'
+        self.buffer.clear();
         while self.peek() != '/' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
@@ -84,12 +86,11 @@ impl<'a> Lexer<'a> {
         }
 
         if self.is_at_end() {
-            let string: String = self.src[self.start..self.src.len()].iter().collect();
+            let string = self.collect_buffer();
             return Err(format!("Unterminated regex: {}", string));
         }
-
+        let regex = self.collect_buffer();
         self.advance();
-        let regex = self.src[self.start+1..self.current-1].iter().collect::<String>();
         self.add_token(Token::Regex(regex));
         return Ok(());
     }
@@ -97,16 +98,12 @@ impl<'a> Lexer<'a> {
         while self.peek().is_digit(10) {
             self.advance();
         }
-        if self.peek() == '.' && self.peek_next().is_digit(10) {
-            self.advance();
-        }
+        if self.matches('.') {}
         while self.peek().is_digit(10) {
             self.advance();
         }
 
-        let num = self.src[self.start..self.current]
-            .iter()
-            .collect::<String>();
+        let num = self.collect_buffer();
         // TODO: scientific notation
         match num.parse::<f64>() {
             Ok(float) => Ok(Token::NumberF64(float)),
@@ -120,7 +117,7 @@ impl<'a> Lexer<'a> {
         while self.peek().is_alphanumeric() || self.peek() == '_' {
             self.advance();
         }
-        let src: String = self.src[self.start..self.current].iter().collect();
+        let src: String = self.collect_buffer();
         let src = src.to_ascii_lowercase();
         if src == "true" {
             self.add_token(Token::True);
@@ -159,15 +156,11 @@ impl<'a> Lexer<'a> {
         Ok(())
     }
     fn peek(&mut self) -> char {
-        match self.src.get(self.current) {
+        match self.src.peek() {
             None => 0x0 as char,
-            Some(c) => *c,
-        }
-    }
-    fn peek_next(&self) -> char {
-        match self.src.get(self.current + 1) {
-            None => 0x0 as char,
-            Some(c) => *c,
+            Some(c) => {
+                *c
+            },
         }
     }
     fn scan_token(&mut self) -> Result<(), String> {
@@ -200,7 +193,7 @@ impl<'a> Lexer<'a> {
                 if self.matches('~') {
                     self.add_token(Token::BinOp(BinOp::NotMatchedBy));
                     self.whitespaces();
-                    self.start = self.current;
+                    self.collect_buffer();
                     if self.matches('/') {
                         self.regex()?;
                     }
@@ -276,7 +269,6 @@ impl<'a> Lexer<'a> {
             '~' => {
                 self.add_token(Token::BinOp(BinOp::MatchedBy));
                 self.whitespaces();
-                self.start = self.current;
                 if self.matches('/') {
                     self.regex()?;
                 }
@@ -297,7 +289,7 @@ impl<'a> Lexer<'a> {
             ' ' => (),
             '\n' => self.line += 1,
             _ => {
-                if c.is_digit(10) || (c == '-' && self.peek_next().is_digit(10)) {
+                if c.is_digit(10) {
                     let num = self.number()?;
                     self.add_token(num);
                 } else if c.is_alphabetic() {
@@ -318,11 +310,12 @@ impl<'a> Lexer<'a> {
         if self.is_at_end() {
             return false;
         }
-        match self.src.get(self.current) {
+        match self.src.peek() {
             None => false,
             Some(char) => {
                 if *char == expected {
-                    self.current += 1;
+                    self.buffer.push(*char);
+                    self.src.next();
                     return true;
                 }
                 return false;
@@ -335,16 +328,9 @@ impl<'a> Lexer<'a> {
             if let Err(x) = self.scan_token() {
                 return Err((x, self.line));
             }
-            self.start = self.current;
+            self.buffer.clear();
         }
         self.tokens.push(Token::EOF);
-        // self.tokens.push(Token::new_src(
-        //     Token::EOF,
-        //     self.current,
-        //     self.current - self.start,
-        //     self.line,
-        //     self.source.clone(),
-        // ));
         Ok(self.tokens.clone())
     }
 }

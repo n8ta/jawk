@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::io::Read;
 use std::path::PathBuf;
 
 // TODO: Find a small library to do this
@@ -20,13 +22,16 @@ impl ProgramType {
     pub fn load(&self) -> Result<String, String> {
         match self {
             ProgramType::CLI(s) => Ok(s.clone()),
-            ProgramType::File(s) => match std::fs::read_to_string(s) {
-                Ok(s) => Ok(s),
-                Err(e) => Err(format!(
-                    "Unable to load source program '{}'\nGot error: {}",
-                    s, e
-                )),
-            },
+            ProgramType::File(s) =>
+                {
+                    match std::fs::read_to_string(s) {
+                        Ok(s) => Ok(s),
+                        Err(e) => return Err(format!(
+                            "Unable to load source program '{}'\nGot error: {}",
+                            s, e
+                        )),
+                    }
+                },
         }
     }
 }
