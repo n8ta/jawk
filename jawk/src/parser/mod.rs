@@ -184,23 +184,23 @@ impl<'a> Parser<'a> {
         Some(self.tokens[self.current - 1].clone())
     }
 
-    fn peek_at(&self, idx: usize) -> Token {
+    fn peek_at(&self, idx: usize) -> &Token {
         if let Some(t) = self.tokens.get(idx) {
-            t.clone()
+            t
         } else {
-            Token::EOF
+            &Token::EOF
         }
     }
 
-    fn peek(&self) -> Token {
+    fn peek(&self) -> &Token {
         self.peek_at(self.current)
     }
 
-    fn peek_next(&self) -> Token {
+    fn peek_next(&self) -> &Token {
         self.peek_at(self.current + 1)
     }
 
-    fn peek_next_next(&self) -> Token {
+    fn peek_next_next(&self) -> &Token {
         self.peek_at(self.current + 2)
     }
 
@@ -351,7 +351,7 @@ impl<'a> Parser<'a> {
     }
 
     fn stmts(&mut self) -> Stmt {
-        let mut stmts = vec![];
+        let mut stmts = Vec::with_capacity(5);
         while self.peek().ttype() != TokenType::RightBrace {
             let stmt = self.stmt_and_optional_semicolon();
             stmts.push(stmt);
@@ -499,9 +499,9 @@ impl<'a> Parser<'a> {
         let mut idx = self.current;
 
         // Check if we match the regex \(.+\) in if so call the helper
-        if self.peek_at(idx) == Token::LeftParen {
-            while self.peek_at(idx) != Token::RightParen { idx += 1; }
-            if self.peek_at(idx) == Token::RightParen && self.peek_at(idx + 1) == Token::In {
+        if *self.peek_at(idx) == Token::LeftParen {
+            while *self.peek_at(idx) != Token::RightParen { idx += 1; }
+            if *self.peek_at(idx) == Token::RightParen && *self.peek_at(idx + 1) == Token::In {
                 return self.helper_multi_dim_array();
             }
         }
@@ -628,8 +628,7 @@ impl<'a> Parser<'a> {
                     Box::new(var_expr),
                     MathOp::Plus,
                     Box::new(Expr::NumberF64(1.0).into()),
-                )
-                    .into();
+                ).into();
 
                 return Expr::ScalarAssign(name, Box::new(increment)).into();
             }
@@ -647,57 +646,60 @@ impl<'a> Parser<'a> {
                     Box::new(var),
                     MathOp::Minus,
                     Box::new(Expr::NumberF64(1.0).into()),
-                )
-                    .into();
+                ).into();
 
                 return Expr::ScalarAssign(name, Box::new(decrement)).into();
             }
         }
 
-        return self.post_op();
+        self.post_op()
     }
 
     fn post_op(&mut self) -> TypedExpr {
         let mut expr = self.column();
 
-        if let Expr::Variable(name) = expr.expr.clone() {
-            if self.peek().ttype() == TokenType::Plus && self.peek_next().ttype() == TokenType::Plus
-            {
-                self.advance();
-                self.advance();
-                let increment = Expr::MathOp(
-                    Box::new(expr),
-                    MathOp::Plus,
-                    Box::new(Expr::NumberF64(1.0).into()),
-                )
-                    .into();
-                let assign = Expr::ScalarAssign(name, Box::new(increment)).into();
-                expr = Expr::MathOp(
-                    Box::new(assign),
-                    MathOp::Minus,
-                    Box::new(Expr::NumberF64(1.0).into()),
-                )
-                    .into();
-            } else if self.peek().ttype() == TokenType::Minus
-                && self.peek_next().ttype() == TokenType::Minus
-            {
-                self.advance();
-                self.advance();
-                let decrement = Expr::MathOp(
-                    Box::new(expr),
-                    MathOp::Minus,
-                    Box::new(Expr::NumberF64(1.0).into()),
-                )
-                    .into();
-                let assign = Expr::ScalarAssign(name, Box::new(decrement)).into();
-                expr = Expr::MathOp(
-                    Box::new(assign),
-                    MathOp::Plus,
-                    Box::new(Expr::NumberF64(1.0).into()),
-                )
-                    .into();
-            }
+        if let Expr::Variable(_) = &expr.expr {
+            // Check enum variant before cloning it since the clone is expensive
+            if let Expr::Variable(name) = expr.expr.clone() {
+                if self.peek().ttype() == TokenType::Plus && self.peek_next().ttype() == TokenType::Plus
+                {
+                    self.advance();
+                    self.advance();
+                    let increment = Expr::MathOp(
+                        Box::new(expr),
+                        MathOp::Plus,
+                        Box::new(Expr::NumberF64(1.0).into()),
+                    )
+                        .into();
+                    let assign = Expr::ScalarAssign(name, Box::new(increment)).into();
+                    expr = Expr::MathOp(
+                        Box::new(assign),
+                        MathOp::Minus,
+                        Box::new(Expr::NumberF64(1.0).into()),
+                    )
+                        .into();
+                } else if self.peek().ttype() == TokenType::Minus
+                    && self.peek_next().ttype() == TokenType::Minus
+                {
+                    self.advance();
+                    self.advance();
+                    let decrement = Expr::MathOp(
+                        Box::new(expr),
+                        MathOp::Minus,
+                        Box::new(Expr::NumberF64(1.0).into()),
+                    )
+                        .into();
+                    let assign = Expr::ScalarAssign(name, Box::new(decrement)).into();
+                    expr = Expr::MathOp(
+                        Box::new(assign),
+                        MathOp::Plus,
+                        Box::new(Expr::NumberF64(1.0).into()),
+                    )
+                        .into();
+                }
+            } else { unreachable!()}
         }
+
         expr
     }
 

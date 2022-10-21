@@ -462,6 +462,10 @@ impl Runtime for LiveRuntime {
         )
     }
 
+    fn init_empty_string(&mut self) -> *const String {
+        empty_string(self.runtime_data as *mut c_void)
+    }
+
     fn empty_string(&mut self, func: &mut Function) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(

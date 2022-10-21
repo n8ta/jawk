@@ -28,6 +28,7 @@ pub trait Runtime {
     fn print_float(&mut self, func: &mut Function, number: Value);
     fn concat(&mut self, func: &mut Function, ptr1: Value, ptr2: Value) -> Value;
     fn empty_string(&mut self, func: &mut Function) -> Value;
+    fn init_empty_string(&mut self) -> *const String;
     fn binop(&mut self, func: &mut Function, ptr1: Value, ptr2: Value, binop: BinOp) -> Value;
     fn print_error(&mut self, func: &mut Function, code: ErrorCode);
     fn allocate_arrays(&mut self, count: usize);

@@ -83,12 +83,11 @@ fn test_perf(test_name: &str, interpreter: &str, prog: &str, oracle_output: &str
         our_total += our_result.1.as_micros();
         assert_eq!(our_result.0, oracle_output, "perf-test : LEFT jawk, RIGHT oracle didn't match. DID YOU DO A RELEASE BUILD?");
     }
-    our_total /= PERF_RUNS;
-    other_total /= PERF_RUNS;
 
     append_result(test_name, interpreter, our_total, other_total);
 
-    assert!(our_total < other_total || our_total < 5 * 1000, "perf-test: jawk={}ms {}={}ms", our_total / 1000, interpreter, other_total / 1000);
+    assert!(our_total < other_total, "perf-test: jawk={}ms {}={}ms", our_total / 1000, interpreter, other_total / 1000);
+    // assert!(our_total < other_total || our_total < 3 * 1000, "perf-test: jawk={}ms {}={}ms", our_total / 1000, interpreter, other_total / 1000);
 }
 
 fn test_it<S: AsRef<str>>(test_name: &str, prog: &str, file: S, oracle_output: &str) {

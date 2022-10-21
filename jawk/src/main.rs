@@ -1,5 +1,6 @@
 #![deny(unused_must_use)]
 
+use libc::c_int;
 use crate::args::AwkArgs;
 use crate::parser::{Expr};
 use crate::printable_error::PrintableError;
@@ -32,7 +33,7 @@ fn main() {
         Err(_) => return,
     };
 
-    for i in 0..10000 {
+    for i in 0..50000 {
         let source = match args.program.load() {
             Ok(program) => program,
             Err(e) => {
@@ -75,4 +76,7 @@ fn main() {
             }
         }
     }
+
+    // Fuck cleanup just sys call out so it's faster
+    unsafe { libc::exit(0 as c_int) }
 }

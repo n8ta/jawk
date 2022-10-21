@@ -80,7 +80,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         let var_arg_scratch = main_function.create_void_ptr_constant(var_arg_scratch);
 
         let main_sym = symbolizer.get("main function");
-        let mut function_map = HashMap::new();
+        let mut function_map = HashMap::with_capacity(1);
         function_map.insert(main_sym.clone(), main_function);
 
         let mut codegen = CodeGen {
