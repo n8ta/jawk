@@ -8,7 +8,7 @@ type Line = HashMap<usize, String>;
 pub struct Columns {
     rs: &'static str,
     fs: &'static str,
-    files: Rev<IntoIter<String>>,
+    files: IntoIter<String>,
     current_path: Option<String>,
     lines: HashMap<usize, Line>,
     line_number: Option<usize>,
@@ -16,10 +16,10 @@ pub struct Columns {
 
 impl Columns {
     pub fn new(files: Vec<String>) -> Self {
-        let c = Columns {
+        let mut c = Columns {
             rs: "\n",
             fs: " ",
-            files: files.into_iter().rev(), // Collecting could be mean allocating. Instead just pull from the iterator
+            files: files.into_iter(), // Collecting could be mean allocating. Instead just pull from the iterator
             line_number: None,
             lines: HashMap::new(),
             current_path: None,
