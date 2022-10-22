@@ -1,7 +1,5 @@
-use hashbrown::HashMap;
 use std::os::raw::{c_char, c_int, c_long, c_void};
 use gnu_libjit::{Context, Function, Label, Value};
-use libc::glob;
 use crate::codegen::codegen_consts::CodegenConsts;
 use crate::codegen::globals::Globals;
 use crate::codegen::{FLOAT_TAG, STRING_TAG, ValuePtrT, ValueT};
@@ -9,8 +7,8 @@ use crate::parser::{ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError, Symbolizer};
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::runtime::Runtime;
-use crate::symbolizer::Symbol;
 
+#[allow(dead_code)]
 pub struct FunctionCodegen<'a, RuntimeT: Runtime> {
     /// Core Stuff
     function: Function,
@@ -57,12 +55,11 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
         let tag_scratch = function.create_void_ptr_constant((Box::leak(Box::new(FLOAT_TAG)) as *mut i8) as *mut c_void);
         let float_scratch = function.create_void_ptr_constant(Box::leak(Box::new(0.0 as f64)) as *mut f64 as *mut c_void);
-        let ptr_scratch = function.create_void_ptr_constant(Box::leak(Box::new(zero)) as *mut *mut i32 as *mut c_void);
-        let ptr_scratch = ValuePtrT::var(tag_scratch, float_scratch, ptr_scratch);
+        let ptr_scratch_ptr = function.create_void_ptr_constant(Box::leak(Box::new(zero)) as *mut *mut i32 as *mut c_void);
+        let ptr_scratch = ValuePtrT::var(tag_scratch, float_scratch, ptr_scratch_ptr.clone());
 
         // Consts
-        let zero_ptr = Box::into_raw(Box::new("".to_string())) as *mut c_void;
-        let zero_ptr = function.create_void_ptr_constant(zero_ptr);
+        let zero_ptr = ptr_scratch_ptr;
         let zero_f = function.create_float64_constant(0.0);
         let float_tag = function.create_sbyte_constant(FLOAT_TAG as c_char);
         let string_tag = function.create_sbyte_constant(STRING_TAG as c_char);
@@ -226,7 +223,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     // and result is unused.
     fn compile_expr(&mut self, expr: &TypedExpr, side_effect_only: bool) -> Result<ValueT, PrintableError> {
         Ok(match &expr.expr {
-            Expr::Call { target, args } => {
+            Expr::Call { target: _target, args: _args } => {
                 todo!()
             }
             Expr::ScalarAssign(var, value) => {

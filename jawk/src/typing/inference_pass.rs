@@ -1,10 +1,14 @@
-use crate::{PrintableError, Symbolizer};
-use crate::parser::{Arg, ArgT,};
+#[cfg(test)]
+use crate::{Symbolizer};
+
+use crate::{PrintableError};
+use crate::parser::{ArgT,};
 use crate::symbolizer::Symbol;
 use crate::typing::TypedFunc;
 use crate::typing::types::{TypedProgram, Call, CallArg};
 
 
+#[allow(dead_code)]
 fn get_arg(func: &TypedFunc, name: &Symbol) -> Option<ArgT> {
     if let Some(arg) = func.func.args.iter().find(|a| a.name == *name) {
         arg.typ

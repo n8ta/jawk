@@ -6,15 +6,11 @@ mod codegen_consts;
 mod function_codegen;
 
 use hashbrown::HashMap;
-use crate::parser::{Program, ScalarType, Stmt, TypedExpr};
-use crate::lexer::{LogicalOp, MathOp};
+use crate::parser::{Program};
 use crate::printable_error::PrintableError;
 use crate::runtime::{LiveRuntime, Runtime, TestRuntime};
-use crate::{AnalysisResults, Expr, main, Symbolizer};
-use gnu_libjit::{Abi, Context, Function, Label, Value};
-use std::os::raw::{c_char, c_int, c_long, c_void};
-use libc::symlink;
-use crate::codegen::codegen_consts::CodegenConsts;
+use crate::{AnalysisResults, Symbolizer};
+use gnu_libjit::{Abi, Context, Function, Value};
 use crate::codegen::function_codegen::FunctionCodegen;
 use crate::codegen::globals::Globals;
 use crate::symbolizer::Symbol;
@@ -52,6 +48,7 @@ pub fn compile_and_capture(prog: Program, files: &[String], symbolizer: &mut Sym
 }
 
 struct CodeGen<'a, RuntimeT: Runtime> {
+    main: Function,
     context: Context,
     runtime: &'a mut RuntimeT,
     symbolizer: &'a mut Symbolizer,
@@ -81,9 +78,10 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
 
         let main_sym = symbolizer.get("main function");
         let mut function_map = HashMap::with_capacity(1);
-        function_map.insert(main_sym.clone(), main_function);
+        function_map.insert(main_sym.clone(), main_function.clone());
 
         let mut codegen = CodeGen {
+            main: main_function,
             context,
             runtime,
             symbolizer,
@@ -96,9 +94,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     }
 
     fn run(&mut self) {
-        let sym = self.symbolizer.get("main function");
-        let main = self.function_map.get(&sym).unwrap();
-        let function: extern "C" fn() -> i32 = main.to_closure();
+        let function: extern "C" fn() -> i32 = self.main.to_closure();
         function();
     }
 
@@ -111,7 +107,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         self.runtime.allocate_arrays(num_arrays);
 
         // Gen stubs for each function, main already created
-        for (name, func) in &prog.functions {
+        for (name, _func) in &prog.functions {
             if *name == main_sym { continue };
             let func = self.context.function(Abi::Cdecl, &Context::int_type(), vec![]).unwrap();
             self.function_map.insert(name.clone(), func);
@@ -119,8 +115,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
 
         {
             // Init globals in main function
-            let main = self.function_map.get_mut(&main_sym).expect("main function to exist");
-            self.globals = Globals::new(global_analysis, self.runtime, main, self.symbolizer);
+            self.globals = Globals::new(global_analysis, self.runtime, &mut self.main, self.symbolizer);
         }
 
         for (name, func) in &prog.functions {

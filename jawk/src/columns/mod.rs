@@ -1,4 +1,3 @@
-use std::iter::Rev;
 use hashbrown::HashMap;
 use std::path::PathBuf;
 use std::vec::IntoIter;
@@ -16,15 +15,14 @@ pub struct Columns {
 
 impl Columns {
     pub fn new(files: Vec<String>) -> Self {
-        let mut c = Columns {
+        Columns {
             rs: "\n",
             fs: " ",
             files: files.into_iter(), // Collecting could be mean allocating. Instead just pull from the iterator
             line_number: None,
             lines: HashMap::new(),
             current_path: None,
-        };
-        c
+        }
     }
 
     fn get_line_number(&self) -> usize {

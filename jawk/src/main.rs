@@ -33,7 +33,7 @@ fn main() {
         Err(_) => return,
     };
 
-    for i in 0..50000 {
+    // for i in 0..5000 {
         let source = match args.program.load() {
             Ok(program) => program,
             Err(e) => {
@@ -75,7 +75,8 @@ fn main() {
                 eprintln!("{}", err);
             }
         }
-    }
+    // }
+
 
     // Fuck cleanup just sys call out so it's faster
     unsafe { libc::exit(0 as c_int) }

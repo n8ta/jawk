@@ -1,8 +1,7 @@
-use std::cell::RefCell;
-use std::collections::{HashSet};
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::{Weak, Rc};
+use hashbrown::HashSet;
 
 #[derive(Clone, Debug)]
 struct WeaklyHeldStr {
@@ -43,9 +42,8 @@ impl Hash for WeaklyHeldStr {
     }
 }
 
-#[derive(Clone)]
 pub struct Symbolizer {
-    known: Rc<RefCell<HashSet<WeaklyHeldStr>>>,
+    known: HashSet<WeaklyHeldStr>,
 }
 
 #[derive(Clone, Debug, Hash, PartialOrd, Ord)]
@@ -81,20 +79,18 @@ impl Display for Symbol {
 }
 
 impl Symbolizer {
-    pub fn new() -> Self { Symbolizer { known: Rc::new(RefCell::new(HashSet::default())) } }
+    pub fn new() -> Self { Symbolizer { known: HashSet::with_capacity(8) } }
     pub fn get<T: Into<String>>(&mut self, str: T) -> Symbol {
-        let mut set = self.known.borrow_mut();
-
         let sym = Rc::new(str.into());
         let s: Symbol = Symbol { sym: sym.clone() };
         let weakly_held = WeaklyHeldStr { w: Rc::downgrade(&sym) };
-        if let Some(existing) = set.get(&weakly_held) {
+        if let Some(existing) = self.known.get(&weakly_held) {
             let upgraded = existing.clone().upgrade();
             if let Some(existing_symbol) = upgraded {
                 return existing_symbol.clone();
             }
         }
-        set.insert(weakly_held);
+        self.known.insert(weakly_held);
         s
     }
 }

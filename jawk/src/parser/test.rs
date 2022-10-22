@@ -1,4 +1,6 @@
+#[cfg(test)]
 use crate::parser::{Program, parse, PatternAction, Stmt, TypedExpr, Expr, Function};
+#[cfg(test)]
 use crate::lexer::{MathOp, BinOp, LogicalOp};
 
 #[cfg(test)]

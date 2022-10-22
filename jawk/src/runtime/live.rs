@@ -383,7 +383,7 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.next_line,
-            vec![data_ptr],
+            &[data_ptr],
             Some(Context::float64_type()),
             Abi::Cdecl,
         )
@@ -393,7 +393,7 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.column,
-            vec![data_ptr, tag, float, pointer],
+            &[data_ptr, tag, float, pointer],
             Some(Context::void_ptr_type()),
             Abi::Cdecl,
         )
@@ -401,14 +401,14 @@ impl Runtime for LiveRuntime {
 
     fn free_string(&mut self, func: &mut Function, ptr: Value) -> Value {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.free_string, vec![data_ptr, ptr], None, Abi::Cdecl)
+        func.insn_call_native(self.free_string, &[data_ptr, ptr], None, Abi::Cdecl)
     }
 
     fn string_to_number(&mut self, func: &mut Function, ptr: Value) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.string_to_number,
-            vec![data_ptr, ptr],
+            &[data_ptr, ptr],
             Some(Context::float64_type()),
             Abi::Cdecl,
         )
@@ -418,7 +418,7 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.copy_string,
-            vec![data_ptr, ptr],
+            &[data_ptr, ptr],
             Some(Context::void_ptr_type()), Abi::Cdecl,
         )
     }
@@ -427,26 +427,26 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.number_to_string,
-            vec![data_ptr, number],
+            &[data_ptr, number],
             Some(Context::void_ptr_type()), Abi::Cdecl,
         )
     }
 
     fn print_string(&mut self, func: &mut Function, ptr: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.print_string, vec![data_ptr, ptr], None, Abi::Cdecl);
+        func.insn_call_native(self.print_string, &[data_ptr, ptr], None, Abi::Cdecl);
     }
 
     fn print_float(&mut self, func: &mut Function, number: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.print_float, vec![data_ptr, number], None, Abi::Cdecl);
+        func.insn_call_native(self.print_float, &[data_ptr, number], None, Abi::Cdecl);
     }
 
     fn concat(&mut self, func: &mut Function, ptr1: Value, ptr2: Value) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.concat,
-            vec![data_ptr, ptr1, ptr2],
+            &[data_ptr, ptr1, ptr2],
             Some(Context::void_ptr_type()),
             Abi::Cdecl,
         )
@@ -456,7 +456,7 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.concat_array_indices,
-            vec![data_ptr, ptr1, ptr2],
+            &[data_ptr, ptr1, ptr2],
             Some(Context::void_ptr_type()),
             Abi::Cdecl,
         )
@@ -470,7 +470,7 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.empty_string,
-            vec![data_ptr],
+            &[data_ptr],
             Some(Context::void_ptr_type()),
             Abi::Cdecl,
         )
@@ -481,7 +481,7 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.binop,
-            vec![data_ptr, ptr1, ptr2, binop],
+            &[data_ptr, ptr1, ptr2, binop],
             Some(Context::float64_type()),
             Abi::Cdecl,
         )
@@ -492,7 +492,7 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.print_error,
-            vec![data_ptr, binop],
+            &[data_ptr, binop],
             None,
             Abi::Cdecl,
         );
@@ -504,7 +504,7 @@ impl Runtime for LiveRuntime {
                     key_ptr: Value,
                     out_tag_ptr: Value, out_float_ptr: Value, out_ptr_ptr: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.array_access, vec![data_ptr, array, key_tag, key_num, key_ptr, out_tag_ptr, out_float_ptr, out_ptr_ptr], None, Abi::Cdecl);
+        func.insn_call_native(self.array_access, &[data_ptr, array, key_tag, key_num, key_ptr, out_tag_ptr, out_float_ptr, out_ptr_ptr], None, Abi::Cdecl);
     }
 
     fn array_assign(&mut self, func: &mut Function, array: Value,
@@ -513,7 +513,7 @@ impl Runtime for LiveRuntime {
                     key_ptr: Value,
                     tag: Value, float: Value, ptr: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.array_assign, vec![data_ptr, array, key_tag, key_num, key_ptr, tag, float, ptr], None, Abi::Cdecl);
+        func.insn_call_native(self.array_assign, &[data_ptr, array, key_tag, key_num, key_ptr, tag, float, ptr], None, Abi::Cdecl);
     }
 
     fn in_array(&mut self, func: &mut Function, array: Value,
@@ -522,12 +522,12 @@ impl Runtime for LiveRuntime {
                 key_ptr: Value,
     ) -> Value {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.in_array, vec![data_ptr, array, key_tag, key_num, key_ptr], Some(Context::float64_type()), Abi::Cdecl)
+        func.insn_call_native(self.in_array, &[data_ptr, array, key_tag, key_num, key_ptr], Some(Context::float64_type()), Abi::Cdecl)
     }
 
     fn printf(&mut self, func: &mut Function, fstring: Value, nargs: Value, args: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.printf, vec![data_ptr, fstring, nargs, args], None, Abi::VarArg);
+        func.insn_call_native(self.printf, &[data_ptr, fstring, nargs, args], None, Abi::VarArg);
     }
 }
 

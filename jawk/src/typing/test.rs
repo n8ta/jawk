@@ -1,3 +1,4 @@
+#[cfg(test)]
 use crate::{analyze, Symbolizer};
 
 #[cfg(test)]
