@@ -10,11 +10,12 @@ use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
 
 pub struct Globals {
-    mapping: SymbolMapping,
-    global_scalar_allocation: Vec<i64>,
+    // mapping: SymbolMapping,
+    // global_scalar_allocation: Vec<i64>,
     arrays: SymbolMapping,
     const_str_allocation: Vec<*mut String>,
     const_str_mapping: HashMap<Symbol, usize>,
+    scalars: HashMap<Symbol, ValueT>
 }
 
 impl Globals {
@@ -23,10 +24,10 @@ impl Globals {
         runtime: &mut RuntimeT,
         function: &mut Function,
         _symbolizer: &mut Symbolizer) -> Self {
-        let scalar_memory = 3 * analysis.global_scalars.len() + 3 * analysis.str_consts.len();
+        // let scalar_memory = 3 * analysis.global_scalars.len() + 3 * analysis.str_consts.len();
         let const_str_memory = analysis.str_consts.len();
 
-        let global_scalar_allocation: Vec<i64> = Vec::with_capacity(scalar_memory);
+        // let global_scalar_allocation: Vec<i64> = Vec::with_capacity(scalar_memory);
         let mut const_str_allocation: Vec<*mut String> = Vec::with_capacity(const_str_memory);
 
         let mut const_str_mapping = HashMap::new();
@@ -36,59 +37,70 @@ impl Globals {
             const_str_allocation.push(Rc::into_raw(str) as *mut String)
         }
 
-        let init = Self {
-            global_scalar_allocation,
-            mapping: analysis.global_scalars,
+        let mut scalars = HashMap::new();
+        let string_tag = function.create_sbyte_constant(STRING_TAG);
+        let zero_f = function.create_float64_constant(0.0);
+        for (name, _) in analysis.global_scalars.mapping().clone() {
+            let tag = function.create_value_int();
+            let float = function.create_value_float64();
+            let ptr = function.create_value_void_ptr();
+            let ptr_const =function.create_void_ptr_constant(runtime.init_empty_string() as *mut c_void);
+            function.insn_store(&tag, &string_tag);
+            function.insn_store(&float, &zero_f);
+            function.insn_store(&ptr, &ptr_const);
+
+            let val = ValueT::string(tag, float, ptr);
+            scalars.insert(name, val);
+        }
+
+        Self {
+            // global_scalar_allocation,
+            // mapping: analysis.global_scalars,
             arrays: analysis.global_arrays,
             const_str_allocation,
             const_str_mapping,
-        };
-
-        for (name, _) in init.mapping.mapping().clone() {
-            let ptr = runtime.init_empty_string() as *mut c_void;
-            let ptr_const =function.create_void_ptr_constant(ptr);
-            let val = ValueT::string(function.create_sbyte_constant(STRING_TAG), function.create_float64_constant(0.0), ptr_const);
-            init.set(function, &name, &val)
-        }
-
-        init
-    }
-
-    fn ptrs(&self,
-            name: &Symbol,
-            function: &mut Function) -> ValuePtrT {
-        let idx = self.mapping.get(name).expect(&format!("symbol not mapped to a global `{}`", name));
-        self.ptrs_idx(*idx, function)
-    }
-
-    fn ptrs_idx(&self,
-                idx: i32,
-                function: &mut Function) -> ValuePtrT {
-        unsafe {
-            let alloc_ptr = (*self.global_scalar_allocation).as_ptr();
-            let tag = alloc_ptr.offset((3 * idx) as isize);
-            let float = alloc_ptr.offset((3 * idx + 1) as isize);
-            let ptr = alloc_ptr.offset((3 * idx + 2) as isize);
-            let tag_ptr_const = function.create_void_ptr_constant(tag as *mut c_void);
-            let float_ptr_const = function.create_void_ptr_constant(float as *mut c_void);
-            let ptr_ptr_const = function.create_void_ptr_constant(ptr as *mut c_void);
-            ValuePtrT::new(tag_ptr_const, float_ptr_const, ptr_ptr_const, ScalarType::Variable)
+            scalars,
         }
     }
+
+    // fn ptrs(&self,
+    //         name: &Symbol,
+    //         function: &mut Function) -> ValuePtrT {
+    //     let idx = self.mapping.get(name).expect(&format!("symbol not mapped to a global `{}`", name));
+    //     self.ptrs_idx(*idx, function)
+    // }
+    //
+    // fn ptrs_idx(&self,
+    //             idx: i32,
+    //             function: &mut Function) -> ValuePtrT {
+    //     unsafe {
+    //         let alloc_ptr = (*self.global_scalar_allocation).as_ptr();
+    //         let tag = alloc_ptr.offset((3 * idx) as isize);
+    //         let float = alloc_ptr.offset((3 * idx + 1) as isize);
+    //         let ptr = alloc_ptr.offset((3 * idx + 2) as isize);
+    //         let tag_ptr_const = function.create_void_ptr_constant(tag as *mut c_void);
+    //         let float_ptr_const = function.create_void_ptr_constant(float as *mut c_void);
+    //         let ptr_ptr_const = function.create_void_ptr_constant(ptr as *mut c_void);
+    //         ValuePtrT::new(tag_ptr_const, float_ptr_const, ptr_ptr_const, ScalarType::Variable)
+    //     }
+    // }
 
     pub fn set(&self,
                function: &mut Function,
                name: &Symbol,
                value: &ValueT) {
-        let ptrs = self.ptrs(&name, function);
-        function.insn_store_relative(&ptrs.tag, 0, &value.tag);
-        function.insn_store_relative(&ptrs.float, 0, &value.float);
-        function.insn_store_relative(&ptrs.pointer, 0, &value.pointer);
+        let existing_value = self.scalars.get(name).unwrap();
+
+
+        function.insn_store(&existing_value.tag, &value.tag);
+        function.insn_store(&existing_value.float, &value.float);
+        function.insn_store(&existing_value.pointer, &value.pointer);
     }
 
     pub fn get(&self, name: &Symbol, function: &mut Function) -> Result<ValueT, PrintableError> {
-        let ptrs = self.ptrs(&name, function);
-        Ok(self.load_value(ptrs, function))
+        let mut scalar = self.scalars.get(name).expect("global to exist").clone();
+        scalar.typ = ScalarType::Variable;
+        Ok(scalar)
     }
 
     fn load_value(&self, ptrs: ValuePtrT, function: &mut Function) -> ValueT {
@@ -105,11 +117,11 @@ impl Globals {
     }
 
     pub fn scalars(&self, function: &mut Function) -> Vec<ValueT> {
-        // TODO: This should return an iterator skipping the vec allocation
-        let mut values: Vec<ValueT> = Vec::with_capacity(self.mapping.len());
-        for (_, idx) in self.mapping.mapping() {
-            let ptr = self.ptrs_idx(*idx, function);
-            values.push(self.load_value(ptr, function));
+        let mut values: Vec<ValueT> = Vec::with_capacity(self.scalars.len());
+        for (_name, value) in &self.scalars {
+            let mut cloned = value.clone();
+            cloned.typ = ScalarType::Variable;
+            values.push(cloned);
         }
         values
     }

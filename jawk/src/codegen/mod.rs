@@ -98,7 +98,6 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         function();
     }
 
-
     fn compile_inner(&mut self, mut prog: Program, debug_asserts: bool, dump: bool, main_sym: Symbol) -> Result<(), PrintableError> {
         let num_arrays = prog.global_analysis.global_arrays.len();
         let mut global_analysis = AnalysisResults::new();
@@ -123,6 +122,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             FunctionCodegen::build_function(jit_func,
                                             &func,
                                             self.runtime,
+                                            &self.function_map,
                                             &mut self.context,
                                             &mut self.globals,
                                             self.symbolizer,

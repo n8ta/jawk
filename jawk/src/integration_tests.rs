@@ -140,8 +140,15 @@ test!(test_print_int, "{print 1;}", ONE_LINE, "1\n");
 test!(test_print_str, "BEGIN {print \"abc\";}", ONE_LINE, "abc\n");
 test!(test_print_str_loop, "{print \"abc\";}", ONE_LINE, "abc\n");
 test!(test_just_begin, "BEGIN { print 1; }", ONE_LINE, "1\n");
+
 test!(
-    test_assign_to_undef,
+    test_assign_undef_to_undef,
+    "BEGIN { x = x; }",
+    ONE_LINE,
+    ""
+);
+test!(
+    test_print_assign_to_undef,
     "BEGIN { print (x = x + 1); }",
     ONE_LINE,
     "1\n"

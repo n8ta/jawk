@@ -1,5 +1,6 @@
 use std::os::raw::{c_char, c_int, c_long, c_void};
 use gnu_libjit::{Context, Function, Label, Value};
+use hashbrown::HashMap;
 use crate::codegen::codegen_consts::CodegenConsts;
 use crate::codegen::globals::Globals;
 use crate::codegen::{FLOAT_TAG, STRING_TAG, ValuePtrT, ValueT};
@@ -7,6 +8,7 @@ use crate::parser::{ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError, Symbolizer};
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::runtime::Runtime;
+use crate::symbolizer::Symbol;
 
 #[allow(dead_code)]
 pub struct FunctionCodegen<'a, RuntimeT: Runtime> {
@@ -16,7 +18,7 @@ pub struct FunctionCodegen<'a, RuntimeT: Runtime> {
     globals: &'a Globals,
     symbolizer: &'a mut Symbolizer,
     runtime: &'a mut RuntimeT,
-    // function_map: &'a HashMap<Symbol, Function>,
+    function_map: &'a HashMap<Symbol, Function>,
 
     /// Function Specific Items
     // These are local variables that we use as scratch space.
@@ -36,7 +38,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     pub fn build_function(mut function: gnu_libjit::Function,
                           parser_func: &crate::parser::Function,
                           runtime: &'a mut RuntimeT,
-                          // function_map: &HashMap<Symbol, Function>,
+                          function_map: &'a HashMap<Symbol, Function>,
                           context: &'a Context,
                           globals: &'a Globals,
                           symbolizer: &'a mut Symbolizer,
@@ -74,6 +76,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
             var_arg_scratch,
             symbolizer,
             c,
+            function_map,
             runtime,
             // function_map,
             break_lbl: vec![],
