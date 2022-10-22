@@ -258,7 +258,7 @@ extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
                            array: i32,
                            in_tag: i8,
                            in_float: f64,
-                           mut in_ptr: *const String,
+                           in_ptr: *const String,
                            out_tag: *mut i8,
                            out_float: *mut f64,
                            out_value: *mut *mut String) {
@@ -360,10 +360,6 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
     };
 }
 
-extern "C" fn helper(_data: std::os::raw::c_int) -> f64 {
-    return 1.1;
-}
-
 pub struct TestRuntime {
     runtime_data_constant: Option<Value>,
     runtime_data: *mut c_void,
@@ -379,7 +375,6 @@ pub struct TestRuntime {
     copy_string: *mut c_void,
     binop: *mut c_void,
     empty_string: *mut c_void,
-    helper: *mut c_void,
     print_error: *mut c_void,
     array_access: *mut c_void,
     array_assign: *mut c_void,
@@ -463,7 +458,6 @@ impl Runtime for TestRuntime {
             concat: concat as *mut c_void,
             empty_string: empty_string as *mut c_void,
             binop: binop as *mut c_void,
-            helper: helper as *mut c_void,
             print_error: print_error as *mut c_void,
             array_access: array_access as *mut c_void,
             array_assign: array_assign as *mut c_void,

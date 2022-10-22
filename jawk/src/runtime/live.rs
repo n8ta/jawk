@@ -183,7 +183,7 @@ extern "C" fn array_assign(data_ptr: *mut std::os::raw::c_void,
         }
     }
     if key_tag == STRING_TAG {
-        let rc = unsafe { Rc::from_raw(key_ptr) };
+        let _rc = unsafe { Rc::from_raw(key_ptr) };
         // implicitly drop here
     };
     if tag == STRING_TAG {
@@ -277,10 +277,6 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
     };
 }
 
-#[allow(dead_code)]
-extern "C" fn helper(_data_ptr: *mut std::os::raw::c_void, _str: usize, _size: usize) -> f64 {
-    return 1.1;
-}
 
 pub struct LiveRuntime {
     runtime_data_constant: Option<Value>,
@@ -316,7 +312,6 @@ impl Drop for LiveRuntime {
 // a rust global is so we can easily run tests fully independently of each other.
 pub struct RuntimeData {
     columns: Columns,
-    buffer: String,
     stdout: BufWriter<StdoutLock<'static>>,
     regex_cache: LruCache<String, Regex>,
     arrays: Arrays,
@@ -325,7 +320,6 @@ pub struct RuntimeData {
 impl RuntimeData {
     pub fn new(files: Vec<String>) -> RuntimeData {
         RuntimeData {
-            buffer: String::with_capacity(1000),
             columns: Columns::new(files),
             stdout: BufWriter::new(std::io::stdout().lock()),
             regex_cache: LruCache::new(10),

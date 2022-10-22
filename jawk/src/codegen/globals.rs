@@ -36,7 +36,7 @@ impl Globals {
             const_str_allocation.push(Rc::into_raw(str) as *mut String)
         }
 
-        let mut init = Self {
+        let init = Self {
             global_scalar_allocation,
             mapping: analysis.global_scalars,
             arrays: analysis.global_arrays,

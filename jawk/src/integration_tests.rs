@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::fs;
 use std::io::Write;
 use crate::{analyze, lex, parse, Symbolizer, compile_and_capture};
@@ -96,7 +98,7 @@ fn test_perf(test_name: &str, interpreter: &str, prog: &str, oracle_output: &str
 fn test_it<S: AsRef<str>>(test_name: &str, prog: &str, file: S, oracle_output: &str) {
     println!("Program:\n{}", prog);
     let mut symbolizer = Symbolizer::new();
-    let mut program = analyze(parse(lex(&prog, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
+    let program = analyze(parse(lex(&prog, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
     println!("Ast:\n{}", &program);
 
     let temp_dir = tempdir().unwrap();

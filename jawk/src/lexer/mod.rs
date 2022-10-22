@@ -21,7 +21,6 @@ fn lex_test(str: &str, symbolizer: &mut Symbolizer) -> LexerResult {
 struct Lexer<'a, 'b> {
     src: Peekable<Chars<'a>>,
     buffer: String,
-    start: usize,
     line: usize,
     tokens: Vec<Token>,
     symbolizer: &'b mut Symbolizer
@@ -33,7 +32,6 @@ impl<'a, 'b> Lexer<'a, 'b> {
     fn new(src: &'a str, symbolizer: &'b mut Symbolizer) -> Lexer<'a, 'b> {
         Lexer {
             src: src.chars().peekable(),
-            start: 0,
             line: 0,
             tokens: Vec::with_capacity(1000),
             buffer: String::with_capacity(30),
