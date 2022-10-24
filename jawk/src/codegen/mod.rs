@@ -4,6 +4,7 @@ mod value;
 mod globals;
 mod codegen_consts;
 mod function_codegen;
+mod function_scope;
 
 use hashbrown::HashMap;
 use crate::parser::{Program};

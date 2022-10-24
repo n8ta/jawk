@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use hashbrown::{HashMap, HashSet};
 use immutable_chunkmap::map::Map;
 use crate::global_scalars::SymbolMapping;
 use crate::parser::{Arg, ArgT, Function, Program, ScalarType};

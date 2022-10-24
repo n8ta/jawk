@@ -1,5 +1,6 @@
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use std::fmt::{Display, Formatter};
+use hashbrown::HashSet;
 use crate::symbolizer::Symbol;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -251,6 +252,7 @@ pub struct Function {
     pub args: Vec<Arg>,
     pub body: Stmt,
     pub return_type: ScalarType,
+    pub globals_used: HashSet<Symbol>,
 }
 
 impl Function {
@@ -260,6 +262,7 @@ impl Function {
             args: args.into_iter().map(|arg| Arg { name: arg.into(), typ: None }).collect(),
             body,
             return_type: ScalarType::Variable,
+            globals_used: HashSet::new(),
         }
     }
 }

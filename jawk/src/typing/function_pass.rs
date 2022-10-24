@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use hashbrown::{HashMap, HashSet};
 use crate::parser::{Arg, ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
 use crate::global_scalars::SymbolMapping;
@@ -34,6 +34,7 @@ fn get_arg<'a>(func_state: &'a mut FuncState, name: &Symbol) -> Option<&'a mut A
 struct FuncState<'a> {
     args: &'a mut [Arg],
     calls: Vec<Call>,
+    globals_used: &'a mut HashSet<Symbol>,
 }
 
 impl FunctionAnalysis {
@@ -45,7 +46,7 @@ impl FunctionAnalysis {
         let mut functions = HashMap::new();
         for (name, mut func) in prog.functions {
             let calls = {
-                let mut fstate = FuncState { args: &mut func.args, calls: vec![] };
+                let mut fstate = FuncState { args: &mut func.args, calls: vec![], globals_used: &mut func.globals_used };
                 self.analyze_stmt(&mut func.body, &mut fstate)?;
                 fstate.calls
             };
@@ -82,6 +83,7 @@ impl FunctionAnalysis {
         if self.global_arrays.contains_key(var) {
             return Err(PrintableError::new(format!("fatal: attempt to use array `{}` in a scalar context", var)));
         }
+        func_state.globals_used.insert(var.clone());
         self.global_scalars = self.global_scalars.insert(var.clone(), typ).0;
         Ok(())
     }

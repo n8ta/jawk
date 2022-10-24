@@ -6,6 +6,7 @@ use crate::codegen::globals::Globals;
 use crate::codegen::{FLOAT_TAG, STRING_TAG, ValuePtrT, ValueT};
 use crate::parser::{ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError, Symbolizer};
+use crate::codegen::function_scope::FunctionScope;
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
@@ -15,7 +16,7 @@ pub struct FunctionCodegen<'a, RuntimeT: Runtime> {
     /// Core Stuff
     function: Function,
     context: &'a Context,
-    globals: &'a Globals,
+    function_scope: FunctionScope<'a>,
     symbolizer: &'a mut Symbolizer,
     runtime: &'a mut RuntimeT,
     function_map: &'a HashMap<Symbol, Function>,
@@ -70,7 +71,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         let mut func_gen = Self {
             function,
             context,
-            globals,
+            function_scope: FunctionScope::new(globals),
             binop_scratch,
             ptr_scratch,
             var_arg_scratch,
@@ -84,7 +85,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         };
 
 
-        func_gen.compile_function(&parser_func, dump,  debug_asserts, is_main)?;
+        func_gen.compile_function(&parser_func, dump, debug_asserts, is_main)?;
         Ok(func_gen.done())
     }
 
@@ -99,6 +100,10 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                         is_main: bool) -> Result<(), PrintableError> {
         let zero = self.function.create_int_constant(0);
 
+        for global in &func.globals_used {
+            // Pull all needed globals into function locals
+            self.function_scope.get(&mut self.function,global)?;
+        }
 
         self.compile_stmt(&func.body)?;
 
@@ -106,7 +111,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
 
         if is_main && debug_asserts {
-            for global in self.globals.scalars(&mut self.function) {
+            for global in self.function_scope.all_globals(&mut self.function) {
                 self.drop_if_str(&global)
             }
         }
@@ -114,10 +119,14 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         self.function.insn_return(&zero);
 
         if dump {
-            println!("DUMPING");
+            println!("Dump jit asm");
             println!("{}", self.function.dump().unwrap());
         }
         self.function.compile();
+        if dump {
+            println!("Dump x86");
+            println!("{}", self.function.dump().unwrap());
+        }
         Ok(())
     }
 
@@ -241,17 +250,17 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 // from Rc -> Box
 
                 if let Expr::Concatenation(vars) = &value.expr {
-                    let old_value = self.globals.get(var, &mut self.function)?.clone();
+                    let old_value = self.function_scope.get(&mut self.function, var)?.clone();
                     let strings_to_concat = self.compile_exprs_to_string(vars)?;
                     self.drop_if_str(&old_value);
                     let new_value = self.concat_values(&strings_to_concat);
-                    self.globals.set(&mut self.function, var, &new_value);
+                    self.function_scope.set(&mut self.function, var, &new_value);
                     return Ok(self.copy_if_string(new_value, ScalarType::Variable));
                 }
                 let new_value = self.compile_expr(value, false)?;
-                let old_value = self.globals.get(var, &mut self.function)?.clone();
+                let old_value = self.function_scope.get(&mut self.function, var)?.clone();
                 self.drop_if_str(&old_value);
-                self.globals.set(&mut self.function, &var, &new_value);
+                self.function_scope.set(&mut self.function, &var, &new_value);
                 if side_effect_only {
                     self.no_op_value()
                 } else {
@@ -266,12 +275,12 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 )
             }
             Expr::String(str) => {
-                let ptr = self.function.create_void_ptr_constant(self.globals.get_const_str(&str)?);
+                let ptr = self.function.create_void_ptr_constant(self.function_scope.get_const_str(&str)?);
                 let new_ptr = self.runtime.copy_string(&mut self.function, ptr);
                 ValueT::string(self.string_tag(), self.zero_f(), new_ptr)
             }
             Expr::Regex(str) => {
-                let ptr = self.function.create_void_ptr_constant(self.globals.get_const_str(&str)?);
+                let ptr = self.function.create_void_ptr_constant(self.function_scope.get_const_str(&str)?);
                 let new_ptr = self.runtime.copy_string(&mut self.function, ptr);
                 ValueT::string(self.string_tag(), self.zero_f(), new_ptr)
             }
@@ -389,11 +398,10 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 // If it's a string we need to call copy_string to update the reference count.
                 // If it's a float no-op.
                 // If type is unknown we check tag then copy_string if needed.
-                let mut var_ptr = self.globals.get(var, &mut self.function)?.clone();
+                let mut var = self.function_scope.get(&mut self.function, var)?.clone();
                 let string_tag = self.string_tag();
                 match expr.typ {
                     ScalarType::String => {
-                        let var = self.load(&mut var_ptr);
                         let zero = self.function.create_float64_constant(0.0);
                         let new_ptr = self.runtime.copy_string(&mut self.function, var.pointer);
                         ValueT::string(string_tag, zero, new_ptr)
@@ -402,7 +410,6 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                         // If it's a string variable copy it and store that pointer in self.binop_scratch.pointer
                         // otherwise store zero self.binop_scratch.pointer. After this load self.binop_scratch.pointer
                         // and make a new value with the old tag/float + new string pointer.
-                        let var = self.load(&mut var_ptr);
                         let is_not_str = self.function.insn_eq(&string_tag, &var.tag);
                         let mut done_lbl = Label::new();
                         let mut is_not_str_lbl = Label::new();
@@ -419,9 +426,8 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                         ValueT::var(var.tag, var.float, str_ptr)
                     }
                     ScalarType::Float => {
-                        let mut val = self.load(&mut var_ptr);
-                        val.typ = ScalarType::Float;
-                        val
+                        var.typ = ScalarType::Float;
+                        var
                     }
                 }
             }
@@ -478,7 +484,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 self.load(&mut self.binop_scratch.clone())
             }
             Expr::ArrayIndex { name, indices } => {
-                let array_id = self.globals.get_array(name, &mut self.function)?;
+                let array_id = self.function_scope.get_array(&mut self.function, name)?;
 
                 let indices_value = if indices.len() == 1 {
                     self.compile_expr(&indices[0], false)?
@@ -511,7 +517,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                     }
                     self.no_op_value()
                 } else {
-                    let array_id = self.globals.get_array(name, &mut self.function)?;
+                    let array_id = self.function_scope.get_array(&mut self.function, name)?;
                     let str_tag = self.string_tag();
                     let zero_f = self.zero_f();
                     let float_result = self.runtime.in_array(&mut self.function, array_id, str_tag, zero_f, value);
@@ -519,7 +525,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 }
             }
             Expr::ArrayAssign { name, indices: indices_arr, value } => {
-                let array_id = self.globals.get_array(name, &mut self.function)?;
+                let array_id = self.function_scope.get_array(&mut self.function, name)?;
                 let rhs = self.compile_expr(value, false)?;
                 if indices_arr.len() == 1 {
                     let indices = self.compile_expr(&indices_arr[0], false)?;
@@ -648,7 +654,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 self.drop(&value.pointer);
                 self.function.insn_label(&mut done_lbl);
             }
-            _ => {}
+            _ => { }
         };
     }
 
