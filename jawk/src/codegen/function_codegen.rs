@@ -6,6 +6,7 @@ use crate::codegen::globals::Globals;
 use crate::codegen::{FLOAT_TAG, STRING_TAG, ValuePtrT, ValueT};
 use crate::parser::{ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError, Symbolizer};
+use crate::codegen::callable_function::CallableFunction;
 use crate::codegen::function_scope::FunctionScope;
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::runtime::Runtime;
@@ -19,7 +20,7 @@ pub struct FunctionCodegen<'a, RuntimeT: Runtime> {
     function_scope: FunctionScope<'a>,
     symbolizer: &'a mut Symbolizer,
     runtime: &'a mut RuntimeT,
-    function_map: &'a HashMap<Symbol, Function>,
+    function_map: &'a HashMap<Symbol, CallableFunction>,
 
     /// Function Specific Items
     // These are local variables that we use as scratch space.
@@ -36,10 +37,10 @@ pub struct FunctionCodegen<'a, RuntimeT: Runtime> {
 }
 
 impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
-    pub fn build_function(mut function: gnu_libjit::Function,
+    pub fn build_function(mut function: Function,
                           parser_func: &crate::parser::Function,
                           runtime: &'a mut RuntimeT,
-                          function_map: &'a HashMap<Symbol, Function>,
+                          function_map: &'a HashMap<Symbol, CallableFunction>,
                           context: &'a Context,
                           globals: &'a Globals,
                           symbolizer: &'a mut Symbolizer,
@@ -47,7 +48,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                           is_main: bool,
                           debug_asserts: bool,
                           dump: bool,
-    ) -> Result<gnu_libjit::Function, PrintableError> {
+    ) -> Result<Function, PrintableError> {
         let binop_scratch = ValueT::var(
             function.create_value_int(),
             function.create_value_float64(),
@@ -85,7 +86,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         };
 
 
-        func_gen.compile_function(&parser_func, dump, debug_asserts, is_main)?;
+        func_gen.compile_function(parser_func, dump, debug_asserts, is_main)?;
         Ok(func_gen.done())
     }
 
@@ -235,15 +236,17 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     // and result is unused.
     fn compile_expr(&mut self, expr: &TypedExpr, side_effect_only: bool) -> Result<ValueT, PrintableError> {
         Ok(match &expr.expr {
-            Expr::Call { target: _target, args: _args } => {
-                todo!()
+            Expr::Call { target, args: _args } => {
+                let target = self.function_map.get(target).expect("function to exist");
+
+                panic!("")
             }
             Expr::ScalarAssign(var, value) => {
                 // BEGIN: Optimization
                 // Optimization to allow reusing the string being assigned to by a string concat operation
                 // a = "init"
                 // a = a "abc" (We don't want to make a copy of a when we concat "abc" with it)
-                // We first calculfate a to be init and "abc" to "abc". This results in a copy being made
+                // We first calculate a to be init and "abc" to "abc". This results in a copy being made
                 // of "init" (increasing the reference count to 2). Then we drop a BEFORE actually doing the
                 // concat.  Reference count returns to 1.
                 // Now concat can re-use the original value since ref count is 1 it's safe to downgrade
@@ -251,7 +254,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
                 if let Expr::Concatenation(vars) = &value.expr {
                     let old_value = self.function_scope.get(&mut self.function, var)?.clone();
-                    let strings_to_concat = self.compile_exprs_to_string(vars)?;
+                    let strings_to_concat = self.compile_expressions_to_str(vars)?;
                     self.drop_if_str(&old_value);
                     let new_value = self.concat_values(&strings_to_concat);
                     self.function_scope.set(&mut self.function, var, &new_value);
@@ -451,7 +454,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
             }
             Expr::Concatenation(vars) => {
                 // Eg: a = "a" "b" "c"
-                let compiled = self.compile_exprs_to_string(vars)?;
+                let compiled = self.compile_expressions_to_str(vars)?;
                 if side_effect_only {
                     for value in compiled {
                         self.drop(&value);
@@ -489,7 +492,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 let indices_value = if indices.len() == 1 {
                     self.compile_expr(&indices[0], false)?
                 } else {
-                    let values = self.compile_exprs_to_string(indices)?;
+                    let values = self.compile_expressions_to_str(indices)?;
                     let indices = self.concat_indices(&values);
                     // Runtime will set the out_tag out_float and out_ptr pointers to a new value. Just load em
                     let str_tag = self.string_tag();
@@ -509,7 +512,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 ValueT::var(tag, float, pointer)
             }
             Expr::InArray { name, indices } => {
-                let values = self.compile_exprs_to_string(indices)?;
+                let values = self.compile_expressions_to_str(indices)?;
                 let value = self.concat_indices(&values);
                 if side_effect_only {
                     for value in &values {
@@ -542,7 +545,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                                               rhs.tag, rhs.float, rhs.pointer);
                     result_copy
                 } else {
-                    let values = self.compile_exprs_to_string(indices_arr)?;
+                    let values = self.compile_expressions_to_str(indices_arr)?;
                     let indices = self.concat_indices(&values);
                     // Skip copying assigned value if this side_effect_only
                     let result_copy = if side_effect_only {
@@ -705,9 +708,9 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
             BinOp::BangEq => self.function.insn_ne(a, b),
             BinOp::EqEq => self.function.insn_eq(a, b),
             BinOp::MatchedBy | BinOp::NotMatchedBy => {
-                let astr = self.runtime.number_to_string(&mut self.function, a.clone());
-                let bstr = self.runtime.number_to_string(&mut self.function, b.clone());
-                return self.runtime.binop(&mut self.function, astr, bstr, op);
+                let a_str = self.runtime.number_to_string(&mut self.function, a.clone());
+                let b_str = self.runtime.number_to_string(&mut self.function, b.clone());
+                return self.runtime.binop(&mut self.function, a_str, b_str, op);
             }
         };
         let one = self.function.create_float64_constant(1.0);
@@ -724,14 +727,14 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         self.function.insn_load(&self.binop_scratch.float)
     }
 
-    pub fn compile_exprs_to_string(&mut self, exprs: &Vec<TypedExpr>) -> Result<Vec<Value>, PrintableError> {
-        let mut expressions = Vec::with_capacity(exprs.len());
-        for expr in exprs {
+    pub fn compile_expressions_to_str(&mut self, expressions: &Vec<TypedExpr>) -> Result<Vec<Value>, PrintableError> {
+        let mut strings = Vec::with_capacity(expressions.len());
+        for expr in expressions {
             let val = self.compile_expr(expr, false)?;
             let string = self.val_to_string(&val, expr.typ);
-            expressions.push(string)
+            strings.push(string)
         }
-        Ok(expressions)
+        Ok(strings)
     }
 
     // Call runtime and combine values. All values MUST be strings.
