@@ -1,10 +1,10 @@
 use std::os::raw::{c_char, c_int, c_long, c_void};
-use gnu_libjit::{Context, Function, Label, Value};
+use gnu_libjit::{Abi, Context, Function, Label, Value};
 use hashbrown::HashMap;
 use crate::codegen::codegen_consts::CodegenConsts;
 use crate::codegen::globals::Globals;
 use crate::codegen::{FLOAT_TAG, STRING_TAG, ValuePtrT, ValueT};
-use crate::parser::{ScalarType, Stmt, TypedExpr};
+use crate::parser::{Arg, ArgT, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError, Symbolizer};
 use crate::codegen::callable_function::CallableFunction;
 use crate::codegen::function_scope::FunctionScope;
@@ -69,10 +69,12 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         let string_tag = function.create_sbyte_constant(STRING_TAG as c_char);
         let c = CodegenConsts::new(zero_ptr, zero_f, float_tag, string_tag);
 
+        println!("Starting function {}", &parser_func.name);
+        let function_scope = FunctionScope::new(globals, &mut function, &parser_func.args);
         let mut func_gen = Self {
             function,
             context,
-            function_scope: FunctionScope::new(globals),
+            function_scope,
             binop_scratch,
             ptr_scratch,
             var_arg_scratch,
@@ -103,7 +105,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
         for global in &func.globals_used {
             // Pull all needed globals into function locals
-            self.function_scope.get(&mut self.function,global)?;
+            self.function_scope.get_scalar(&mut self.function, global)?;
         }
 
         self.compile_stmt(&func.body)?;
@@ -119,15 +121,10 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
         self.function.insn_return(&zero);
 
-        if dump {
-            println!("Dump jit asm");
-            println!("{}", self.function.dump().unwrap());
-        }
+        // if dump {
+            println!("Dump for {}\n{}", &func.name,self.function.dump().unwrap());
+        // }
         self.function.compile();
-        if dump {
-            println!("Dump x86");
-            println!("{}", self.function.dump().unwrap());
-        }
         Ok(())
     }
 
@@ -236,10 +233,40 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     // and result is unused.
     fn compile_expr(&mut self, expr: &TypedExpr, side_effect_only: bool) -> Result<ValueT, PrintableError> {
         Ok(match &expr.expr {
-            Expr::Call { target, args: _args } => {
-                let target = self.function_map.get(target).expect("function to exist");
-
-                panic!("")
+            Expr::Call { target: target_name, args } => {
+                let target = self.function_map.get(target_name).expect("function to exist");
+                let mut call_args = Vec::with_capacity(args.len());
+                for (idx, (ast_arg, target_arg)) in args.iter().zip(&target.args).enumerate() {
+                    match target_arg.typ {
+                        None => {
+                            // If arg is untyped it is unused in the target function
+                            // just compile for side-effects and drop the result.
+                            let compiled = self.compile_expr(ast_arg, true)?;
+                            self.drop_if_str(&compiled);
+                        }
+                        Some(arg_t) => {
+                            match arg_t {
+                                ArgT::Scalar => {
+                                    let compiled = self.compile_expr(ast_arg, false)?;
+                                    call_args.push(compiled.tag);
+                                    call_args.push(compiled.float);
+                                    call_args.push(compiled.pointer);
+                                }
+                                ArgT::Array => {
+                                    if let Expr::Variable(sym) = &ast_arg.expr {
+                                        let array = self.function_scope.get_array(&mut self.function, &sym)?;
+                                        call_args.push(array)
+                                    } else {
+                                        return Err(PrintableError::new(format!("Tried to use scalar as arg #{} to function {} which accepts an array", idx+1, &target_name)))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                self.function_scope.flush(&mut self.function);
+                self.function.insn_call(&target.function, call_args);
+                self.no_op_value() // TODO: Return value from functions
             }
             Expr::ScalarAssign(var, value) => {
                 // BEGIN: Optimization
@@ -253,17 +280,17 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 // from Rc -> Box
 
                 if let Expr::Concatenation(vars) = &value.expr {
-                    let old_value = self.function_scope.get(&mut self.function, var)?.clone();
+                    let old_value = self.function_scope.get_scalar(&mut self.function, var)?.clone();
                     let strings_to_concat = self.compile_expressions_to_str(vars)?;
                     self.drop_if_str(&old_value);
                     let new_value = self.concat_values(&strings_to_concat);
-                    self.function_scope.set(&mut self.function, var, &new_value);
+                    self.function_scope.set_scalar(&mut self.function, var, &new_value);
                     return Ok(self.copy_if_string(new_value, ScalarType::Variable));
                 }
                 let new_value = self.compile_expr(value, false)?;
-                let old_value = self.function_scope.get(&mut self.function, var)?.clone();
+                let old_value = self.function_scope.get_scalar(&mut self.function, var)?.clone();
                 self.drop_if_str(&old_value);
-                self.function_scope.set(&mut self.function, &var, &new_value);
+                self.function_scope.set_scalar(&mut self.function, &var, &new_value);
                 if side_effect_only {
                     self.no_op_value()
                 } else {
@@ -307,6 +334,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 ValueT::float(self.float_tag(), result, self.zero_ptr())
             }
             Expr::BinOp(left_expr, op, right_expr) => {
+                println!("LEFT EXPR {:?} RIGHT {:?}", left_expr, right_expr);
                 let left = self.compile_expr(left_expr, false)?;
                 let right = self.compile_expr(right_expr, false)?;
                 let tag = self.float_tag();
@@ -344,7 +372,9 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
                 // Done load the result from scratch
                 self.function.insn_label(&mut done_lbl);
-                self.load(&mut self.binop_scratch.clone())
+                let mut ret = self.load(&mut self.binop_scratch.clone());
+                ret.typ = ScalarType::Float;
+                ret
             }
             Expr::LogicalOp(left, op, right) => {
                 let float_1 = self.function.create_float64_constant(1.0);
@@ -401,22 +431,22 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 // If it's a string we need to call copy_string to update the reference count.
                 // If it's a float no-op.
                 // If type is unknown we check tag then copy_string if needed.
-                let mut var = self.function_scope.get(&mut self.function, var)?.clone();
+                let mut var = self.function_scope.get_scalar(&mut self.function, var)?.clone();
                 let string_tag = self.string_tag();
-                match expr.typ {
-                    ScalarType::String => {
-                        let zero = self.function.create_float64_constant(0.0);
-                        let new_ptr = self.runtime.copy_string(&mut self.function, var.pointer);
-                        ValueT::string(string_tag, zero, new_ptr)
-                    }
-                    ScalarType::Variable => {
+                // match expr.typ {
+                //     ScalarType::String => {
+                //         let zero = self.function.create_float64_constant(0.0);
+                //         let new_ptr = self.runtime.copy_string(&mut self.function, var.pointer);
+                //         ValueT::string(string_tag, zero, new_ptr)
+                //     }
+                //     ScalarType::Variable => {
                         // If it's a string variable copy it and store that pointer in self.binop_scratch.pointer
                         // otherwise store zero self.binop_scratch.pointer. After this load self.binop_scratch.pointer
                         // and make a new value with the old tag/float + new string pointer.
-                        let is_not_str = self.function.insn_eq(&string_tag, &var.tag);
+                        let is_string = self.function.insn_eq(&string_tag, &var.tag);
                         let mut done_lbl = Label::new();
                         let mut is_not_str_lbl = Label::new();
-                        self.function.insn_branch_if_not(&is_not_str, &mut is_not_str_lbl);
+                        self.function.insn_branch_if_not(&is_string, &mut is_not_str_lbl);
                         let new_ptr = self.runtime.copy_string(&mut self.function, var.pointer);
                         self.function.insn_store(&self.binop_scratch.pointer, &new_ptr);
                         self.function.insn_branch(&mut done_lbl);
@@ -427,12 +457,12 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                         self.function.insn_label(&mut done_lbl);
                         let str_ptr = self.function.insn_load(&self.binop_scratch.pointer);
                         ValueT::var(var.tag, var.float, str_ptr)
-                    }
-                    ScalarType::Float => {
-                        var.typ = ScalarType::Float;
-                        var
-                    }
-                }
+                    // }
+                    // ScalarType::Float => {
+                    //     var.typ = ScalarType::Float;
+                    //     var
+                    // }
+                // }
             }
             Expr::Column(col) => {
                 let column = self.compile_expr(col, false)?;
@@ -657,7 +687,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 self.drop(&value.pointer);
                 self.function.insn_label(&mut done_lbl);
             }
-            _ => { }
+            _ => {}
         };
     }
 

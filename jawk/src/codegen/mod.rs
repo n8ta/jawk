@@ -14,7 +14,7 @@ use crate::runtime::{LiveRuntime, Runtime, TestRuntime};
 use crate::{AnalysisResults, Symbolizer};
 use gnu_libjit::{Abi, Context, Function, Value};
 use crate::codegen::callable_function::CallableFunction;
-use crate::codegen::function_codegen::FunctionCodegen;
+use crate::codegen::function_codegen::{FunctionCodegen};
 use crate::codegen::globals::Globals;
 use crate::symbolizer::Symbol;
 
@@ -69,6 +69,8 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     ) -> Result<Self, PrintableError> {
         let mut context = Context::new();
 
+        // Main gets created apart from normal function_codegen since it needs
+        // to do some runtime setup.
         let mut main_function = context
             .function(Abi::Cdecl, &Context::int_type(), vec![])
             .expect("to create function");
@@ -82,9 +84,10 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         let mut function_map = HashMap::with_capacity(1);
         let args = prog.functions.get(&main_sym).unwrap().args.clone();
         function_map.insert(main_sym.clone(),
-                            CallableFunction::new(
-                                main_function.clone(),
-                                args));
+                            CallableFunction {
+                                function: main_function.clone(),
+                                args,
+                            });
 
         let mut codegen = CodeGen {
             main: main_function,
@@ -114,8 +117,8 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         // Gen stubs for each function, main already created
         for (name, parser_func) in &prog.functions {
             if *name == main_sym { continue; };
-            let func = self.context.function(Abi::Cdecl, &Context::int_type(), vec![]).unwrap();
-            self.function_map.insert(name.clone(), CallableFunction::new(func, parser_func.args.clone()));
+            let callable = CallableFunction::new(&mut self.context, &parser_func.args);
+            self.function_map.insert(name.clone(), callable);
         }
 
         {
@@ -124,6 +127,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         }
 
         for (name, parser_func) in &prog.functions {
+            if *name == main_sym { continue;} // Main must be compiled last since it can call other functions
             let jit_func = self.function_map.get(name).expect("func to exist");
             FunctionCodegen::build_function(jit_func.function.clone(),
                                             parser_func,
@@ -133,11 +137,25 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                                             &mut self.globals,
                                             self.symbolizer,
                                             &self.var_arg_scratch,
-                                            *name == main_sym,
+                                            false,
                                             debug_asserts,
                                             dump,
             )?;
         }
+
+        let parser_func = prog.functions.get(&main_sym).unwrap();
+        let main_jit_func = self.function_map.get(&main_sym).expect("func to exist");
+        FunctionCodegen::build_function(main_jit_func.function.clone(),
+                                        parser_func,
+                                        self.runtime,
+                                        &self.function_map,
+                                        &mut self.context,
+                                        &mut self.globals,
+                                        self.symbolizer,
+                                        &self.var_arg_scratch,
+                                        true,
+                                        debug_asserts,
+                                        dump)?;
 
         self.context.build_end();
         Ok(())

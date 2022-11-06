@@ -21,7 +21,7 @@ fn strip(data: &str) -> String {
         .replace("\t", "")
         .replace(";", "")
         .replace("\n", "");
-    println!("data1: {}", data);
+    println!("pre_strip: {}", data);
     if let Some(rest) = data.strip_prefix("functionmainfunction(){") {
         return rest.strip_suffix("}").unwrap().to_string();
     }
@@ -32,13 +32,23 @@ fn test_it(program: &str, expected: &str) {
     use crate::{lex, parse};
     let mut symbolizer = Symbolizer::new();
     let ast = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
-    println!("prog: {:?}", ast);
+    println!("prog: {}", ast);
     let result_clean = strip(&format!("{}", ast));
     let expected_clean = strip(expected);
     if result_clean != expected_clean {
         println!("Got: \n{}", format!("{}", ast));
         println!("Expected: \n{}", expected);
     }
+    assert_eq!(result_clean, expected_clean);
+}
+
+#[cfg(test)]
+fn test_it_funcs(program: &str, expected: &str) {
+    use crate::{lex, parse};
+    let mut symbolizer = Symbolizer::new();
+    let ast = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
+    let result_clean = strip(&format!("{}", ast));
+    let expected_clean = strip(expected);
     assert_eq!(result_clean, expected_clean);
 }
 
@@ -58,6 +68,13 @@ fn test_if_basic() {
         "BEGIN { a = 1; print a; if($1) { print a } } ",
         "(f a = (f 1)); print (f a); if (s $(f 1)) { print (f a) }",
     );
+}
+
+#[test]
+fn test_typed_loop() {
+    test_it("BEGIN \
+               { while (1) { x=1; } print x; }",
+        "while(f 1){ (f x = (f1)); }print(vx)");
 }
 
 #[test]
@@ -104,15 +121,30 @@ fn test_if_else_polluting() {
 fn test_concat_loop() {
     test_it(
         "{ a = a $1 } END { print a; }",
-        "while (f check_if_there_is_another_line) { (s a = (s (s a) (s$(f 1)))) }; print (s a);",
+        "while (f check_if_there_is_another_line) { (s a = (s (v a) (s$(f 1)))) }; print (v a);",
     );
+}
+
+#[test]
+fn test_while_break_typing() {
+    test_it("BEGIN { while (1) { if (x == 33) { break } x = x + 1; } print x; }",
+    "while (f1) { if (f(vx) == (f33)) { break } (f x = (f ( v x) + (f 1 ))) } print (v x)",
+    )
+}
+
+#[test]
+fn test_while_break_known_type() {
+    test_it("BEGIN { x = 5; while (1) { if (x == 33) { break } x = x + 1; } print x; }",
+            "(f x  = (f 5)); while (f1) { if (f(fx) == (f33)) { break } (f x = (f ( f x) + (f 1 ))) } print (f x)",
+
+    )
 }
 
 #[test]
 fn test_while_loop() {
     test_it(
         "BEGIN { while(123) { a = \"bb\"}; print a;}",
-        "while (f 123) { (s a = (s \"bb\")) }; print (s a);",
+        "while (f 123) { (s a = (s \"bb\")) }; print (v a);",
     );
 }
 
@@ -125,7 +157,7 @@ fn test_assignment() {
 fn test_assignment_col() {
     test_it(
         "{ x = $0; } END { print x; }",
-        "while(fcheck_if_there_is_another_line){ (s x = (s$(f 0) ))}; print (s x);",
+        "while(fcheck_if_there_is_another_line){ (s x = (s$(f 0) ))}; print (v x);",
     );
 }
 
@@ -187,11 +219,11 @@ fn test_calls() {
 
 }
 
-// #[test]
-// fn test_typing_scalar_function() {
-//     test_it("function a() { return 1; } BEGIN { print 1; }",
-//             "function a() { return (f 1); } print (f 1);");
-// }
+#[test]
+fn test_typing_scalar_function() {
+    test_it_funcs("function a() { return 1; } BEGIN { print 1; }",
+                  "function a() { return (f 1); } function mainfunction() { print (f 1) }");
+}
 
 #[test]
 fn test_arr_typing() {

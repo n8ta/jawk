@@ -722,25 +722,25 @@ test!(
 //     "."
 // );
 
-// const NUMERIC_STRING: &'static str = "1 2 3\n04 005 6\n07 8 9";
-test!(
-    test_numeric_string2,
-    "{ print ($0 < $1 ) }",
-    NUMERIC_STRING,
-    "0\n0\n0\n"
-);
-test!(
-    test_numeric_string3,
-    "{ print (\"04\" > \"005\") }",
-    NUMERIC_STRING,
-    "1\n1\n1\n"
-);
-test!(
-    test_numeric_string4,
-    "{ print (\"04\" >= \"005\") }",
-    NUMERIC_STRING,
-    "1\n1\n1\n"
-);
+// // const NUMERIC_STRING: &'static str = "1 2 3\n04 005 6\n07 8 9";
+// test!(
+//     test_numeric_string2,
+//     "{ print ($0 < $1 ) }",
+//     NUMERIC_STRING,
+//     "0\n0\n0\n"
+// );
+// test!(
+//     test_numeric_string3,
+//     "{ print (\"04\" > \"005\") }",
+//     NUMERIC_STRING,
+//     "1\n1\n1\n"
+// );
+// test!(
+//     test_numeric_string4,
+//     "{ print (\"04\" >= \"005\") }",
+//     NUMERIC_STRING,
+//     "1\n1\n1\n"
+// );
 test!(
     test_post_increment,
     "BEGIN { a = 4; print a++ + a++}",
@@ -991,12 +991,12 @@ test!(
     ""
 );
 
-// test!(
-//     test_array_with_str,
-//     "BEGIN { while (x++ < 30) { a[x] = a[x-1] \".\"; print a[x] }}",
-//     ONE_LINE,
-//     ".\n..\n...\n....\n.....\n......\n.......\n........\n.........\n..........\n...........\n............\n.............\n..............\n...............\n................\n.................\n..................\n...................\n....................\n.....................\n......................\n.......................\n........................\n.........................\n..........................\n...........................\n............................\n.............................\n..............................\n"
-// );
+test!(
+    test_array_with_str,
+    "BEGIN { while (x++ < 30) { a[x] = a[x-1] \".\"; print a[x] }}",
+    ONE_LINE,
+    ".\n..\n...\n....\n.....\n......\n.......\n........\n.........\n..........\n...........\n............\n.............\n..............\n...............\n................\n.................\n..................\n...................\n....................\n.....................\n......................\n.......................\n........................\n.........................\n..........................\n...........................\n............................\n.............................\n..............................\n"
+);
 
 test!(
     test_array_override_with_int,
@@ -1014,40 +1014,88 @@ test!(
 );
 
 test!(
-    test_break_loop,
-    "BEGIN { while (1) { if (x == 33) { break } x++ } print x; }",
+    test_break_loop_uninit,
+    "BEGIN { while (1) { if (x == 33) { break } x = x + 1; } print x; }",
     ONE_LINE,
     "33\n"
 );
 
-test!(drop_on_end,
-    "BEGIN { x = 1; x = \"A\"; x = 4}",
-    ONE_LINE,
-    ""
-);
 
 test!(
-    test_double_break_loop,
-    "BEGIN {while(1) {     z=0; while(1) {if(z==30){break}z++;a++}        y++; if(y==40) {break}} print y; print a;}",
+    test_break_loop_known_type,
+    "BEGIN { x = 5; while (1) { if (x == 33) { break } x = x + 1; } print x; }",
     ONE_LINE,
-    "40\n1200\n"
+    "33\n"
 );
-
-test!(
-    test_printf_simple_f,
-    "BEGIN {printf \"test\"}",
-    ONE_LINE,
-    "test"
-);
+//
+// test!(
+//     test_break_2,
+//     "BEGIN { while (1) { if (x) { break } break } }",
+//     ONE_LINE,
+//     ""
+// );
+//
+// test!(drop_on_end,
+//     "BEGIN { x = 1; x = \"A\"; x = 4}",
+//     ONE_LINE,
+//     ""
+// );
 
 // test!(
-//     test_func_call,
+//     test_double_break_loop,
+//     "BEGIN {while(1) {     z=0; while(1) {if(z==30){break}z++;a++}        y++; if(y==40) {break}} print y; print a;}",
+//     ONE_LINE,
+//     "40\n1200\n"
+// );
+//
+// test!(
+//     test_printf_simple_f,
+//     "BEGIN {printf \"test\"}",
+//     ONE_LINE,
+//     "test"
+// );
+//
+//
+// test!(
+//     test_func_const_only,
+//     "function uses_nil() { print \"1\";  } BEGIN { uses_nil();}",
+//     ONE_LINE,
+//     "1\n");
+//
+// test!(
+//     test_func_global_float_only,
+//     "function uses_nil() { print global_1;  } BEGIN { global_1 = 3; uses_nil();}",
+//     ONE_LINE,
+//     "3\n");
+//
+// test!(
+//     test_func_global_string_only,
+//     "function uses_nil() { print global_1;  } BEGIN { global_1 = \"abc\"; uses_nil();}",
+//     ONE_LINE,
+//     "abc\n");
+//
+// test!(
+//     test_func_global_arr_only,
+//     "function uses_nil() { print global_1[0];  } BEGIN { global_1[0] = 5; uses_nil();}",
+//     ONE_LINE,
+//     "5\n");
+//
+//
+//
+// test!(
+//     test_func_call_0,
+//     "function uses_scalar(arr) { print arr;  } BEGIN { uses_scalar(1);}",
+//     ONE_LINE,
+//     "1\n");
+//
+// test!(
+//     test_func_call_1,
 //     "function a(arr) { arr[0] = 123; } BEGIN { a(b); print b[0]; }",
 //     ONE_LINE,
 //     "123\n"
 // );
-
-
+//
+//
 // test!(test_call_global,
 //     "function a() { print b; } BEGIN { b = 5; a(); }",
 //     ONE_LINE,
@@ -1055,7 +1103,7 @@ test!(
 // );
 //
 // test!(
-//     test_func_call,
+//     test_func_call_2,
 //     "function a(array) { print array[0]; } BEGIN { arr[0] = 5; a(arr) }",
 //     ONE_LINE,
 //     "5\n"

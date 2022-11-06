@@ -49,8 +49,13 @@ impl Program {
 
 impl Display for Program {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for func in &self.functions {
-            write!(f, "{}\n", func.1)?;
+        // Tests will print the program and compare it with another string
+        // keep function order consistent by sorting.
+        let mut sorted: Vec<Symbol> = self.functions.iter().map(|(sym, _)| sym.clone()).collect();
+        sorted.sort();
+        for func_name in &sorted {
+            let func = self.functions.get(func_name).unwrap();
+            write!(f, "{}\n", func)?;
         }
         Ok(())
     }
