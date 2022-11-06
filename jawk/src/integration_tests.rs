@@ -592,6 +592,7 @@ test!(
     ONE_LINE,
     "a\n"
 );
+test!(test_concat_unused, "BEGIN { z = \"abc\" \"def\"; }", ONE_LINE, "");
 test!(test_concat_cols2, "{ print ($1 $2) }", ONE_LINE, "12\n");
 test!(test_concat_cols3, "{ print ($1 $2 $3) }", ONE_LINE, "123\n");
 test!(
@@ -987,6 +988,12 @@ test!(
 test!(
     test_simple_concat,
     "BEGIN { a[0] = 1 1 }",
+    ONE_LINE,
+    ""
+);
+test!(
+    test_leak,
+    "BEGIN { while (x++ < 1) { }}",
     ONE_LINE,
     ""
 );

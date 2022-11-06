@@ -1,10 +1,9 @@
 use std::os::raw::c_void;
 use gnu_libjit::{Function, Value};
-use hashbrown::{HashMap, HashSet};
-use libc::lconv;
+use hashbrown::{HashMap};
 use crate::codegen::globals::Globals;
 use crate::codegen::ValueT;
-use crate::parser::{Arg, ArgT, ScalarType};
+use crate::parser::{Arg, ArgT};
 use crate::PrintableError;
 use crate::symbolizer::Symbol;
 
@@ -32,7 +31,7 @@ impl<'a> FunctionScope<'a> {
             if let Some(arg_type) = arg.typ {
                 match arg_type {
                     ArgT::Scalar => {
-                        let value = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr(), ScalarType::Variable);
+                        let value = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr());
                         function_scope.pure_local_scalar.insert(arg.name.clone(), value);
                     }
                     ArgT::Array => {
@@ -57,7 +56,7 @@ impl<'a> FunctionScope<'a> {
         } else {
             println!("{} is new global", name);
             let global_value = self.globals.get(name, function)?;
-            let mut local_global = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr(), global_value.typ);
+            let mut local_global = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr());
             self.store(function, &mut local_global, &global_value);
             self.local_globals.insert(name.clone(), local_global.clone());
             Ok(local_global)
@@ -66,11 +65,10 @@ impl<'a> FunctionScope<'a> {
     pub fn set_scalar(&mut self, function: &mut Function, name: &Symbol, value: &ValueT) {
         let mut local_global = if let Some(mut local_global) = self.local_globals.get_mut(name) {
             // We already have this global pulled in as a stack var
-            local_global.typ = value.typ;
             Some(local_global.clone())
         } else {
             // Create a new stack var for it
-            let mut local_global = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr(), value.typ);
+            let mut local_global = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr());
             self.store(function, &mut local_global, value);
             self.local_globals.insert(name.clone(), local_global);
             None
@@ -84,7 +82,6 @@ impl<'a> FunctionScope<'a> {
         function.insn_store(&local_global.tag, &new_value.tag);
         function.insn_store(&local_global.float, &new_value.float);
         function.insn_store(&local_global.pointer, &new_value.pointer);
-        local_global.typ = new_value.typ;
     }
 
     pub fn flush(&mut self, function: &mut Function) {

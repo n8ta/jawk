@@ -141,6 +141,25 @@ fn test_while_break_known_type() {
 }
 
 #[test]
+fn test_typing_while_x_uninit_1() {
+    test_it("BEGIN { while ( (x=x+1) < 1) { }}",
+    "while (f(f x = (f (v x) + (f 1))) < (f1)) {}")
+}
+
+
+#[test]
+fn test_typing_while_x_uninit_2() {
+    test_it("BEGIN { while ( x < 1) { }}",
+            "while (f (v x) < (f 1) ) {}")
+}
+
+#[test]
+fn test_typing_while_x_uninit_3() {
+    test_it("BEGIN { x = x + 1; }",
+            "(f x = (f (v x) + (f 1)))")
+}
+
+#[test]
 fn test_while_loop() {
     test_it(
         "BEGIN { while(123) { a = \"bb\"}; print a;}",
@@ -180,14 +199,14 @@ fn test_ternary_2() {
 fn test_ternary_3() {
     test_it("\
     BEGIN { x ? (x=1) : (x=\"a\"); print x; }",
-            "(v (s x) ? (f x = (f 1)) : (s x = (s \"a\"))); \nprint (v x)");
+            "(v (v x) ? (f x = (f 1)) : (s x = (s \"a\"))); \nprint (v x)");
 }
 
 #[test]
 fn test_ternary_4() {
     test_it("\
     BEGIN { x ? (x=1) : (x=4); print x; }",
-            "(f (s x) ? (f x = (f 1)) : (f x = (f 4)));\nprint (f x)");
+            "(f (v x) ? (f x = (f 1)) : (f x = (f 4)));\nprint (f x)");
 }
 
 #[test]
@@ -228,7 +247,7 @@ fn test_typing_scalar_function() {
 #[test]
 fn test_arr_typing() {
     test_it("BEGIN { b[0] = d; }",
-            "(s b[(f 0)] = (s d))");
+            "(v b[(f 0)] = (v d))");
 }
 
 // #[test]

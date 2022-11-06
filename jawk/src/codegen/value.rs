@@ -6,28 +6,26 @@ pub struct ValueT {
     pub tag: Value,
     pub float: Value,
     pub pointer: Value,
-    pub typ: ScalarType,
 }
 
 impl ValueT {
-    pub fn new(tag: Value, float: Value, pointer: Value, typ: ScalarType) -> ValueT {
+    pub fn new(tag: Value, float: Value, pointer: Value) -> ValueT {
         ValueT {
-            typ,
             tag,
             float,
             pointer,
         }
     }
     pub fn string(tag: Value, float: Value, pointer: Value) -> ValueT {
-        Self::new(tag, float, pointer, ScalarType::String)
+        Self::new(tag, float, pointer)
 
     }
     pub fn float(tag: Value, float: Value, pointer: Value) -> ValueT {
-        Self::new(tag, float, pointer, ScalarType::Float)
+        Self::new(tag, float, pointer)
 
     }
     pub fn var(tag: Value, float: Value, pointer: Value) -> ValueT {
-        Self::new(tag, float, pointer, ScalarType::Variable)
+        Self::new(tag, float, pointer)
     }
 
 }

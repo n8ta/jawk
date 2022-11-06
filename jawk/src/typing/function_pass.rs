@@ -158,7 +158,7 @@ impl FunctionAnalysis {
 
                 let after_body_map = self.global_scalars.clone();
 
-                self.global_scalars = FunctionAnalysis::merge_maps(&[&after_test_map, &after_body_map]);
+                self.global_scalars = FunctionAnalysis::merge_maps(&[&after_test_map, &after_body_map, &pre_map]);
 
                 self.print_maps("after merge after_test_map after_body_map");
 
@@ -274,7 +274,7 @@ impl FunctionAnalysis {
                 } else if let Some(typ) = self.global_scalars.get(var) {
                     expr.typ = *typ;
                 } else {
-                    expr.typ = ScalarType::String;
+                    expr.typ = ScalarType::Variable;
                     self.use_as_scalar(var, ScalarType::Variable, func_state)?;
                 }
             }

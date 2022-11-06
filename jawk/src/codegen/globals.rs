@@ -72,7 +72,7 @@ impl Globals {
             let tag_ptr_const = function.create_void_ptr_constant(tag as *mut c_void);
             let float_ptr_const = function.create_void_ptr_constant(float as *mut c_void);
             let ptr_ptr_const = function.create_void_ptr_constant(ptr as *mut c_void);
-            ValuePtrT::new(tag_ptr_const, float_ptr_const, ptr_ptr_const, ScalarType::Variable)
+            ValuePtrT::new(tag_ptr_const, float_ptr_const, ptr_ptr_const)
         }
     }
 
