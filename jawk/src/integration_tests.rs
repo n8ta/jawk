@@ -1027,34 +1027,34 @@ test!(
     ONE_LINE,
     "33\n"
 );
-//
-// test!(
-//     test_break_2,
-//     "BEGIN { while (1) { if (x) { break } break } }",
-//     ONE_LINE,
-//     ""
-// );
-//
-// test!(drop_on_end,
-//     "BEGIN { x = 1; x = \"A\"; x = 4}",
-//     ONE_LINE,
-//     ""
-// );
 
-// test!(
-//     test_double_break_loop,
-//     "BEGIN {while(1) {     z=0; while(1) {if(z==30){break}z++;a++}        y++; if(y==40) {break}} print y; print a;}",
-//     ONE_LINE,
-//     "40\n1200\n"
-// );
-//
+test!(
+    test_break_2,
+    "BEGIN { while (1) { if (x) { break } break } }",
+    ONE_LINE,
+    ""
+);
+
+test!(drop_on_end,
+    "BEGIN { x = 1; x = \"A\"; x = 4}",
+    ONE_LINE,
+    ""
+);
+
+test!(
+    test_double_break_loop,
+    "BEGIN {while(1) {     z=0; while(1) {if(z==30){break}z++;a++}        y++; if(y==40) {break}} print y; print a;}",
+    ONE_LINE,
+    "40\n1200\n"
+);
+
 // test!(
 //     test_printf_simple_f,
 //     "BEGIN {printf \"test\"}",
 //     ONE_LINE,
 //     "test"
 // );
-//
+
 //
 // test!(
 //     test_func_const_only,
