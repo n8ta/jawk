@@ -6,7 +6,7 @@ fn main() {
 
 
     let float_type = Context::float64_type();
-    let mut func = context.function(Abi::Cdecl, float_type, vec![float_type]).unwrap();
+    let mut func = context.function(Abi::Cdecl, &float_type, vec![float_type]).unwrap();
 
     // Return 1 if arg0 == 4
     // else return 0

@@ -13,14 +13,11 @@ pub enum Call {
     EmptyString,
     PrintFloat,
     BinOp,
-    Malloc,
-    Realloc,
-    Free,
     ArrayAssign,
     ArrayAccess,
     InArray,
     ConcatArrayIndices,
-    Printf,
+    // Printf,
 }
 
 pub struct CallLog {

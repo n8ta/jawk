@@ -5,8 +5,6 @@ mod context;
 mod jit_type;
 mod abi;
 mod value;
-#[cfg(test)]
-mod test;
 mod util;
 mod label;
 

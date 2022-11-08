@@ -18,10 +18,10 @@ fn main() {
 
     let mut context = Context::new();
     context.build_start();
-    let mut func = context.function(Abi::Cdecl, Context::float64_type(), vec![Context::float64_type()]).unwrap();
+    let mut func = context.function(Abi::Cdecl, &Context::float64_type(), vec![Context::float64_type()]).unwrap();
 
     let inner_func = {
-        let mut inner_func = context.function(Abi::Cdecl, Context::float64_type(), vec![Context::float64_type().type_create_pointer()]).unwrap();
+        let mut inner_func = context.function(Abi::Cdecl, &Context::float64_type(), vec![Context::float64_type().type_create_pointer()]).unwrap();
         let arg0 = inner_func.arg(0).unwrap();
         let const_1 = inner_func.create_float64_constant(1.1);
         inner_func.insn_store_relative(&arg0, 0, &const_1);

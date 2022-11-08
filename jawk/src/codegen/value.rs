@@ -15,6 +15,18 @@ impl ValueT {
             pointer,
         }
     }
+    pub fn string(tag: Value, float: Value, pointer: Value) -> ValueT {
+        Self::new(tag, float, pointer)
+
+    }
+    pub fn float(tag: Value, float: Value, pointer: Value) -> ValueT {
+        Self::new(tag, float, pointer)
+
+    }
+    pub fn var(tag: Value, float: Value, pointer: Value) -> ValueT {
+        Self::new(tag, float, pointer)
+    }
+
 }
 impl Into<Vec<Value>> for &ValueT {
     fn into(self) -> Vec<Value> {

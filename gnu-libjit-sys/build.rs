@@ -30,6 +30,17 @@ fn main() {
         .output().expect("Failed to run `make install` while installing libjit");
 
     let library_path = path.join("jit").join(".libs");
+    let jit_path = path.join("jit");
+
+    env::set_current_dir(jit_path.to_str().expect("expect libs dir to exist in cargo outdir")).expect("expected libs dir to exist in out dir");
+    Command::new("strip").args(&["-x", "*"])
+        .output().expect("Failed to strip libjit linkable libraries");
+
+    env::set_current_dir(library_path.to_str().expect("expect libs dir to exist in cargo outdir")).expect("expected libs dir to exist in out dir");
+
+    // Shared library is too big so strip it
+    Command::new("strip").args(&["-x", "*"])
+        .output().expect("Failed to strip libjit linkable libraries");
 
     println!("cargo:rustc-link-search={}", library_path.to_str().expect("libjit './jit/.libs' directory was not created during installation for some reason"));
     println!("cargo:rustc-link-lib=static=jit");

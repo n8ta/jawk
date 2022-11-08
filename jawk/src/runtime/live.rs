@@ -1,16 +1,14 @@
-use std::collections::HashMap;
-use std::env::var;
-use crate::codgen::{FLOAT_TAG, STRING_TAG, ValueT};
+use crate::codegen::{FLOAT_TAG, STRING_TAG};
 use crate::columns::Columns;
 use crate::lexer::BinOp;
 use crate::runtime::{ErrorCode, Runtime};
 use gnu_libjit::{Abi, Context, Function, Value};
 use std::ffi::c_void;
-use std::fmt::{Write as FmtWrite};
 use std::io::{BufWriter, StdoutLock, Write};
 use std::rc::Rc;
 use mawk_regex::Regex;
 use lru_cache::LruCache;
+use crate::runtime::arrays::{Arrays};
 
 // Live runtime used by most programs.
 // A pointer to the runtime data is provided for all calls but only used for some.
@@ -25,7 +23,7 @@ pub extern "C" fn print_string(data: *mut c_void, value: *mut String) {
         data.stdout.write_all(str.as_bytes()).expect("failed to write to stdout");
         data.stdout.write_all("\n".as_bytes()).expect("failed to write to stdout");
     }
-    Rc::into_raw(str);
+    // implicitly consuming str here.
 }
 
 pub extern "C" fn print_float(data: *mut c_void, value: f64) {
@@ -59,7 +57,7 @@ extern "C" fn column(
     Rc::into_raw(Rc::new(data.columns.get(idx))) as *mut String
 }
 
-extern "C" fn free_string(_data: *mut c_void, string: *mut String) -> f64 {
+extern "C" fn free_string(_data: *mut c_void, string: *const String) -> f64 {
     unsafe { Rc::from_raw(string) };
     0.0
 }
@@ -102,10 +100,10 @@ extern "C" fn binop(
         BinOp::EqEq => left == right,
         BinOp::MatchedBy => {
             let reg = match data.regex_cache.get_mut(&*right) {
-                Some(cachedRegex) => cachedRegex,
+                Some(cached_regex) => cached_regex,
                 None => {
-                    let RE = Regex::new(&right);
-                    data.regex_cache.insert((&*right).clone(), RE);
+                    let re = Regex::new(&right);
+                    data.regex_cache.insert((&*right).clone(), re);
                     data.regex_cache.get_mut(&*right).unwrap()
                 }
             };
@@ -113,10 +111,10 @@ extern "C" fn binop(
         }
         BinOp::NotMatchedBy => {
             let reg = match data.regex_cache.get_mut(&*right) {
-                Some(cachedRegex) => cachedRegex,
+                Some(cached_regex) => cached_regex,
                 None => {
-                    let RE = Regex::new(&right);
-                    data.regex_cache.insert((&*right).clone(), RE);
+                    let re = Regex::new(&right);
+                    data.regex_cache.insert((&*right).clone(), re);
                     data.regex_cache.get_mut(&*right).unwrap()
                 }
             };
@@ -149,7 +147,8 @@ extern "C" fn number_to_string(_data: *mut c_void, value: f64) -> *const String 
     } else {
         value
     };
-    Rc::into_raw(Rc::new(value.to_string()))
+    let str = value.to_string();
+    Rc::into_raw(Rc::new(str))
 }
 
 extern "C" fn copy_string(_data: *mut c_void, ptr: *mut String) -> *const String {
@@ -159,67 +158,87 @@ extern "C" fn copy_string(_data: *mut c_void, ptr: *mut String) -> *const String
     Rc::into_raw(copy)
 }
 
-extern "C" fn print_error(data: *mut std::os::raw::c_void, code: ErrorCode) {
+extern "C" fn print_error(_data: *mut std::os::raw::c_void, code: ErrorCode) {
     eprintln!("error {:?}", code)
 }
 
 extern "C" fn array_assign(data_ptr: *mut std::os::raw::c_void,
                            array: i32,
-                           index: *mut String, tag: i8, float: f64, ptr: *mut String) {
+                           key_tag: i8,
+                           key_num: f64,
+                           key_ptr: *mut String,
+                           tag: i8,
+                           float: f64,
+                           ptr: *mut String) {
     let data = cast_to_runtime_data(data_ptr);
-    let index = unsafe {
-        Rc::from_raw(index)
-    };
-    let array = &mut data.arrays[array as usize];
-
-    if let Some(val) = array.get_mut(&*index) {
-        if val.0 == STRING_TAG {
-            free_string(data_ptr, val.2);
+    let res = data.arrays.assign(array, (key_tag, key_num, key_ptr), (tag, float, ptr));
+    match res {
+        None => {}
+        Some((existing_tag, _existing_float, existing_ptr)) => {
+            if existing_tag == STRING_TAG {
+                unsafe { Rc::from_raw(existing_ptr) };
+                // implicitly drop RC here. Do not report as a string_in our out since it was
+                // already stored in the runtime and droped from the runtime.
+            }
         }
-        val.0 = tag;
-        val.1 = float;
-        val.2 = ptr;
-    } else {
-        array.insert(index, (tag, float, ptr));
     }
+    if key_tag == STRING_TAG {
+        let _rc = unsafe { Rc::from_raw(key_ptr) };
+        // implicitly drop here
+    };
+    if tag == STRING_TAG {
+        let val = unsafe { Rc::from_raw(ptr) };
+        // We don't drop it here because it is now stored in the hashmap.
+        Rc::into_raw(val);
+    }
+
 }
 
 extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
                            array: i32,
-                           index: *mut String,
+                           in_tag: i8,
+                           in_float: f64,
+                           in_ptr: *mut String,
                            out_tag: *mut i8,
                            out_float: *mut f64,
-                           out_value: *mut (*mut String)) {
+                           out_value: *mut *mut String) {
     let data = cast_to_runtime_data(data_ptr);
-    let index = unsafe {
-        Rc::from_raw(index)
-    };
-
-    let array = &mut data.arrays[array as usize];
-    unsafe {
-        if let Some((tag, float, str)) = array.get(&*index) {
-            *out_tag = *tag;
-            *out_float = *float;
-            if *tag == STRING_TAG {
-                let rc = unsafe { Rc::from_raw(*str) };
-                let cloned = rc.clone();
-                Rc::into_raw(rc);
-                *out_value = Rc::into_raw(cloned) as *mut String;
+    match data.arrays.access(array, (in_tag, in_float, in_ptr)) {
+        None => {
+            unsafe {
+                *out_tag = STRING_TAG;
+                *out_value = empty_string(data_ptr) as *mut String;
             }
-        } else {
-            *out_tag = STRING_TAG;
-            *out_value = empty_string(data_ptr) as *mut String;
         }
+        Some((tag, float, str)) => {
+            unsafe {
+                *out_tag = *tag;
+                *out_float = *float;
+                if *tag == STRING_TAG {
+                    let rc = Rc::from_raw(*str);
+                    let cloned = rc.clone();
+                    Rc::into_raw(rc);
+                    *out_value = Rc::into_raw(cloned) as *mut String;
+                }
+            }
+        }
+    }
+    if in_tag == STRING_TAG {
+        free_string(data_ptr, in_ptr);
     }
 }
 
-extern "C" fn in_array(data_ptr: *mut c_void, array: i32, index: *mut String) -> f64 {
-    let indices = unsafe { Rc::from_raw(index) };
+extern "C" fn in_array(data_ptr: *mut std::os::raw::c_void,
+                       array: i32,
+                       in_tag: i8,
+                       in_float: f64,
+                       in_ptr: *const String) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
-    let array = &data.arrays[array as usize];
-    unsafe {
-        if array.contains_key(&*index) { 1.0 } else { 0.0 }
+    let res = data.arrays.in_array(array, (in_tag, in_float, in_ptr));
+    if in_tag == STRING_TAG {
+        unsafe { Rc::from_raw(in_ptr) };
     }
+    if res { 1.0 } else { 0.0 }
 }
 
 extern "C" fn concat_array_indices(
@@ -256,15 +275,10 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
         }
         // Rc::from_raw(fstring)
     };
-
 }
 
-extern "C" fn helper(_data_ptr: *mut std::os::raw::c_void, _str: usize, _size: usize) -> f64 {
-    return 1.1;
-}
 
 pub struct LiveRuntime {
-    runtime_data_constant: Option<Value>,
     runtime_data: *mut RuntimeData,
     pub next_line: *mut c_void,
     pub column: *mut c_void,
@@ -297,33 +311,25 @@ impl Drop for LiveRuntime {
 // a rust global is so we can easily run tests fully independently of each other.
 pub struct RuntimeData {
     columns: Columns,
-    buffer: String,
     stdout: BufWriter<StdoutLock<'static>>,
     regex_cache: LruCache<String, Regex>,
-    arrays: Vec<HashMap<Rc<String>, (i8, f64, *mut String)>>,
+    arrays: Arrays,
 }
 
 impl RuntimeData {
     pub fn new(files: Vec<String>) -> RuntimeData {
         RuntimeData {
-            buffer: String::with_capacity(1000),
             columns: Columns::new(files),
             stdout: BufWriter::new(std::io::stdout().lock()),
             regex_cache: LruCache::new(10),
-            arrays: vec![],
+            arrays: Arrays::new(),
         }
     }
 }
 
 impl LiveRuntime {
     fn data_ptr(&mut self, func: &mut Function) -> Value {
-        if let Some(val) = &self.runtime_data_constant {
-            val.clone()
-        } else {
-            let val = func.create_void_ptr_constant(self.runtime_data as *mut c_void);
-            self.runtime_data_constant.insert(val.clone());
-            val
-        }
+        func.create_void_ptr_constant(self.runtime_data as *mut c_void)
     }
 }
 
@@ -332,7 +338,6 @@ impl Runtime for LiveRuntime {
         let data = Box::new(RuntimeData::new(files));
         let ptr = Box::leak(data);
         LiveRuntime {
-            runtime_data_constant: None,
             runtime_data: ptr as *mut RuntimeData,
             next_line: next_line as *mut c_void,
             column: column as *mut c_void,
@@ -356,9 +361,7 @@ impl Runtime for LiveRuntime {
 
     fn allocate_arrays(&mut self, count: usize) {
         unsafe {
-            for _ in 0..count {
-                (*self.runtime_data).arrays.push(HashMap::new());
-            }
+            (*self.runtime_data).arrays.allocate(count)
         }
     }
 
@@ -366,7 +369,7 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.next_line,
-            vec![data_ptr],
+            &[data_ptr],
             Some(Context::float64_type()),
             Abi::Cdecl,
         )
@@ -376,7 +379,7 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.column,
-            vec![data_ptr, tag, float, pointer],
+            &[data_ptr, tag, float, pointer],
             Some(Context::void_ptr_type()),
             Abi::Cdecl,
         )
@@ -384,14 +387,14 @@ impl Runtime for LiveRuntime {
 
     fn free_string(&mut self, func: &mut Function, ptr: Value) -> Value {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.free_string, vec![data_ptr, ptr], None, Abi::Cdecl)
+        func.insn_call_native(self.free_string, &[data_ptr, ptr], None, Abi::Cdecl)
     }
 
     fn string_to_number(&mut self, func: &mut Function, ptr: Value) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.string_to_number,
-            vec![data_ptr, ptr],
+            &[data_ptr, ptr],
             Some(Context::float64_type()),
             Abi::Cdecl,
         )
@@ -401,7 +404,7 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.copy_string,
-            vec![data_ptr, ptr],
+            &[data_ptr, ptr],
             Some(Context::void_ptr_type()), Abi::Cdecl,
         )
     }
@@ -410,26 +413,26 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.number_to_string,
-            vec![data_ptr, number],
+            &[data_ptr, number],
             Some(Context::void_ptr_type()), Abi::Cdecl,
         )
     }
 
     fn print_string(&mut self, func: &mut Function, ptr: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.print_string, vec![data_ptr, ptr], None, Abi::Cdecl);
+        func.insn_call_native(self.print_string, &[data_ptr, ptr], None, Abi::Cdecl);
     }
 
     fn print_float(&mut self, func: &mut Function, number: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.print_float, vec![data_ptr, number], None, Abi::Cdecl);
+        func.insn_call_native(self.print_float, &[data_ptr, number], None, Abi::Cdecl);
     }
 
     fn concat(&mut self, func: &mut Function, ptr1: Value, ptr2: Value) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.concat,
-            vec![data_ptr, ptr1, ptr2],
+            &[data_ptr, ptr1, ptr2],
             Some(Context::void_ptr_type()),
             Abi::Cdecl,
         )
@@ -439,17 +442,21 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.concat_array_indices,
-            vec![data_ptr, ptr1, ptr2],
+            &[data_ptr, ptr1, ptr2],
             Some(Context::void_ptr_type()),
             Abi::Cdecl,
         )
+    }
+
+    fn init_empty_string(&mut self) -> *const String {
+        empty_string(self.runtime_data as *mut c_void)
     }
 
     fn empty_string(&mut self, func: &mut Function) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.empty_string,
-            vec![data_ptr],
+            &[data_ptr],
             Some(Context::void_ptr_type()),
             Abi::Cdecl,
         )
@@ -460,9 +467,9 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.binop,
-            vec![data_ptr, ptr1, ptr2, binop],
+            &[data_ptr, ptr1, ptr2, binop],
             Some(Context::float64_type()),
-            Abi::Cdecl
+            Abi::Cdecl,
         )
     }
 
@@ -471,30 +478,50 @@ impl Runtime for LiveRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             self.print_error,
-            vec![data_ptr, binop],
+            &[data_ptr, binop],
             None,
-            Abi::Cdecl
+            Abi::Cdecl,
         );
     }
 
-    fn array_access(&mut self, func: &mut Function, array: Value, index: Value, out_tag_ptr: Value, out_float_ptr: Value, out_ptr_ptr: Value) {
+    fn array_access(&mut self, func: &mut Function, array: Value,
+                    key_tag: Value,
+                    key_num: Value,
+                    key_ptr: Value,
+                    out_tag_ptr: Value, out_float_ptr: Value, out_ptr_ptr: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.array_access, vec![data_ptr, array, index, out_tag_ptr, out_float_ptr, out_ptr_ptr], None, Abi::Cdecl);
+        func.insn_call_native(self.array_access, &[data_ptr, array, key_tag, key_num, key_ptr, out_tag_ptr, out_float_ptr, out_ptr_ptr], None, Abi::Cdecl);
     }
 
-    fn array_assign(&mut self, func: &mut Function, array: Value, index: Value, tag: Value, float: Value, ptr: Value) {
+    fn array_assign(&mut self, func: &mut Function, array: Value,
+                    key_tag: Value,
+                    key_num: Value,
+                    key_ptr: Value,
+                    tag: Value, float: Value, ptr: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.array_assign, vec![data_ptr, array, index, tag, float, ptr], None, Abi::Cdecl);
+        func.insn_call_native(self.array_assign, &[data_ptr, array, key_tag, key_num, key_ptr, tag, float, ptr], None, Abi::Cdecl);
     }
 
-    fn in_array(&mut self, func: &mut Function, array: Value, index: Value) -> Value {
+    fn in_array(&mut self, func: &mut Function, array: Value,
+                key_tag: Value,
+                key_num: Value,
+                key_ptr: Value,
+    ) -> Value {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.in_array, vec![data_ptr, array, index], Some(Context::float64_type()), Abi::Cdecl)
+        func.insn_call_native(self.in_array, &[data_ptr, array, key_tag, key_num, key_ptr], Some(Context::float64_type()), Abi::Cdecl)
     }
 
     fn printf(&mut self, func: &mut Function, fstring: Value, nargs: Value, args: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.printf, vec![data_ptr, fstring, nargs, args], None, Abi::VarArg);
+        func.insn_call_native(self.printf, &[data_ptr, fstring, nargs, args], None, Abi::VarArg);
+    }
+
+    fn free_string_ptr(&self) -> *mut std::os::raw::c_void {
+        self.free_string
+    }
+
+    fn runtime_data_ptr(&self) -> *mut std::os::raw::c_void {
+        self.runtime_data as *mut c_void
     }
 }
 

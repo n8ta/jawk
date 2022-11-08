@@ -1,16 +1,17 @@
 mod call_log;
 mod live;
 mod testing;
+mod arrays;
 
+use std::os::raw::c_void;
 use crate::lexer::BinOp;
-use gnu_libjit::{Context, Function, Value};
+use gnu_libjit::{Function, Value};
 pub use live::LiveRuntime;
-use std::ffi::c_void;
 pub use testing::TestRuntime;
-use crate::codgen::ValueT;
 
 #[repr(C)]
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum ErrorCode {
     Error1,
     Error2,
@@ -28,12 +29,19 @@ pub trait Runtime {
     fn print_float(&mut self, func: &mut Function, number: Value);
     fn concat(&mut self, func: &mut Function, ptr1: Value, ptr2: Value) -> Value;
     fn empty_string(&mut self, func: &mut Function) -> Value;
+    fn init_empty_string(&mut self) -> *const String;
     fn binop(&mut self, func: &mut Function, ptr1: Value, ptr2: Value, binop: BinOp) -> Value;
     fn print_error(&mut self, func: &mut Function, code: ErrorCode);
     fn allocate_arrays(&mut self, count: usize);
-    fn array_access(&mut self, func: &mut Function, array_id: Value, index: Value, out_tag_ptr: Value, out_float_ptr: Value, out_ptr_ptr: Value);
-    fn array_assign(&mut self, func: &mut Function, array_id: Value, index: Value, tag: Value, float: Value, ptr: Value);
-    fn in_array(&mut self, func: &mut Function, array_id: Value, index: Value) -> Value;
+    fn array_access(&mut self, func: &mut Function, array_id: Value,
+                    key_tag: Value, key_num: Value, key_ptr: Value,
+                    out_tag_ptr: Value, out_float_ptr: Value, out_ptr_ptr: Value);
+    fn array_assign(&mut self, func: &mut Function, array_id: Value,
+                    key_tag: Value, key_num: Value, key_ptr: Value,
+                    tag: Value, float: Value, ptr: Value);
+    fn in_array(&mut self, func: &mut Function, array_id: Value, key_tag: Value, key_num: Value, key_ptr: Value) -> Value;
     fn concat_array_indices(&mut self, func: &mut Function, lhs: Value, rhs: Value) -> Value;
     fn printf(&mut self, func: &mut Function, fstring: Value, nargs: Value, args: Value);
+    fn free_string_ptr(&self) -> *mut c_void;
+    fn runtime_data_ptr(&self) -> *mut c_void;
 }

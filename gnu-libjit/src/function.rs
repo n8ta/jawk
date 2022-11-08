@@ -1,6 +1,6 @@
 use std::ffi::CString;
 use std::os::raw::c_uint;
-use gnu_libjit_sys::{jit_function_compile, jit_insn_pow, jit_insn_acos, jit_insn_asin, jit_insn_atan, jit_insn_cos, jit_insn_cosh, jit_insn_log, jit_insn_log10, jit_insn_sin, jit_insn_sinh, jit_insn_sqrt, jit_insn_tan, jit_insn_tanh, jit_value_create_float64_constant, jit_insn_not, jit_insn_ge, jit_insn_le, jit_insn_gt, jit_insn_lt, jit_insn_ne, jit_insn_and, jit_insn_or, jit_insn_xor, jit_function_t, jit_value_create_long_constant, jit_value_create_float32_constant, jit_value_create_nint_constant, jit_value_create, jit_type_float32, jit_insn_eq, jit_type_nint, jit_type_int, jit_type_uint, jit_type_ushort, jit_type_short, jit_insn_add, jit_insn_div, jit_insn_sub, jit_insn_call_native, jit_insn_mul, jit_insn_return, jit_type_create_signature, jit_type_void, jit_value_get_param, jit_dump_function, jit_abi_t, jit_function_to_closure, jit_insn_branch_if, jit_label_t, jit_insn_label, jit_insn_branch_if_not, jit_type_long, jit_type_ulong, jit_type_sbyte, jit_type_float64, jit_type_ubyte, jit_type_void_ptr, jit_insn_alloca, jit_insn_load, jit_insn_store, jit_insn_branch, jit_insn_load_relative, jit_insn_call, jit_value_t, jit_type_t, jit_insn_rem, jit_insn_exp, jit_float32_rint, jit_insn_ceil, jit_insn_floor, jit_insn_rint, jit_insn_round, jit_insn_trunc, jit_insn_load_elem_address, jit_insn_store_relative, jit_insn_address_of};
+use gnu_libjit_sys::{jit_function_compile, jit_insn_pow, jit_insn_acos, jit_insn_asin, jit_insn_atan, jit_insn_cos, jit_insn_cosh, jit_insn_log, jit_insn_log10, jit_insn_sin, jit_insn_sinh, jit_insn_sqrt, jit_insn_tan, jit_insn_tanh, jit_value_create_float64_constant, jit_insn_not, jit_insn_ge, jit_insn_le, jit_insn_gt, jit_insn_lt, jit_insn_ne, jit_insn_and, jit_insn_or, jit_insn_xor, jit_function_t, jit_value_create_long_constant, jit_value_create_float32_constant, jit_value_create_nint_constant, jit_value_create, jit_type_float32, jit_insn_eq, jit_type_nint, jit_type_int, jit_type_uint, jit_type_ushort, jit_type_short, jit_insn_add, jit_insn_div, jit_insn_sub, jit_insn_call_native, jit_insn_mul, jit_insn_return, jit_type_create_signature, jit_type_void, jit_value_get_param, jit_dump_function, jit_abi_t, jit_function_to_closure, jit_insn_branch_if, jit_insn_label, jit_insn_branch_if_not, jit_type_long, jit_type_ulong, jit_type_sbyte, jit_type_float64, jit_type_ubyte, jit_type_void_ptr, jit_insn_alloca, jit_insn_load, jit_insn_store, jit_insn_branch, jit_insn_load_relative, jit_insn_call, jit_value_t, jit_type_t, jit_insn_rem, jit_insn_exp, jit_insn_ceil, jit_insn_floor, jit_insn_rint, jit_insn_round, jit_insn_trunc, jit_insn_load_elem_address, jit_insn_store_relative, jit_insn_address_of};
 use libc::{c_char, c_void};
 use crate::context::Exception;
 use crate::{Abi, JitType};
@@ -87,7 +87,7 @@ impl Function {
     }
 
     pub fn address_of(&mut self, value: &mut Value) -> Value {
-        if !value.addressable{
+        if !value.addressable {
             value.set_addressable();
         }
         let ret = unsafe {
@@ -119,11 +119,12 @@ impl Function {
     }
 
     // Call a native rust function
-    pub fn insn_call_native(&self,
+    pub fn insn_call_native<T: AsRef<[Value]>>(&self,
                             native_func: *mut ::std::os::raw::c_void,
-                            params: Vec<Value>,
+                            params: T,
                             return_type: Option<JitType>,
                             abi: Abi) -> Value {
+        let params = params.as_ref();
         let c_str = CString::new("native-func").unwrap();
         let c_str_ptr = c_str.as_ptr();
         let mut sig_args = vec![];
@@ -244,6 +245,10 @@ impl Function {
         unsafe {
             jit_insn_store_relative(self.function, dest_ptr.value, offset_bytes, value.value)
         };
+    }
+
+    pub fn create_value(&mut self, typ: &JitType) -> Value {
+        Value::new(unsafe { jit_value_create(self.function, typ.inner) })
     }
 
     pub fn create_value_int(&mut self) -> Value {

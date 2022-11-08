@@ -1,45 +1,61 @@
 mod types;
 
+use std::iter::Peekable;
+use std::str::Chars;
 pub use types::{BinOp, LogicalOp, MathOp, Token, TokenType};
+use crate::Symbolizer;
 
-pub fn lex(str: &str) -> LexerResult {
-    let mut lexer = Lexer::new(str);
+pub fn lex(str: &str, symbolizer: &mut Symbolizer) -> LexerResult {
+    let mut lexer = Lexer::new(str, symbolizer);
     lexer.scan_tokens()?;
     Ok(lexer.tokens)
 }
 
-struct Lexer {
-    src: Vec<char>,
-    start: usize,
-    current: usize,
+#[cfg(test)]
+fn lex_test(str: &str, symbolizer: &mut Symbolizer) -> LexerResult {
+    let mut lexer = Lexer::new(str, symbolizer);
+    lexer.scan_tokens()?;
+    Ok(lexer.tokens)
+}
+
+struct Lexer<'a, 'b> {
+    src: Peekable<Chars<'a>>,
+    buffer: String,
     line: usize,
     tokens: Vec<Token>,
+    symbolizer: &'b mut Symbolizer
 }
 
 type LexerResult = Result<Vec<Token>, (String, usize)>;
 
-impl Lexer {
-    fn new(src: &str) -> Lexer {
+impl<'a, 'b> Lexer<'a, 'b> {
+    fn new(src: &'a str, symbolizer: &'b mut Symbolizer) -> Lexer<'a, 'b> {
         Lexer {
-            src: src.chars().collect(),
-            start: 0,
-            current: 0,
+            src: src.chars().peekable(),
             line: 0,
-            tokens: vec![],
+            tokens: Vec::with_capacity(1000),
+            buffer: String::with_capacity(30),
+            symbolizer
         }
     }
-    fn is_at_end(&self) -> bool {
-        self.current >= self.src.len()
+    fn is_at_end(&mut self) -> bool {
+        !self.src.peek().is_some()
+    }
+    fn collect_buffer(&mut self) -> String {
+        let mut string: String = String::new();
+        std::mem::swap(&mut self.buffer, &mut string);
+        string
     }
     fn advance(&mut self) -> char {
-        let x = *self.src.get(self.current).unwrap();
-        self.current += 1;
-        x
+        let next = self.src.next().unwrap();
+        self.buffer.push(next);
+        next
     }
     fn add_token(&mut self, tt: Token) {
         self.tokens.push(tt);
     }
     fn string(&mut self) -> Result<(), String> {
+        self.buffer.clear();
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
@@ -47,24 +63,18 @@ impl Lexer {
             self.advance();
         }
         if self.is_at_end() {
-            let string: String = self.src[self.start..self.src.len() - self.start]
-                .iter()
-                .collect();
+            let string = self.collect_buffer();
             return Err(format!("Unterminated String: {}", string));
         }
+        let str = self.collect_buffer();
         self.advance();
-        let str = self
-            .src
-            .iter()
-            .skip(self.start + 1)
-            .take(self.current - self.start - 2)
-            .collect::<String>();
         self.add_token(Token::String(str));
         return Ok(());
     }
     fn regex(&mut self) -> Result<(), String> {
         // a ~ b 
         // a ~ /match/'
+        self.buffer.clear();
         while self.peek() != '/' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
@@ -74,12 +84,11 @@ impl Lexer {
         }
 
         if self.is_at_end() {
-            let string: String = self.src[self.start..self.src.len()].iter().collect();
+            let string = self.collect_buffer();
             return Err(format!("Unterminated regex: {}", string));
         }
-
+        let regex = self.collect_buffer();
         self.advance();
-        let regex = self.src[self.start+1..self.current-1].iter().collect::<String>();
         self.add_token(Token::Regex(regex));
         return Ok(());
     }
@@ -87,16 +96,12 @@ impl Lexer {
         while self.peek().is_digit(10) {
             self.advance();
         }
-        if self.peek() == '.' && self.peek_next().is_digit(10) {
-            self.advance();
-        }
+        if self.matches('.') {}
         while self.peek().is_digit(10) {
             self.advance();
         }
 
-        let num = self.src[self.start..self.current]
-            .iter()
-            .collect::<String>();
+        let num = self.collect_buffer();
         // TODO: scientific notation
         match num.parse::<f64>() {
             Ok(float) => Ok(Token::NumberF64(float)),
@@ -110,7 +115,7 @@ impl Lexer {
         while self.peek().is_alphanumeric() || self.peek() == '_' {
             self.advance();
         }
-        let src: String = self.src[self.start..self.current].iter().collect();
+        let src: String = self.collect_buffer();
         let src = src.to_ascii_lowercase();
         if src == "true" {
             self.add_token(Token::True);
@@ -143,20 +148,17 @@ impl Lexer {
         } else if src == "printf" {
             self.add_token(Token::Printf);
         } else {
-            self.add_token(Token::Ident(src));
+            let ident = self.symbolizer.get(src);
+            self.add_token(Token::Ident(ident));
         }
         Ok(())
     }
     fn peek(&mut self) -> char {
-        match self.src.get(self.current) {
+        match self.src.peek() {
             None => 0x0 as char,
-            Some(c) => *c,
-        }
-    }
-    fn peek_next(&self) -> char {
-        match self.src.get(self.current + 1) {
-            None => 0x0 as char,
-            Some(c) => *c,
+            Some(c) => {
+                *c
+            },
         }
     }
     fn scan_token(&mut self) -> Result<(), String> {
@@ -189,7 +191,7 @@ impl Lexer {
                 if self.matches('~') {
                     self.add_token(Token::BinOp(BinOp::NotMatchedBy));
                     self.whitespaces();
-                    self.start = self.current;
+                    self.collect_buffer();
                     if self.matches('/') {
                         self.regex()?;
                     }
@@ -265,7 +267,6 @@ impl Lexer {
             '~' => {
                 self.add_token(Token::BinOp(BinOp::MatchedBy));
                 self.whitespaces();
-                self.start = self.current;
                 if self.matches('/') {
                     self.regex()?;
                 }
@@ -286,7 +287,7 @@ impl Lexer {
             ' ' => (),
             '\n' => self.line += 1,
             _ => {
-                if c.is_digit(10) || (c == '-' && self.peek_next().is_digit(10)) {
+                if c.is_digit(10) {
                     let num = self.number()?;
                     self.add_token(num);
                 } else if c.is_alphabetic() {
@@ -307,11 +308,12 @@ impl Lexer {
         if self.is_at_end() {
             return false;
         }
-        match self.src.get(self.current) {
+        match self.src.peek() {
             None => false,
             Some(char) => {
                 if *char == expected {
-                    self.current += 1;
+                    self.buffer.push(*char);
+                    self.src.next();
                     return true;
                 }
                 return false;
@@ -324,24 +326,18 @@ impl Lexer {
             if let Err(x) = self.scan_token() {
                 return Err((x, self.line));
             }
-            self.start = self.current;
+            self.buffer.clear();
         }
         self.tokens.push(Token::EOF);
-        // self.tokens.push(Token::new_src(
-        //     Token::EOF,
-        //     self.current,
-        //     self.current - self.start,
-        //     self.line,
-        //     self.source.clone(),
-        // ));
         Ok(self.tokens.clone())
     }
 }
 
 #[test]
 fn test_braces() {
+    let mut symbolizer = Symbolizer::new();
     assert_eq!(
-        lex("{ } ( ) (( )) {{ }}").unwrap(),
+        lex_test("{ } ( ) (( )) {{ }}", &mut symbolizer).unwrap(),
         vec![
             Token::LeftBrace,
             Token::RightBrace,
@@ -362,16 +358,18 @@ fn test_braces() {
 
 #[test]
 fn test_eq_eq() {
+    let mut symbolizer = Symbolizer::new();
     assert_eq!(
-        lex("== 2.2").unwrap(),
+        lex_test("== 2.2", &mut symbolizer).unwrap(),
         vec![Token::BinOp(BinOp::EqEq), Token::NumberF64(2.2), Token::EOF]
     )
 }
 
 #[test]
 fn test_column_simple() {
+    let mut symbolizer = Symbolizer::new();
     let str = "$1";
-    let tokens = lex(str).unwrap();
+    let tokens = lex_test(str, &mut symbolizer).unwrap();
     assert_eq!(
         tokens,
         vec![Token::Column, Token::NumberF64(1.0), Token::EOF]
@@ -380,8 +378,9 @@ fn test_column_simple() {
 
 #[test]
 fn test_columns() {
+    let mut symbolizer = Symbolizer::new();
     let str = "$1 + $2000 $0";
-    let tokens = lex(str).unwrap();
+    let tokens = lex_test(str, &mut symbolizer).unwrap();
     assert_eq!(
         tokens,
         vec![
@@ -399,8 +398,9 @@ fn test_columns() {
 
 #[test]
 fn test_lex_binops_and_true_false() {
+    let mut symbolizer = Symbolizer::new();
     let str = "4*2+1-2+false/true";
-    let tokens = lex(str).unwrap();
+    let tokens = lex_test(str, &mut symbolizer).unwrap();
     assert_eq!(
         tokens,
         vec![
@@ -422,9 +422,10 @@ fn test_lex_binops_and_true_false() {
 
 #[test]
 fn test_lex_decimals() {
+    let mut symbolizer = Symbolizer::new();
     let str = "4.123-123.123";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::NumberF64(4.123),
             Token::MathOp(MathOp::Minus),
@@ -436,9 +437,10 @@ fn test_lex_decimals() {
 
 #[test]
 fn test_lex_equality() {
+    let mut symbolizer = Symbolizer::new();
     let str = "4 != 5 == 6";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::NumberF64(4.0),
             Token::BinOp(BinOp::BangEq),
@@ -452,9 +454,10 @@ fn test_lex_equality() {
 
 #[test]
 fn test_lex_logical_op() {
+    let mut symbolizer = Symbolizer::new();
     let str = "4 && 5 || 6";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::NumberF64(4.0),
             Token::LogicalOp(LogicalOp::And),
@@ -468,11 +471,12 @@ fn test_lex_logical_op() {
 
 #[test]
 fn test_lex_assignment() {
+    let mut symbolizer = Symbolizer::new();
     let str = "abc = 4";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
-            Token::Ident("abc".to_string()),
+            Token::Ident(symbolizer.get("abc")),
             Token::Eq,
             Token::NumberF64(4.0),
             Token::EOF
@@ -482,14 +486,15 @@ fn test_lex_assignment() {
 
 #[test]
 fn test_ret() {
+    let mut symbolizer = Symbolizer::new();
     let str = "return 1 return abc";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::Ret,
             Token::NumberF64(1.0),
             Token::Ret,
-            Token::Ident(format!("abc")),
+            Token::Ident(symbolizer.get("abc")),
             Token::EOF
         ]
     );
@@ -497,9 +502,10 @@ fn test_ret() {
 
 #[test]
 fn test_if_else() {
+    let mut symbolizer = Symbolizer::new();
     let str = "if (1) { 2 } else { 3 }";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::If,
             Token::LeftParen,
@@ -519,9 +525,10 @@ fn test_if_else() {
 
 #[test]
 fn test_if_only() {
+    let mut symbolizer = Symbolizer::new();
     let str = "if (1) { 2 }";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::If,
             Token::LeftParen,
@@ -537,9 +544,10 @@ fn test_if_only() {
 
 #[test]
 fn test_begin_end() {
+    let mut symbolizer = Symbolizer::new();
     let str = "BEGIN begin END end";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::Begin,
             Token::Begin,
@@ -552,12 +560,13 @@ fn test_begin_end() {
 
 #[test]
 fn test_ident() {
+    let mut symbolizer = Symbolizer::new();
     let str = "{ x }";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::LeftBrace,
-            Token::Ident("x".to_string()),
+            Token::Ident(symbolizer.get("x")),
             Token::RightBrace,
             Token::EOF
         ]
@@ -566,9 +575,10 @@ fn test_ident() {
 
 #[test]
 fn test_string() {
+    let mut symbolizer = Symbolizer::new();
     let str = "{ \"x\" }";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::LeftBrace,
             Token::String("x".to_string()),
@@ -580,9 +590,10 @@ fn test_string() {
 
 #[test]
 fn test_string_2() {
+    let mut symbolizer = Symbolizer::new();
     let str = "{ \"abc123 444\" }";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::LeftBrace,
             Token::String("abc123 444".to_string()),
@@ -594,13 +605,14 @@ fn test_string_2() {
 
 #[test]
 fn test_lex_while_l00p() {
+    let mut symbolizer = Symbolizer::new();
     let str = " while ( x ) { }";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::While,
             Token::LeftParen,
-            Token::Ident(format!("x")),
+            Token::Ident(symbolizer.get("x")),
             Token::RightParen,
             Token::LeftBrace,
             Token::RightBrace,
@@ -611,9 +623,10 @@ fn test_lex_while_l00p() {
 
 #[test]
 fn test_lex_do_while_l00p() {
+    let mut symbolizer = Symbolizer::new();
     let str = " do print 1 while (132)";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::Do,
             Token::Print,
@@ -629,10 +642,11 @@ fn test_lex_do_while_l00p() {
 
 #[test]
 fn test_lex_for_l00p() {
+    let mut symbolizer = Symbolizer::new();
     let str = "for (a = 0;";
-    let a = Token::Ident(format!("a"));
+    let a = Token::Ident(symbolizer.get("a"));
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::For,
             Token::LeftParen,
@@ -647,9 +661,10 @@ fn test_lex_for_l00p() {
 
 #[test]
 fn test_lt_gt_eq() {
+    let mut symbolizer = Symbolizer::new();
     let str = "< <= >= >";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::BinOp(BinOp::Less),
             Token::BinOp(BinOp::LessEq),
@@ -663,8 +678,9 @@ fn test_lt_gt_eq() {
 #[test]
 fn test_op_eq() {
     let str = "^= %= *= /= += -=";
+    let mut symbolizer = Symbolizer::new();
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::InplaceEq(MathOp::Exponent),
             Token::InplaceEq(MathOp::Modulus),
@@ -680,15 +696,16 @@ fn test_op_eq() {
 #[test]
 fn test_regex() {
     let str = "a ~ b a !~ b";
+    let mut symbolizer = Symbolizer::new();
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
-            Token::Ident(String::from("a")),
+            Token::Ident(symbolizer.get("a")),
             Token::BinOp(BinOp::MatchedBy),
-            Token::Ident(String::from("b")),
-            Token::Ident(String::from("a")),
+            Token::Ident(symbolizer.get("b")),
+            Token::Ident(symbolizer.get("a")),
             Token::BinOp(BinOp::NotMatchedBy),
-            Token::Ident(String::from("b")),
+            Token::Ident(symbolizer.get("b")),
             Token::EOF
         ]
     );
@@ -697,10 +714,11 @@ fn test_regex() {
 #[test]
 fn test_regex_slash() {
     let str = "a ~ /match/";
+    let mut symbolizer = Symbolizer::new();
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
-            Token::Ident(String::from("a")),
+            Token::Ident(symbolizer.get("a")),
             Token::BinOp(BinOp::MatchedBy),
             Token::Regex(String::from("match")),
             Token::EOF
@@ -712,12 +730,13 @@ fn test_regex_slash() {
 #[test]
 fn test_regex_slash_not() {
     let str = "a !~ /match/";
+    let mut symbolizer = Symbolizer::new();
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
-            Token::Ident(String::from("a")),
+            Token::Ident(symbolizer.get("a")),
             Token::BinOp(BinOp::NotMatchedBy),
-            Token::Regex(String::from("match")),
+            Token::Regex("match".to_string()),
             Token::EOF
         ]
     );
@@ -726,10 +745,11 @@ fn test_regex_slash_not() {
 
 #[test]
 fn test_array_ops_slash_not() {
+    let mut symbolizer = Symbolizer::new();
     let str = "a[0] = 1; a[1,2,3,4] = 5; 6 in a";
-    let a = Token::Ident(String::from("a"));
+    let a = Token::Ident(symbolizer.get("a"));
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             a.clone(),
             Token::LeftBracket,
@@ -762,12 +782,13 @@ fn test_array_ops_slash_not() {
 
 #[test]
 fn test_function() {
+    let mut symbolizer = Symbolizer::new();
     let str = "function a() { print 1 }";
     assert_eq!(
-        lex(str).unwrap(),
+        lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::Function,
-            Token::Ident("a".to_string()),
+            Token::Ident(symbolizer.get("a")),
             Token::LeftParen,
             Token::RightParen,
             Token::LeftBrace,
@@ -777,5 +798,25 @@ fn test_function() {
             Token::EOF,
         ]
     );
+}
+
+#[test]
+fn test_ident_bug_fix() {
+    let mut symbolizer = Symbolizer::new();
+    let str = "BEGIN { helper(a) }";
+    assert_eq!(
+        lex_test(str, &mut symbolizer).unwrap(),
+        vec![
+            Token::Begin,
+            Token::LeftBrace,
+            Token::Ident(symbolizer.get("helper")),
+            Token::LeftParen,
+            Token::Ident(symbolizer.get("a")),
+            Token::RightParen,
+            Token::RightBrace,
+            Token::EOF,
+        ]
+    );
+
 }
 

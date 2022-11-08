@@ -1,29 +1,30 @@
-use std::collections::{HashMap, HashSet};
-use libc::{calloc, stat};
+use hashbrown::{HashMap, HashSet};
 use crate::parser::{Arg, ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
+use crate::global_scalars::SymbolMapping;
+use crate::symbolizer::Symbol;
 use crate::typing::types::{AnalysisResults, Call, CallArg, MapT, TypedFunc, TypedProgram};
 
 pub struct FunctionAnalysis {
     global_scalars: MapT,
-    global_arrays: HashSet<String>,
-    func_names: HashSet<String>,
-    str_consts: HashSet<String>,
+    global_arrays: SymbolMapping,
+    func_names: HashSet<Symbol>,
+    str_consts: HashSet<Symbol>,
 }
 
 impl FunctionAnalysis {
     pub fn new() -> Self {
         Self {
             global_scalars: MapT::new(),
-            global_arrays: HashSet::new(),
+            global_arrays: SymbolMapping::new(),
             func_names: Default::default(),
             str_consts: Default::default(),
         }
     }
 }
 
-fn get_arg<'a>(func_state: &'a mut FuncState, name: &str) -> Option<&'a mut Arg> {
-    if let Some(arg) = func_state.args.iter_mut().find(|a| a.name == name) {
+fn get_arg<'a>(func_state: &'a mut FuncState, name: &Symbol) -> Option<&'a mut Arg> {
+    if let Some(arg) = func_state.args.iter_mut().find(|a| a.name == *name) {
         Some(arg)
     } else {
         None
@@ -33,10 +34,11 @@ fn get_arg<'a>(func_state: &'a mut FuncState, name: &str) -> Option<&'a mut Arg>
 struct FuncState<'a> {
     args: &'a mut [Arg],
     calls: Vec<Call>,
+    globals_used: &'a mut HashSet<Symbol>,
 }
 
 impl FunctionAnalysis {
-    pub fn analyze_program(mut self, mut prog: Program) -> Result<TypedProgram, PrintableError> {
+    pub fn analyze_program(mut self, prog: Program) -> Result<TypedProgram, PrintableError> {
         for (name, _) in &prog.functions {
             self.func_names.insert(name.clone());
         }
@@ -44,27 +46,26 @@ impl FunctionAnalysis {
         let mut functions = HashMap::new();
         for (name, mut func) in prog.functions {
             let calls = {
-                let mut fstate = FuncState { args: &mut func.args, calls: vec![] };
+                let mut fstate = FuncState { args: &mut func.args, calls: vec![], globals_used: &mut func.globals_used };
                 self.analyze_stmt(&mut func.body, &mut fstate)?;
                 fstate.calls
             };
             functions.insert(name, TypedFunc::new(func, calls));
         }
 
-        let mut global_arrays = HashMap::new();
-        for name in self.global_arrays {
-            global_arrays.insert(name, global_arrays.len() as i32);
+        let mut global_scalars = SymbolMapping::new();
+        for (scalar, _) in self.global_scalars.into_iter() {
+            global_scalars.insert(scalar)
         }
-
         let results = AnalysisResults {
-            global_scalars: self.global_scalars.into_iter().map(|(key, val)| key.to_string()).collect(),
+            global_scalars,
             str_consts: self.str_consts,
-            global_arrays,
+            global_arrays: self.global_arrays,
         };
 
         Ok(TypedProgram::new(functions, results))
     }
-    fn use_as_scalar(&mut self, var: &str, typ: ScalarType, func_state: &mut FuncState) -> Result<(), PrintableError> {
+    fn use_as_scalar(&mut self, var: &Symbol, typ: ScalarType, func_state: &mut FuncState) -> Result<(), PrintableError> {
         if let Some(arg) = get_arg(func_state, var) {
             if let Some(arg_typ) = arg.typ {
                 match arg_typ {
@@ -79,13 +80,14 @@ impl FunctionAnalysis {
         if self.func_names.contains(var) {
             return Err(PrintableError::new(format!("fatal: attempt to use function `{}` in a scalar context", var)));
         }
-        if self.global_arrays.contains(var) {
+        if self.global_arrays.contains_key(var) {
             return Err(PrintableError::new(format!("fatal: attempt to use array `{}` in a scalar context", var)));
         }
-        self.global_scalars = self.global_scalars.insert(var.to_string(), typ).0;
+        func_state.globals_used.insert(var.clone());
+        self.global_scalars = self.global_scalars.insert(var.clone(), typ).0;
         Ok(())
     }
-    fn use_as_array(&mut self, var: &str, func_state: &mut FuncState) -> Result<(), PrintableError> {
+    fn use_as_array(&mut self, var: &Symbol, func_state: &mut FuncState) -> Result<(), PrintableError> {
         if let Some(arg) = get_arg(func_state, var) {
             if let Some(arg_typ) = arg.typ {
                 match arg_typ {
@@ -103,7 +105,7 @@ impl FunctionAnalysis {
         if let Some(_type) = self.global_scalars.get(var) {
             return Err(PrintableError::new(format!("fatal: attempt to scalar `{}` in an array context", var)));
         }
-        self.global_arrays.insert(var.to_string());
+        self.global_arrays.insert(&var);
         Ok(())
     }
 
@@ -144,36 +146,29 @@ impl FunctionAnalysis {
                 self.global_scalars = FunctionAnalysis::merge_maps(&[&if_so_map, &if_not_map]);
             }
             Stmt::While(test, body) => {
+                let pre_map = self.global_scalars.clone();
                 self.analyze_expr(test, func_state, false)?;
 
                 let after_test_map = self.global_scalars.clone();
 
                 self.analyze_stmt(body, func_state)?;
 
+
                 let after_body_map = self.global_scalars.clone();
 
-                self.global_scalars = FunctionAnalysis::merge_maps(&[&after_test_map, &after_body_map]);
+                self.global_scalars = FunctionAnalysis::merge_maps(&[&after_test_map, &after_body_map, &pre_map]);
 
                 self.analyze_expr(test, func_state, false)?;
 
                 let after_test_map = self.global_scalars.clone();
                 self.analyze_stmt(body, func_state)?;
                 let after_body_map = self.global_scalars.clone();
-                self.global_scalars = FunctionAnalysis::merge_maps(&[&after_test_map, &after_body_map]);
+
+                // Pass in an empty map to show that it's possible body branch never taken
+                self.global_scalars = FunctionAnalysis::merge_maps(&[&after_test_map, &after_body_map, &pre_map]);
             }
         }
         Ok(())
-    }
-
-    fn resolve(&self, var: &str, func_state: &mut FuncState) -> Option<ArgT> {
-        if let Some(arg) = get_arg(func_state, var) {
-            return arg.typ.clone();
-        } else if self.global_scalars.get(var).is_some() {
-            return ArgT::Scalar.into();
-        } else if self.global_arrays.get(var).is_some() {
-            return ArgT::Array.into();
-        }
-        None
     }
 
     fn analyze_expr(&mut self, expr: &mut TypedExpr, func_state: &mut FuncState, is_returned: bool) -> Result<(), PrintableError> {
@@ -187,26 +182,26 @@ impl FunctionAnalysis {
                 let call_args = args.iter_mut().map(|arg| {
                     if let Expr::Variable(var_name) = &arg.expr {
                         if let Some(arg_t) = get_arg(func_state, var_name) {
-                            CallArg::new(arg_t.typ, arg_t.name.clone())
-                        } else if self.global_arrays.contains(var_name) {
-                            CallArg::new(Some(ArgT::Array), var_name.clone())
+                            CallArg::new(arg_t.name.clone())
+                        } else if self.global_arrays.contains_key(var_name) {
+                            CallArg::new(var_name.clone())
                         } else if self.global_scalars.get(var_name).is_some() {
-                            CallArg::new(Some(ArgT::Scalar), var_name.clone())
+                            CallArg::new(var_name.clone())
                         } else {
-                            CallArg::new(None, var_name.clone())
+                            CallArg::new(var_name.clone())
                         }
                     } else {
-                        CallArg::new_expr(Some(ArgT::Scalar))
+                        CallArg::new_scalar()
                     }
                 });
-                let call = Call::new(target.to_string(), call_args.collect());
+                let call = Call::new(target.clone(), call_args.collect());
                 func_state.calls.push(call)
             }
             Expr::NumberF64(_) => {
                 expr.typ = ScalarType::Float;
             }
             Expr::String(str) => {
-                self.str_consts.insert(str.to_string());
+                self.str_consts.insert(str.clone());
                 expr.typ = ScalarType::String;
             }
             Expr::BinOp(left, _op, right) => {
@@ -229,8 +224,8 @@ impl FunctionAnalysis {
                 self.use_as_scalar(var, value.typ, func_state)?;
                 expr.typ = value.typ;
             }
-            Expr::Regex(str) => {
-                self.str_consts.insert(str.to_string());
+            Expr::Regex(sym) => {
+                self.str_consts.insert(sym.clone());
                 expr.typ = ScalarType::String;
             }
             Expr::Ternary(cond, expr1, expr2) => {
@@ -248,17 +243,17 @@ impl FunctionAnalysis {
                 expr.typ = Self::merge_types(&expr1.typ, &expr2.typ);
             }
             Expr::Variable(var) => {
-                if let Some(arg) = func_state.args.iter().find(|arg| *arg.name == *var) {
+                if let Some(arg) = func_state.args.iter().find(|arg| arg.name == *var) {
                     if arg.typ == Some(ArgT::Array) && is_returned {
                         return Err(PrintableError::new(format!("fatal: attempted to use array {} in scalar context", var)));
                     }
                     expr.typ = ScalarType::Variable;
-                } else if self.global_arrays.contains(var) && is_returned {
+                } else if self.global_arrays.contains_key(var) && is_returned {
                     return Err(PrintableError::new(format!("fatal: attempted to use array {} in scalar context", var)));
                 } else if let Some(typ) = self.global_scalars.get(var) {
                     expr.typ = *typ;
                 } else {
-                    expr.typ = ScalarType::String;
+                    expr.typ = ScalarType::Variable;
                     self.use_as_scalar(var, ScalarType::Variable, func_state)?;
                 }
             }
@@ -299,19 +294,27 @@ impl FunctionAnalysis {
 
     fn merge_maps(children: &[&MapT]) -> MapT {
         let mut merged = MapT::new();
+        let mut all_vars = HashSet::new();
         for map in children {
-            for (name, var_type) in map.into_iter() {
-                if let Some(existing_type) = merged.get(name) {
-                    merged = merged
-                        .insert(
-                            name.clone(),
-                            FunctionAnalysis::merge_types(existing_type, var_type),
-                        )
-                        .0;
+            for (name, _typ) in map.into_iter() {
+                all_vars.insert(name.clone());
+            }
+        }
+        for var in &all_vars {
+            let mut typ = None;
+            for map in children {
+                if let Some(typ_in_map) = map.get(var) {
+                    if let Some(prior_type) = typ {
+                        typ = Some(FunctionAnalysis::merge_types(&prior_type, typ_in_map));
+                    } else {
+                        typ = Some(*typ_in_map);
+                    }
                 } else {
-                    merged = merged.insert(name.clone(), *var_type).0;
+                    typ = Some(ScalarType::Variable);
                 }
             }
+            let typ = typ.unwrap();
+            merged = merged.insert(var.clone(), typ).0;
         }
         merged
     }

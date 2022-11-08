@@ -7,7 +7,7 @@ fn main() {
 
     // INNER FUNC
     // Tried messing with this ABI but it really made no difference *shrug*
-    let mut inner_func = context.function(Abi::VarArg   , Context::float64_type(), vec![Context::float64_type(), Context::float64_type()]).unwrap();
+    let mut inner_func = context.function(Abi::VarArg   , &Context::float64_type(), vec![Context::float64_type(), Context::float64_type()]).unwrap();
     let arg = inner_func.arg(0).unwrap();
     let arg2 = inner_func.arg(1).unwrap();
     let arg_plus_arg = inner_func.insn_add(&arg, &arg2);
@@ -17,7 +17,7 @@ fn main() {
     // DONE
 
 
-    let mut func = context.function(Abi::Cdecl, Context::float64_type(), vec![Context::float64_type()]).unwrap();
+    let mut func = context.function(Abi::Cdecl, &Context::float64_type(), vec![Context::float64_type()]).unwrap();
     let arg = func.arg(0).unwrap();
     let zero = func.create_int_constant(0);
     let one = func.create_int_constant(1);

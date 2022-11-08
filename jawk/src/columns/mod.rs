@@ -1,12 +1,13 @@
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use std::path::PathBuf;
+use std::vec::IntoIter;
 
 type Line = HashMap<usize, String>;
 
 pub struct Columns {
-    rs: String,
-    fs: String,
-    files: Vec<String>,
+    rs: &'static str,
+    fs: &'static str,
+    files: IntoIter<String>,
     current_path: Option<String>,
     lines: HashMap<usize, Line>,
     line_number: Option<usize>,
@@ -14,15 +15,14 @@ pub struct Columns {
 
 impl Columns {
     pub fn new(files: Vec<String>) -> Self {
-        let c = Columns {
-            rs: String::from("\n"),
-            fs: String::from(" "),
-            files: files.into_iter().rev().collect(),
+        Columns {
+            rs: "\n",
+            fs: " ",
+            files: files.into_iter(), // Collecting could be mean allocating. Instead just pull from the iterator
             line_number: None,
             lines: HashMap::new(),
             current_path: None,
-        };
-        c
+        }
     }
 
     fn get_line_number(&self) -> usize {
@@ -60,7 +60,7 @@ impl Columns {
     }
 
     fn advance_file(&mut self) -> bool {
-        if let Some(next_file) = self.files.pop() {
+        if let Some(next_file) = self.files.next() {
             let contents = match std::fs::read_to_string(PathBuf::from(next_file.clone())) {
                 Ok(s) => s,
                 Err(err) => {
@@ -104,7 +104,9 @@ impl Columns {
         if self.current_path.is_some() {
             panic!("must set fs/rs before reading lines")
         }
-        self.rs = value;
+        let boxed = Box::new(value);
+        let leaked: &'static str = Box::leak(boxed);
+        self.rs = leaked;
     }
 
     #[allow(dead_code)]
@@ -112,7 +114,9 @@ impl Columns {
         if self.current_path.is_some() {
             panic!("must set fs/rs before reading lines")
         }
-        self.fs = value;
+        let boxed = Box::new(value);
+        let leaked: &'static str = Box::leak(boxed);
+        self.fs = leaked;
     }
 }
 
