@@ -361,7 +361,6 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
 }
 
 pub struct TestRuntime {
-    runtime_data_constant: Option<Value>,
     runtime_data: *mut c_void,
     next_line: *mut c_void,
     column: *mut c_void,
@@ -430,13 +429,7 @@ impl TestRuntime {
 
     #[allow(dead_code)]
     fn data_ptr(&mut self, func: &mut Function) -> Value {
-        if let Some(val) = &self.runtime_data_constant {
-            val.clone()
-        } else {
-            let val = func.create_void_ptr_constant(self.runtime_data as *mut c_void);
-            let _ = self.runtime_data_constant.insert(val.clone());
-            val
-        }
+        func.create_void_ptr_constant(self.runtime_data as *mut c_void)
     }
 }
 
@@ -446,7 +439,6 @@ impl Runtime for TestRuntime {
         let runtime_data = (Box::leak(data) as *mut RuntimeData) as *mut c_void;
         let rt = TestRuntime {
             runtime_data,
-            runtime_data_constant: None,
             next_line: next_line as *mut c_void,
             column: column as *mut c_void,
             free_string: free_string as *mut c_void,
@@ -611,6 +603,14 @@ impl Runtime for TestRuntime {
     fn printf(&mut self, func: &mut Function, fstring: Value, nargs: Value, args: Value) {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(self.printf, vec![data_ptr, fstring, nargs, args], None, Abi::VarArg);
+    }
+
+    fn free_string_ptr(&self) -> *mut std::os::raw::c_void {
+        self.free_string
+    }
+
+    fn runtime_data_ptr(&self) -> *mut std::os::raw::c_void {
+        self.runtime_data as *mut c_void
     }
 }
 

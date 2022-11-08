@@ -63,7 +63,7 @@ struct CodeGen<'a, RuntimeT: Runtime> {
 impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     fn compile(runtime: &'a mut RuntimeT,
                symbolizer: &'a mut Symbolizer,
-               mut prog: Program,
+               prog: Program,
                debug_asserts: bool,
                dump: bool,
     ) -> Result<Self, PrintableError> {
@@ -144,7 +144,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         }
 
         let parser_func = prog.functions.get(&main_sym).unwrap();
-        let main_jit_func = self.function_map.get(&main_sym).expect("func to exist");
+        let main_jit_func = self.function_map.get(&main_sym).expect("main function to exist");
         FunctionCodegen::build_function(main_jit_func.function.clone(),
                                         parser_func,
                                         self.runtime,

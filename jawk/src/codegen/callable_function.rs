@@ -27,7 +27,7 @@ impl CallableFunction {
                 }
             }
         }
-        let function = context.function(Abi::Cdecl, &Context::int_type(), params).unwrap();
+        let function = context.function(Abi::Fastcall, &Context::int_type(), params).unwrap();
         CallableFunction { function, args: args.clone() }
     }
 }

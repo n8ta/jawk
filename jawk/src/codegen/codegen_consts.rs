@@ -8,10 +8,11 @@ pub struct CodegenConsts {
     // To avoid creating tons of constants just reuse the tags here
     pub float_tag: Value,
     pub string_tag: Value,
+    pub sentinel_float: Value,
 }
 
 impl CodegenConsts {
-    pub fn new(zero_ptr: Value, zero_f: Value, float_tag: Value, string_tag: Value) -> Self {
-        Self { zero_f, zero_ptr, float_tag, string_tag }
+    pub fn new(zero_ptr: Value, zero_f: Value, float_tag: Value, string_tag: Value, sentinel_float: Value) -> Self {
+        Self { zero_f, zero_ptr, float_tag, string_tag, sentinel_float }
     }
 }

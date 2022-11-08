@@ -146,22 +146,17 @@ impl FunctionAnalysis {
                 self.global_scalars = FunctionAnalysis::merge_maps(&[&if_so_map, &if_not_map]);
             }
             Stmt::While(test, body) => {
-                self.print_maps("start while");
                 let pre_map = self.global_scalars.clone();
                 self.analyze_expr(test, func_state, false)?;
 
                 let after_test_map = self.global_scalars.clone();
 
                 self.analyze_stmt(body, func_state)?;
-                self.print_maps("after body");
 
 
                 let after_body_map = self.global_scalars.clone();
 
                 self.global_scalars = FunctionAnalysis::merge_maps(&[&after_test_map, &after_body_map, &pre_map]);
-
-                self.print_maps("after merge after_test_map after_body_map");
-
 
                 self.analyze_expr(test, func_state, false)?;
 
@@ -171,26 +166,10 @@ impl FunctionAnalysis {
 
                 // Pass in an empty map to show that it's possible body branch never taken
                 self.global_scalars = FunctionAnalysis::merge_maps(&[&after_test_map, &after_body_map, &pre_map]);
-                self.print_maps("post while");
             }
         }
         Ok(())
     }
-
-    fn print_maps(&self, where_from: &str) {
-        println!("{} == Global arrays: {:?} Global scalars {:?}",  where_from, self.global_arrays, self.global_scalars);
-    }
-
-    // fn resolve(&self, var: &Symbol, func_state: &mut FuncState) -> Option<ArgT> {
-    //     if let Some(arg) = get_arg(func_state, var) {
-    //         return arg.typ.clone();
-    //     } else if self.global_scalars.get(var).is_some() {
-    //         return ArgT::Scalar.into();
-    //     } else if self.global_arrays.get(var).is_some() {
-    //         return ArgT::Array.into();
-    //     }
-    //     None
-    // }
 
     fn analyze_expr(&mut self, expr: &mut TypedExpr, func_state: &mut FuncState, is_returned: bool) -> Result<(), PrintableError> {
         match &mut expr.expr {
@@ -314,18 +293,15 @@ impl FunctionAnalysis {
     }
 
     fn merge_maps(children: &[&MapT]) -> MapT {
-        println!("Merging {:?}", children);
         let mut merged = MapT::new();
         let mut all_vars = HashSet::new();
         for map in children {
-            for (name, typ) in map.into_iter() {
+            for (name, _typ) in map.into_iter() {
                 all_vars.insert(name.clone());
             }
         }
-        println!("\tAll vars is {:?}", all_vars);
         for var in &all_vars {
             let mut typ = None;
-            println!("\t\tAnalyzing {} starting as variable", var);
             for map in children {
                 if let Some(typ_in_map) = map.get(var) {
                     if let Some(prior_type) = typ {
@@ -333,7 +309,6 @@ impl FunctionAnalysis {
                     } else {
                         typ = Some(*typ_in_map);
                     }
-                    println!("\t\t set to {:?}", typ)
                 } else {
                     typ = Some(ScalarType::Variable);
                 }
@@ -341,21 +316,6 @@ impl FunctionAnalysis {
             let typ = typ.unwrap();
             merged = merged.insert(var.clone(), typ).0;
         }
-        println!("\tReturning {:?}", merged);
-        // for map in children {
-        //     for (name, var_type) in map.into_iter() {
-        //         if let Some(existing_type) = merged.get(name) {
-        //             merged = merged
-        //                 .insert(
-        //                     name.clone(),
-        //                     FunctionAnalysis::merge_types(existing_type, var_type),
-        //                 )
-        //                 .0;
-        //         } else {
-        //             merged = merged.insert(name.clone(), *var_type).0;
-        //         }
-        //     }
-        // }
         merged
     }
     fn merge_types(a: &ScalarType, b: &ScalarType) -> ScalarType {

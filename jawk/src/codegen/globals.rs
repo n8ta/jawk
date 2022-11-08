@@ -1,11 +1,10 @@
-use std::collections::HashMap;
 use std::os::raw::c_void;
 use std::rc::Rc;
 use gnu_libjit::{Context, Function, Value};
+use hashbrown::HashMap;
 use crate::{AnalysisResults, PrintableError, Symbolizer};
 use crate::codegen::{STRING_TAG, ValuePtrT, ValueT};
 use crate::global_scalars::SymbolMapping;
-use crate::parser::ScalarType;
 use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
 
@@ -46,12 +45,30 @@ impl Globals {
 
         for (name, _) in init.mapping.mapping().clone() {
             let ptr = runtime.init_empty_string() as *mut c_void;
-            let ptr_const =function.create_void_ptr_constant(ptr);
+            let ptr_const = function.create_void_ptr_constant(ptr);
             let val = ValueT::string(function.create_sbyte_constant(STRING_TAG), function.create_float64_constant(0.0), ptr_const);
             init.set(function, &name, &val)
         }
 
         init
+    }
+
+    // Maps from pointer as a string to the name of the variable
+    pub fn debug_mapping(&self) -> HashMap<String, String> {
+        let mut map = HashMap::new();
+        unsafe {
+            let alloc_ptr = (*self.global_scalar_allocation).as_ptr();
+            for sym in self.mapping.all_symbols() {
+                let idx = self.mapping.get(&sym).unwrap();
+                let tag = alloc_ptr.offset((3 * idx) as isize) as i64;
+                let float = alloc_ptr.offset((3 * idx + 1) as isize) as i64;
+                let ptr = alloc_ptr.offset((3 * idx + 2) as isize) as i64;
+                map.insert(tag.to_string(), format!("{}-tag", sym.to_str()));
+                map.insert(float.to_string(), format!("{}-float", sym.to_str()));
+                map.insert(ptr.to_string(), format!("{}-ptr", sym.to_str()));
+            }
+        }
+        map
     }
 
     fn ptrs(&self,

@@ -279,7 +279,6 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
 
 
 pub struct LiveRuntime {
-    runtime_data_constant: Option<Value>,
     runtime_data: *mut RuntimeData,
     pub next_line: *mut c_void,
     pub column: *mut c_void,
@@ -330,13 +329,7 @@ impl RuntimeData {
 
 impl LiveRuntime {
     fn data_ptr(&mut self, func: &mut Function) -> Value {
-        if let Some(val) = &self.runtime_data_constant {
-            val.clone()
-        } else {
-            let val = func.create_void_ptr_constant(self.runtime_data as *mut c_void);
-            let _ = self.runtime_data_constant.insert(val.clone());
-            val
-        }
+        func.create_void_ptr_constant(self.runtime_data as *mut c_void)
     }
 }
 
@@ -345,7 +338,6 @@ impl Runtime for LiveRuntime {
         let data = Box::new(RuntimeData::new(files));
         let ptr = Box::leak(data);
         LiveRuntime {
-            runtime_data_constant: None,
             runtime_data: ptr as *mut RuntimeData,
             next_line: next_line as *mut c_void,
             column: column as *mut c_void,
@@ -522,6 +514,14 @@ impl Runtime for LiveRuntime {
     fn printf(&mut self, func: &mut Function, fstring: Value, nargs: Value, args: Value) {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(self.printf, &[data_ptr, fstring, nargs, args], None, Abi::VarArg);
+    }
+
+    fn free_string_ptr(&self) -> *mut std::os::raw::c_void {
+        self.free_string
+    }
+
+    fn runtime_data_ptr(&self) -> *mut std::os::raw::c_void {
+        self.runtime_data as *mut c_void
     }
 }
 

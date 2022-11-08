@@ -86,12 +86,11 @@ fn test_perf(test_name: &str, interpreter: &str, prog: &str, oracle_output: &str
         assert_eq!(our_result.0, oracle_output, "perf-test : LEFT jawk, RIGHT oracle didn't match. DID YOU DO A RELEASE BUILD?");
     }
 
+    // 6ms per run
     if our_total >= 6 * PERF_RUNS * 1000 {
         append_result(test_name, interpreter, our_total, other_total);
     }
 
-    // My computer can't run `int main() { return 1 }` in less than 6ms so ignore results below the startup
-    // time threadhold
     assert!(our_total < other_total || our_total < 6 * PERF_RUNS * 1000, "perf-test: jawk={}ms {}={}ms", our_total / 1000, interpreter, other_total / 1000);
 }
 
@@ -977,7 +976,6 @@ test!(
     "800020000\n"
 );
 
-
 test!(
     test_two_arrays,
     "BEGIN { a[0] = 1; a[1] =1; b[0] = 2; b[1] = 3; x=2; while (x++ < 40) { a[x] = a[x-1] + a[x-2]; b[x] = b[x-1] + b[x-2]; print a[x]; print b[x] }}",
@@ -1012,7 +1010,6 @@ test!(
     ""
 );
 
-
 test!(
     test_break_simple,
     "BEGIN { while (1) { break } }",
@@ -1026,7 +1023,6 @@ test!(
     ONE_LINE,
     "33\n"
 );
-
 
 test!(
     test_break_loop_known_type,
@@ -1062,77 +1058,102 @@ test!(
 //     "test"
 // );
 
-//
+test!(
+    test_func_const_only,
+    "function uses_nil() { print \"1\";  } BEGIN { uses_nil();}",
+    ONE_LINE,
+    "1\n");
+
+test!(
+    test_func_global_float_only,
+    "function uses_nil() { print global_1;  } BEGIN { global_1 = 3; uses_nil();}",
+    ONE_LINE,
+    "3\n");
+
+test!(
+    test_simple_func_global,
+    "function uses_nil() { a = 1; } BEGIN { }",
+    ONE_LINE,
+    ""
+);
+
+test!(
+    test_func_global_assign_no_read,
+    "function uses_nil() { a = 3; print a; } BEGIN { uses_nil(); }",
+    ONE_LINE,
+    "3\n"
+);
+
+test!(
+    test_func_global_assign_n_read,
+    "function uses_nil() { a = 3; print a; } BEGIN { uses_nil();  print a; }",
+    ONE_LINE,
+    "3\n3\n"
+);
+
+test!(
+    test_func_global_string_only,
+    "function uses_global() { print global_1;  } BEGIN { global_1 = \"abc\"; print global_1; uses_global(); print global_1; global_1 = \"ddd\"; print global_1; uses_global(); print global_1;}",
+    ONE_LINE,
+    "abc\nabc\nabc\nddd\nddd\nddd\n"
+);
+
+test!(
+    test_func_global_arr_only,
+    "function uses_nil() { print global_1[0];  } BEGIN { global_1[0] = 5; uses_nil();}",
+    ONE_LINE,
+    "5\n"
+);
+
+test!(
+    test_func_call_0,
+    "function uses_scalar(scalar) { print scalar;  } BEGIN { uses_scalar(1);}",
+    ONE_LINE,
+    "1\n");
+
+test!(
+    test_func_call_1,
+    "function a(arr) { arr[0] = 123; } BEGIN { a(b); print b[0]; }",
+    ONE_LINE,
+    "123\n"
+);
+
+test!(test_func_call_2,
+    "function a(arg) { print $arg } { a(1); a(2); a(3); }",
+    ONE_LINE,
+    "1\n2\n3\n"
+);
+
+test!(test_call_global,
+    "function a() { print b; } BEGIN { b = 5; a(); }",
+    ONE_LINE,
+    "5\n"
+);
+
+test!(
+    test_func_call_arr,
+    "function a(array) { print array[0]; } BEGIN { arr[0] = 5; a(arr) }",
+    ONE_LINE,
+    "5\n"
+);
+
+test!(
+    test_scalar_func_call,
+    "function a(b,c,d) {  print (b + c + d); }  BEGIN { a(1,2,3); }",
+    ONE_LINE,
+    "6\n"
+);
+
 // test!(
-//     test_func_const_only,
-//     "function uses_nil() { print \"1\";  } BEGIN { uses_nil();}",
-//     ONE_LINE,
-//     "1\n");
-//
-// test!(
-//     test_func_global_float_only,
-//     "function uses_nil() { print global_1;  } BEGIN { global_1 = 3; uses_nil();}",
-//     ONE_LINE,
-//     "3\n");
-//
-// test!(
-//     test_func_global_string_only,
-//     "function uses_nil() { print global_1;  } BEGIN { global_1 = \"abc\"; uses_nil();}",
-//     ONE_LINE,
-//     "abc\n");
-//
-// test!(
-//     test_func_global_arr_only,
-//     "function uses_nil() { print global_1[0];  } BEGIN { global_1[0] = 5; uses_nil();}",
-//     ONE_LINE,
-//     "5\n");
-//
-//
-//
-// test!(
-//     test_func_call_0,
-//     "function uses_scalar(arr) { print arr;  } BEGIN { uses_scalar(1);}",
-//     ONE_LINE,
-//     "1\n");
-//
-// test!(
-//     test_func_call_1,
-//     "function a(arr) { arr[0] = 123; } BEGIN { a(b); print b[0]; }",
-//     ONE_LINE,
-//     "123\n"
-// );
-//
-//
-// test!(test_call_global,
-//     "function a() { print b; } BEGIN { b = 5; a(); }",
-//     ONE_LINE,
-//     "5\n"
-// );
-//
-// test!(
-//     test_func_call_2,
-//     "function a(array) { print array[0]; } BEGIN { arr[0] = 5; a(arr) }",
-//     ONE_LINE,
-//     "5\n"
-// );
-//
-// test!(
-//     test_scalar_func_call,
-//     "function a(b,c,d) { return b + c + d; }  BEGIN { print a(1,2,3); }",
+//     test_ret_scalar_func_call,
+//     "function a(b,c,d) {  print (b + c + d); }  BEGIN { print a(1,2,3); }",
 //     ONE_LINE,
 //     "6\n"
 // );
 //
 // test!(
-//     test_string_func_call,
+//     test_ret_string_func_call,
 //     "function a(b,c,d) { return b  c  d; }  BEGIN { print a(\"1\",\"2\",\"3\"); }",
 //     ONE_LINE,
 //     "123\n"
-// );
-//
-// test!(
-//     test_call_simple_2,
-//     "function a(arg) { return 1; } BEGIN { arr[0] = 1; a(arr); }",
-//     ONE_LINE,
-//     ""
 // );

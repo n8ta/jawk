@@ -3,6 +3,7 @@ mod live;
 mod testing;
 mod arrays;
 
+use std::os::raw::c_void;
 use crate::lexer::BinOp;
 use gnu_libjit::{Function, Value};
 pub use live::LiveRuntime;
@@ -41,4 +42,6 @@ pub trait Runtime {
     fn in_array(&mut self, func: &mut Function, array_id: Value, key_tag: Value, key_num: Value, key_ptr: Value) -> Value;
     fn concat_array_indices(&mut self, func: &mut Function, lhs: Value, rhs: Value) -> Value;
     fn printf(&mut self, func: &mut Function, fstring: Value, nargs: Value, args: Value);
+    fn free_string_ptr(&self) -> *mut c_void;
+    fn runtime_data_ptr(&self) -> *mut c_void;
 }

@@ -30,4 +30,8 @@ impl SymbolMapping {
     pub fn len(&self) -> usize {
         self.mapping.len()
     }
+
+    pub fn all_symbols(&self) -> Vec<Symbol> {
+        self.mapping.keys().cloned().collect()
+    }
 }

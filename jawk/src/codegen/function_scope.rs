@@ -26,35 +26,42 @@ impl<'a> FunctionScope<'a> {
             pure_local_scalar: HashMap::with_capacity(1),
             pure_local_array: HashMap::with_capacity(1),
         };
-        println!("STARTING ====== \nArgs are {:?}", args);
+        let mut idx: i32 = 0;
         for arg in args {
             if let Some(arg_type) = arg.typ {
                 match arg_type {
                     ArgT::Scalar => {
                         let value = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr());
+                        let tag = function.arg(idx).unwrap();
+                        let float = function.arg(idx+1).unwrap();
+                        let pointer = function.arg(idx+2).unwrap();
+                        // Load args into stack variable
+                        function.insn_store(&value.tag, &tag);
+                        function.insn_store(&value.float, &float);
+                        function.insn_store(&value.pointer, &pointer);
                         function_scope.pure_local_scalar.insert(arg.name.clone(), value);
+                        idx += 3;
                     }
                     ArgT::Array => {
-                        println!("Adding {} to local arrays", arg.name.clone());
                         let value = function.create_value_int();
+                        let arr = function.arg(idx).unwrap();
+                        function.insn_store(&value, &arr);
                         function_scope.pure_local_array.insert(arg.name.clone(), value);
+                        idx += 1;
                     }
                 }
             } else {
-                println!("{} has no type", arg.name)
+                // println!("{} has no type", arg.name)
             }
         };
         function_scope
     }
     pub fn get_scalar(&mut self, function: &mut Function, name: &Symbol) -> Result<ValueT, PrintableError> {
         if let Some(local) = self.pure_local_scalar.get(name) {
-            println!("{} is pure local scalar", name);
             Ok(local.clone())
         } else if let Some(local_global) = self.local_globals.get(name) {
-            println!("{} is local global", name);
             Ok(local_global.clone())
         } else {
-            println!("{} is new global", name);
             let global_value = self.globals.get(name, function)?;
             let mut local_global = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr());
             self.store(function, &mut local_global, &global_value);
@@ -63,7 +70,7 @@ impl<'a> FunctionScope<'a> {
         }
     }
     pub fn set_scalar(&mut self, function: &mut Function, name: &Symbol, value: &ValueT) {
-        let mut local_global = if let Some(mut local_global) = self.local_globals.get_mut(name) {
+        let local_global = if let Some(local_global) = self.local_globals.get_mut(name) {
             // We already have this global pulled in as a stack var
             Some(local_global.clone())
         } else {
@@ -97,11 +104,6 @@ impl<'a> FunctionScope<'a> {
     }
 
     pub fn get_array(&mut self, function: &mut Function, name: &Symbol) -> Result<Value, PrintableError> {
-        println!("Getting array {}", name);
-        for (sym,elem) in &self.pure_local_array {
-            println!("{}", sym);
-        }
-        println!("======");
         if let Some(val) = self.pure_local_array.get(name) {
             return Ok(val.clone())
         }
@@ -110,5 +112,9 @@ impl<'a> FunctionScope<'a> {
 
     pub fn get_const_str(&self, name: &Symbol) -> Result<*mut c_void, PrintableError> {
         self.globals.get_const_str(name)
+    }
+
+    pub fn debug_mapping(&self) -> HashMap<String, String> {
+        self.globals.debug_mapping()
     }
 }

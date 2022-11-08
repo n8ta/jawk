@@ -1,10 +1,10 @@
 use std::os::raw::{c_char, c_int, c_long, c_void};
-use gnu_libjit::{Abi, Context, Function, Label, Value};
+use gnu_libjit::{Context, Function, Label, Value};
 use hashbrown::HashMap;
 use crate::codegen::codegen_consts::CodegenConsts;
 use crate::codegen::globals::Globals;
 use crate::codegen::{FLOAT_TAG, STRING_TAG, ValuePtrT, ValueT};
-use crate::parser::{Arg, ArgT, ScalarType, Stmt, TypedExpr};
+use crate::parser::{ArgT, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError, Symbolizer};
 use crate::codegen::callable_function::CallableFunction;
 use crate::codegen::function_scope::FunctionScope;
@@ -36,6 +36,20 @@ pub struct FunctionCodegen<'a, RuntimeT: Runtime> {
     var_arg_scratch: &'a Value,
 }
 
+fn fill_in<RuntimeT: Runtime>(mut body: String, runtime: &RuntimeT, scope: &FunctionScope) -> String {
+    let mut mapping  = scope.debug_mapping();
+    let free_ptr = runtime.free_string_ptr() as i64;
+    let free_ptr_hex = format!("0x{:x}", free_ptr);
+    mapping.insert(free_ptr_hex, format!("free_string {}", free_ptr));
+    mapping.insert(format!("{} {:?}", runtime.runtime_data_ptr() as i64, runtime.runtime_data_ptr())
+                   , "runtime_data_ptr".to_string());
+    for (from, to) in mapping {
+        body = body.replace(&from, &to)
+    }
+
+    body
+}
+
 impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     pub fn build_function(mut function: Function,
                           parser_func: &crate::parser::Function,
@@ -65,11 +79,11 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         // Consts
         let zero_ptr = ptr_scratch_ptr;
         let zero_f = function.create_float64_constant(0.0);
+        let sentinel_float = function.create_float64_constant(123.123); // Used to init float portion of a string value
         let float_tag = function.create_sbyte_constant(FLOAT_TAG as c_char);
         let string_tag = function.create_sbyte_constant(STRING_TAG as c_char);
-        let c = CodegenConsts::new(zero_ptr, zero_f, float_tag, string_tag);
+        let c = CodegenConsts::new(zero_ptr, zero_f, float_tag, string_tag, sentinel_float);
 
-        println!("Starting function {}", &parser_func.name);
         let function_scope = FunctionScope::new(globals, &mut function, &parser_func.args);
         let mut func_gen = Self {
             function,
@@ -82,7 +96,6 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
             c,
             function_map,
             runtime,
-            // function_map,
             break_lbl: vec![],
             return_lbl: Label::new(),
         };
@@ -112,18 +125,18 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
         self.function.insn_label(&mut self.return_lbl.clone());
 
-
         if is_main && debug_asserts {
             for global in self.function_scope.all_globals(&mut self.function) {
                 self.drop_if_str(&global, ScalarType::Variable)
             }
         }
 
+        // All global scalars that this function used need to flushed from function locals back to the heap
+        self.function_scope.flush(&mut self.function);
         self.function.insn_return(&zero);
-
-        // if dump {
-            println!("Dump for {}\n{}", &func.name,self.function.dump().unwrap());
-        // }
+        if dump {
+            println!("FUNCTION {}", fill_in(self.function.dump().unwrap(), self.runtime, &self.function_scope));
+        }
         self.function.compile();
         Ok(())
     }
@@ -311,7 +324,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
             Expr::String(str) => {
                 let ptr = self.function.create_void_ptr_constant(self.function_scope.get_const_str(&str)?);
                 let new_ptr = self.runtime.copy_string(&mut self.function, ptr);
-                ValueT::string(self.string_tag(), self.zero_f(), new_ptr)
+                ValueT::string(self.string_tag(), self.sentinel_f(), new_ptr)
             }
             Expr::Regex(str) => {
                 let ptr = self.function.create_void_ptr_constant(self.function_scope.get_const_str(&str)?);
@@ -338,7 +351,6 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 ValueT::float(self.float_tag(), result, self.zero_ptr())
             }
             Expr::BinOp(left_expr, op, right_expr) => {
-                println!("LEFT EXPR {:?} RIGHT {:?}", left_expr, right_expr);
                 let left = self.compile_expr(left_expr, false)?;
                 let right = self.compile_expr(right_expr, false)?;
                 let tag = self.float_tag();
@@ -433,15 +445,15 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 // If it's a string we need to call copy_string to update the reference count.
                 // If it's a float no-op.
                 // If type is unknown we check tag then copy_string if needed.
-                let mut var = self.function_scope.get_scalar(&mut self.function, var)?.clone();
+                let var = self.function_scope.get_scalar(&mut self.function, var)?.clone();
                 let string_tag = self.string_tag();
-                // match expr.typ {
-                //     ScalarType::String => {
-                //         let zero = self.function.create_float64_constant(0.0);
-                //         let new_ptr = self.runtime.copy_string(&mut self.function, var.pointer);
-                //         ValueT::string(string_tag, zero, new_ptr)
-                //     }
-                //     ScalarType::Variable => {
+                match expr.typ {
+                    ScalarType::String => {
+                        let zero = self.function.create_float64_constant(0.0);
+                        let new_ptr = self.runtime.copy_string(&mut self.function, var.pointer);
+                        ValueT::string(string_tag, zero, new_ptr)
+                    }
+                    ScalarType::Variable => {
                         // If it's a string variable copy it and store that pointer in self.binop_scratch.pointer
                         // otherwise store zero self.binop_scratch.pointer. After this load self.binop_scratch.pointer
                         // and make a new value with the old tag/float + new string pointer.
@@ -459,12 +471,9 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                         self.function.insn_label(&mut done_lbl);
                         let str_ptr = self.function.insn_load(&self.binop_scratch.pointer);
                         ValueT::var(var.tag, var.float, str_ptr)
-                    // }
-                    // ScalarType::Float => {
-                    //     var.typ = ScalarType::Float;
-                    //     var
-                    // }
-                // }
+                    }
+                    ScalarType::Float => var,
+                }
             }
             Expr::Column(col) => {
                 let column = self.compile_expr(col, false)?;
@@ -607,6 +616,9 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     }
     pub fn zero_f(&self) -> Value {
         self.c.zero_f.clone()
+    }
+    pub fn sentinel_f(&self) -> Value {
+        self.c.sentinel_float.clone()
     }
 
     pub fn zero_ptr(&self) -> Value {

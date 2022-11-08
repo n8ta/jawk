@@ -1,5 +1,4 @@
 use gnu_libjit::Value;
-use crate::parser::ScalarType;
 
 #[derive(Clone)]
 pub struct ValueT {
