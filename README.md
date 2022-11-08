@@ -1,5 +1,3 @@
-## Active development here: [github.com/n8ta/jawk](https://github.com/n8ta/jawk)
-
 ## What is it?
 An (INCOMPLETE) jit compiled awk (jawk) implementation leveraging GNU libjit. The goal is the to be the fastest awk for all programs.
 
@@ -55,7 +53,8 @@ cargo run -- --debug 'BEGIN { print "this will print debug info including the AS
 17. Divide by 0 needs to print an error (tests for this will probably need to be bespoke)
 
 ## License
-GNU Libjit is GPLv2. This repo is MIT licensed.
+GNU Libjit is GPLv2. 
+This project is MIT licensed.
 
 ## Running the tests
 
@@ -73,8 +72,3 @@ cargo test
 
 ### Perf tests
 If you want to run perf tests set the env var "jperf" to "true" and do a `cargo build --release` and `cargo test -- --test-threads=1` first. This will test the speed of the release binary against other awks.
-
-
-## Trademark
-
-Trademarks This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft trademarks or logos is subject to and must follow Microsoft’s Trademark & Brand Guidelines. Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship. Any use of third-party trademarks or logos are subject to those third-party’s policies.
