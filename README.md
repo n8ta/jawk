@@ -2,7 +2,7 @@
 An (INCOMPLETE) jit compiled awk (jawk) implementation leveraging GNU libjit. The goal is the to be the fastest awk for all programs.
 
 In reality, it will never be faster for programs like `BEGIN { print "A" }` since an interpreter has less overhead. 
-But for all programs >1ms (in say gawk or mawk) jawk aims to be faster.
+But for all programs >5ms (in say gawk or mawk) jawk aims to be faster.
 
 ## How to use
 
