@@ -153,7 +153,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 } else {
                     self.no_op_value()
                 };
-                self.store(&mut self.binop_scratch.clone(), &ret_val);
+                self.function_scope.return_value(&mut self.function, &ret_val);
                 self.function.insn_branch(&mut self.return_lbl.clone())
             }
             Stmt::Printf { args, fstring } => {
@@ -283,7 +283,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 }
                 self.function_scope.flush(&mut self.function);
                 self.function.insn_call(&target.function, call_args);
-                self.no_op_value() // TODO: Return value from functions
+                self.function_scope.get_returned_value(&mut self.function)
             }
             Expr::ScalarAssign(var, value) => {
                 // BEGIN: Optimization

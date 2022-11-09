@@ -73,6 +73,15 @@ impl<'a> FunctionScope<'a> {
             Ok(local_global)
         }
     }
+
+    pub fn return_value(&mut self, function: &mut Function, value: &ValueT) {
+        self.globals.return_value(function, value);
+    }
+
+    pub fn get_returned_value(&mut self, function: &mut Function) -> ValueT {
+        self.globals.get_returned_value(function)
+    }
+
     pub fn set_scalar(&mut self, function: &mut Function, name: &Symbol, value: &ValueT) {
         let place_to_store = if let Some(local) = self.pure_local_scalar.get_mut(name) {
             Some(local.clone())

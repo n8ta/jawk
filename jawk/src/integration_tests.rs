@@ -1152,16 +1152,18 @@ test!(test_mixed_call,
     "1\nscalar\n2\n"
 );
 
-// test!(
-//     test_ret_scalar_func_call,
-//     "function a(b,c,d) {  print (b + c + d); }  BEGIN { print a(1,2,3); }",
-//     ONE_LINE,
-//     "6\n"
-// );
-//
-// test!(
-//     test_ret_string_func_call,
-//     "function a(b,c,d) { return b  c  d; }  BEGIN { print a(\"1\",\"2\",\"3\"); }",
-//     ONE_LINE,
-//     "123\n"
-// );
+test!(test_simple_return, "function a() { return 2 } BEGIN { print a() }", ONE_LINE, "2\n");
+
+test!(
+    test_ret_scalar_func_call,
+    "function a(b,c,d) {  print (b + c + d); }  BEGIN { print a(1,2,3); }",
+    ONE_LINE,
+    "6\n\n"
+);
+
+test!(
+    test_ret_string_func_call,
+    "function a(b,c,d) { return b  c  d; }  BEGIN { print a(\"1\",\"2\",\"3\"); }",
+    ONE_LINE,
+    "123\n"
+);

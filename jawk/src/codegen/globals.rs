@@ -14,6 +14,8 @@ pub struct Globals {
     arrays: SymbolMapping,
     const_str_allocation: Vec<*mut String>,
     const_str_mapping: HashMap<Symbol, usize>,
+    global_return_idx: i32,
+    global_return_value: Vec<i64>,
 }
 
 impl Globals {
@@ -22,10 +24,13 @@ impl Globals {
         runtime: &mut RuntimeT,
         function: &mut Function,
         _symbolizer: &mut Symbolizer) -> Self {
-        let scalar_memory = 3 * analysis.global_scalars.len() + 3 * analysis.str_consts.len();
+        // global scalars + str_consts + return_value
+        let scalar_memory = 3 * analysis.global_scalars.len();
+        let global_return_idx = scalar_memory as i32;
         let const_str_memory = analysis.str_consts.len();
 
         let global_scalar_allocation: Vec<i64> = Vec::with_capacity(scalar_memory);
+        let global_return_value: Vec<i64> = Vec::with_capacity(3);
         let mut const_str_allocation: Vec<*mut String> = Vec::with_capacity(const_str_memory);
 
         let mut const_str_mapping = HashMap::new();
@@ -39,8 +44,10 @@ impl Globals {
             global_scalar_allocation,
             mapping: analysis.global_scalars,
             arrays: analysis.global_arrays,
+            global_return_value,
             const_str_allocation,
             const_str_mapping,
+            global_return_idx,
         };
 
         for (name, _) in init.mapping.mapping().clone() {
@@ -51,6 +58,16 @@ impl Globals {
         }
 
         init
+    }
+
+    pub fn get_returned_value(&self, function: &mut Function) -> ValueT {
+        let ptrs = Globals::ptrs_idx(&self.global_return_value, 0, function);
+        self.load_value(ptrs, function)
+    }
+
+    pub fn return_value(&self, function: &mut Function, value: &ValueT) {
+        let ptrs = Globals::ptrs_idx(&self.global_return_value, 0, function);
+        Globals::store(function, &ptrs, value)
     }
 
     // Maps from pointer as a string to the name of the variable
@@ -75,14 +92,14 @@ impl Globals {
             name: &Symbol,
             function: &mut Function) -> ValuePtrT {
         let idx = self.mapping.get(name).expect(&format!("symbol not mapped to a global `{}`", name));
-        self.ptrs_idx(*idx, function)
+        Globals::ptrs_idx(&self.global_scalar_allocation, *idx, function)
     }
 
-    fn ptrs_idx(&self,
+    fn ptrs_idx(allocation : &Vec<i64>,
                 idx: i32,
                 function: &mut Function) -> ValuePtrT {
         unsafe {
-            let alloc_ptr = (*self.global_scalar_allocation).as_ptr();
+            let alloc_ptr = (*allocation).as_ptr();
             let tag = alloc_ptr.offset((3 * idx) as isize);
             let float = alloc_ptr.offset((3 * idx + 1) as isize);
             let ptr = alloc_ptr.offset((3 * idx + 2) as isize);
@@ -98,6 +115,10 @@ impl Globals {
                name: &Symbol,
                value: &ValueT) {
         let ptrs = self.ptrs(&name, function);
+        Globals::store(function, &ptrs, value)
+    }
+
+    fn store(function: &mut Function, ptrs: &ValuePtrT, value: &ValueT) {
         function.insn_store_relative(&ptrs.tag, 0, &value.tag);
         function.insn_store_relative(&ptrs.float, 0, &value.float);
         function.insn_store_relative(&ptrs.pointer, 0, &value.pointer);
@@ -125,7 +146,7 @@ impl Globals {
         // TODO: This should return an iterator skipping the vec allocation
         let mut values: Vec<ValueT> = Vec::with_capacity(self.mapping.len());
         for (_, idx) in self.mapping.mapping() {
-            let ptr = self.ptrs_idx(*idx, function);
+            let ptr = Globals::ptrs_idx(&self.global_scalar_allocation, *idx, function);
             values.push(self.load_value(ptr, function));
         }
         values
