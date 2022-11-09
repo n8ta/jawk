@@ -187,7 +187,7 @@ extern "C" fn binop(
 ) -> std::os::raw::c_double {
     let data = cast_to_runtime_data(data);
     data.calls.log(Call::BinOp);
-    let left = unsafe { Rc::from_raw(l_ptr) };
+        let left = unsafe { Rc::from_raw(l_ptr) };
     let right = unsafe { Rc::from_raw(r_ptr) };
 
     let res = match binop {

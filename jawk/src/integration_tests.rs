@@ -1143,6 +1143,14 @@ test!(
     ONE_LINE,
     "6\n"
 );
+test!(test_assign_arg, "function takes(a) { a = 2; print a; } BEGIN {takes(1) }", ONE_LINE, "2\n");
+test!(test_scalar_call_str_const_inlined, "function f(a) { print a; } BEGIN { f(\"1\") }", ONE_LINE, "1\n");
+test!(test_scalar_call_str_const_var, "function f(ss) { print ss; } BEGIN { s = \"s\";  f(s) }", ONE_LINE, "s\n");
+test!(test_mixed_call,
+"function f(arr, scalar, arr2) { print arr[0]; print scalar; print arr2[1] } BEGIN { global_a_1[0] = 1; scalar = \"scalar\"; global_arr_2[1] = 2; f(global_a_1, scalar, global_arr_2) }",
+    ONE_LINE,
+    "1\nscalar\n2\n"
+);
 
 // test!(
 //     test_ret_scalar_func_call,

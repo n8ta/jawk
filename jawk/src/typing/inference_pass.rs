@@ -55,6 +55,10 @@ fn get_types(program: &TypedProgram, link: &CallLink) -> CallInfo {
 fn forward_prop(program: &mut TypedProgram, link: &CallLink) -> Result<Vec<Symbol>, PrintableError> {
     let types = get_types(program, &link);
     let dest = program.functions.get_mut(&link.call.target).expect(&format!("function {} to exist", link.call.target));
+
+    if link.call.args.len() != dest.func.args.len() {
+        return Err(PrintableError::new(format!("Function `{}` accepts {} arguments but was called with {} from function `{}`", dest.func.name, dest.func.args.len(), link.call.args.len(), link.source)));
+    }
     let mut updated_symbols_in_dest = vec![];
     for idx in 0..types.len() {
         let arg_name = dest.func.args[idx].name.clone();

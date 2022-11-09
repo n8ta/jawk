@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::os::raw::c_void;
 use gnu_libjit::{Function, Value};
 use hashbrown::{HashMap};
@@ -19,6 +20,9 @@ pub struct FunctionScope<'a> {
 }
 
 impl<'a> FunctionScope<'a> {
+    pub fn args(&self) -> &HashMap<Symbol, ValueT> {
+        &self.pure_local_scalar
+    }
     pub fn new(globals: &'a Globals, function: &mut Function, args: &Vec<Arg>) -> Self {
         let mut function_scope = Self {
             globals,
@@ -33,8 +37,8 @@ impl<'a> FunctionScope<'a> {
                     ArgT::Scalar => {
                         let value = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr());
                         let tag = function.arg(idx).unwrap();
-                        let float = function.arg(idx+1).unwrap();
-                        let pointer = function.arg(idx+2).unwrap();
+                        let float = function.arg(idx + 1).unwrap();
+                        let pointer = function.arg(idx + 2).unwrap();
                         // Load args into stack variable
                         function.insn_store(&value.tag, &tag);
                         function.insn_store(&value.float, &float);
@@ -70,7 +74,9 @@ impl<'a> FunctionScope<'a> {
         }
     }
     pub fn set_scalar(&mut self, function: &mut Function, name: &Symbol, value: &ValueT) {
-        let local_global = if let Some(local_global) = self.local_globals.get_mut(name) {
+        let place_to_store = if let Some(local) = self.pure_local_scalar.get_mut(name) {
+            Some(local.clone())
+        } else if let Some(local_global) = self.local_globals.get_mut(name) {
             // We already have this global pulled in as a stack var
             Some(local_global.clone())
         } else {
@@ -80,8 +86,8 @@ impl<'a> FunctionScope<'a> {
             self.local_globals.insert(name.clone(), local_global);
             None
         };
-        if let Some(mut local_global) = local_global {
-            self.store(function, &mut local_global, value);
+        if let Some(mut place_to_store) = place_to_store {
+            self.store(function, &mut place_to_store, value);
         }
     }
 
@@ -105,7 +111,7 @@ impl<'a> FunctionScope<'a> {
 
     pub fn get_array(&mut self, function: &mut Function, name: &Symbol) -> Result<Value, PrintableError> {
         if let Some(val) = self.pure_local_array.get(name) {
-            return Ok(val.clone())
+            return Ok(val.clone());
         }
         self.globals.get_array(function, name)
     }

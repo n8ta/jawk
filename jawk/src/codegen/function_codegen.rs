@@ -37,7 +37,7 @@ pub struct FunctionCodegen<'a, RuntimeT: Runtime> {
 }
 
 fn fill_in<RuntimeT: Runtime>(mut body: String, runtime: &RuntimeT, scope: &FunctionScope) -> String {
-    let mut mapping  = scope.debug_mapping();
+    let mut mapping = scope.debug_mapping();
     let free_ptr = runtime.free_string_ptr() as i64;
     let free_ptr_hex = format!("0x{:x}", free_ptr);
     mapping.insert(free_ptr_hex, format!("free_string {}", free_ptr));
@@ -131,11 +131,15 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
             }
         }
 
+        for (_name, value) in self.function_scope.args() {
+            FunctionCodegen::drop_if_str_no_borrow(self.runtime, &mut self.function, value, ScalarType::Variable);
+        }
+
         // All global scalars that this function used need to flushed from function locals back to the heap
         self.function_scope.flush(&mut self.function);
         self.function.insn_return(&zero);
         if dump {
-            println!("FUNCTION {}", fill_in(self.function.dump().unwrap(), self.runtime, &self.function_scope));
+            println!("Dumping function '{}'", fill_in(self.function.dump().unwrap(), self.runtime, &self.function_scope));
         }
         self.function.compile();
         Ok(())
@@ -270,7 +274,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                                         let array = self.function_scope.get_array(&mut self.function, &sym)?;
                                         call_args.push(array)
                                     } else {
-                                        return Err(PrintableError::new(format!("Tried to use scalar as arg #{} to function {} which accepts an array", idx+1, &target_name)))
+                                        return Err(PrintableError::new(format!("Tried to use scalar as arg #{} to function {} which accepts an array", idx + 1, &target_name)));
                                     }
                                 }
                             }
@@ -302,7 +306,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                         self.no_op_value()
                     } else {
                         self.copy_if_string(new_value, ScalarType::Variable)
-                    })
+                    });
                 }
                 let new_value = self.compile_expr(value, false)?;
                 let old_value = self.function_scope.get_scalar(&mut self.function, var)?.clone();
@@ -688,18 +692,21 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
     // Free the value if it's a string
     pub fn drop_if_str(&mut self, value: &ValueT, typ: ScalarType) {
-        // self.runtime.column(&mut self.function, value.tag.clone(), value.float.clone(), value.pointer.clone());
+        FunctionCodegen::drop_if_str_no_borrow(self.runtime, &mut self.function, value, typ);
+    }
+
+    fn drop_if_str_no_borrow(runtime: &mut RuntimeT, function: &mut Function, value: &ValueT, typ: ScalarType) {
         match typ {
             ScalarType::String => {
-                self.drop(&value.pointer);
+                runtime.free_string(function, value.pointer.clone());
             }
             ScalarType::Variable => {
-                let str_tag = self.string_tag();
+                let str_tag = function.create_sbyte_constant(STRING_TAG);
                 let mut done_lbl = Label::new();
-                let is_string = self.function.insn_eq(&str_tag, &value.tag);
-                self.function.insn_branch_if_not(&is_string, &mut done_lbl);
-                self.drop(&value.pointer);
-                self.function.insn_label(&mut done_lbl);
+                let is_string = function.insn_eq(&str_tag, &value.tag);
+                function.insn_branch_if_not(&is_string, &mut done_lbl);
+                runtime.free_string(function, value.pointer.clone());
+                function.insn_label(&mut done_lbl);
             }
             _ => {}
         };
