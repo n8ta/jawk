@@ -123,6 +123,14 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
         self.compile_stmt(&func.body)?;
 
+
+        if !is_main {
+            // Only hit if function doesn't have a return it.
+            let str = self.runtime.empty_string(&mut self.function);
+            let empty_str_return = ValueT::new(self.string_tag(), self.zero_f(), str);
+            self.function_scope.return_value(&mut self.function, &empty_str_return);
+        }
+
         self.function.insn_label(&mut self.return_lbl.clone());
 
         if is_main && debug_asserts {
@@ -137,6 +145,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
         // All global scalars that this function used need to flushed from function locals back to the heap
         self.function_scope.flush(&mut self.function);
+
         self.function.insn_return(&zero);
         if dump {
             println!("Dumping function '{}'", fill_in(self.function.dump().unwrap(), self.runtime, &self.function_scope));
@@ -151,7 +160,8 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 let ret_val = if let Some(ret) = ret {
                     self.compile_expr(ret, false)?
                 } else {
-                    self.no_op_value()
+                    let str = self.runtime.empty_string(&mut self.function);
+                    ValueT::new(self.string_tag(), self.zero_f(), str)
                 };
                 self.function_scope.return_value(&mut self.function, &ret_val);
                 self.function.insn_branch(&mut self.return_lbl.clone())
@@ -283,7 +293,13 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 }
                 self.function_scope.flush(&mut self.function);
                 self.function.insn_call(&target.function, call_args);
-                self.function_scope.get_returned_value(&mut self.function)
+                let ret_value = self.function_scope.get_returned_value(&mut self.function);
+                if side_effect_only {
+                    self.drop_if_str(&ret_value, ScalarType::Variable);
+                    self.no_op_value()
+                } else {
+                    ret_value
+                }
             }
             Expr::ScalarAssign(var, value) => {
                 // BEGIN: Optimization

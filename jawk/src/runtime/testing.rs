@@ -23,7 +23,7 @@ pub extern "C" fn print_string(data: *mut c_void, value: *mut String) {
     };
     data.output.push_str(&res);
     println!("{}", str);
-    data.string_in("print_string", &res)
+    data.string_in("print_string", &str)
 }
 
 pub extern "C" fn print_float(data: *mut c_void, value: f64) {
