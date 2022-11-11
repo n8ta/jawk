@@ -510,7 +510,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
                 self.function.insn_label(&mut done_lbl);
 
-                self.load(&mut self.binop_scratch.clone())
+                self.binop_scratch.clone()
             }
             Expr::ArrayIndex { name, indices } => {
                 let array_id = self.function_scope.get_array(&mut self.function, name)?;
