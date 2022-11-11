@@ -796,12 +796,9 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     }
 
     pub fn store(&mut self, ptr: &mut ValuePtrT, value: &ValueT) {
-        let ptr_tag = self.function.address_of(&mut ptr.tag);
-        let ptr_float = self.function.address_of(&mut ptr.float);
-        let ptr_ptr = self.function.address_of(&mut ptr.pointer);
-        self.function.insn_store_relative(&ptr_tag, 0, &value.tag);
-        self.function.insn_store_relative(&ptr_float, 0, &value.float);
-        self.function.insn_store_relative(&ptr_ptr, 0, &value.pointer);
+        self.function.insn_store(&ptr.tag, &value.tag);
+        self.function.insn_store(&ptr.float, &value.float);
+        self.function.insn_store(&ptr.pointer, &value.pointer);
     }
 }
 
