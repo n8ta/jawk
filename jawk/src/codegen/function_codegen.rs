@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::os::raw::{c_char, c_int, c_long, c_void};
 use gnu_libjit::{Context, Function, Label, Value};
 use hashbrown::HashMap;
@@ -37,16 +38,11 @@ pub struct FunctionCodegen<'a, RuntimeT: Runtime> {
 }
 
 fn fill_in<RuntimeT: Runtime>(mut body: String, runtime: &RuntimeT, scope: &FunctionScope) -> String {
-    let mut mapping = scope.debug_mapping();
-    let free_ptr = runtime.free_string_ptr() as i64;
-    let free_ptr_hex = format!("0x{:x}", free_ptr);
-    mapping.insert(free_ptr_hex, format!("free_string {}", free_ptr));
-    mapping.insert(format!("{} {:?}", runtime.runtime_data_ptr() as i64, runtime.runtime_data_ptr())
-                   , "runtime_data_ptr".to_string());
-    for (from, to) in mapping {
+    let var_name_mapping = scope.debug_mapping();
+    let runtime_mapping = runtime.pointer_to_name_mapping();
+    for (from, to) in var_name_mapping.into_iter().chain(runtime_mapping.into_iter()) {
         body = body.replace(&from, &to)
     }
-
     body
 }
 
@@ -140,7 +136,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         }
 
         for (_name, value) in self.function_scope.args() {
-            FunctionCodegen::drop_if_str_no_borrow(self.runtime, &mut self.function, value, ScalarType::Variable);
+            self.runtime.free_if_string(&mut self.function, value.clone(), ScalarType::Variable);
         }
 
         // All global scalars that this function used need to flushed from function locals back to the heap
@@ -408,7 +404,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
                 // Done load the result from scratch
                 self.function.insn_label(&mut done_lbl);
-                self.load(&mut self.binop_scratch.clone())
+                self.binop_scratch.clone()
             }
             Expr::LogicalOp(left, op, right) => {
                 let float_1 = self.function.create_float64_constant(1.0);
@@ -434,7 +430,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                         self.function.insn_branch(&mut done);
                         self.function.insn_label(&mut done);
                         let tag = self.float_tag();
-                        let result_f = self.function.insn_load(&self.binop_scratch.float);
+                        let result_f = self.binop_scratch.float.clone();
                         ValueT::float(tag, result_f, self.zero_ptr())
                     }
                     LogicalOp::Or => {
@@ -454,46 +450,15 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                         self.function.insn_store(&self.binop_scratch.float, &float_1);
                         self.function.insn_label(&mut done);
                         let tag = self.float_tag();
-                        let result_f = self.function.insn_load(&self.binop_scratch.float);
+                        let result_f = self.binop_scratch.float.clone();
                         ValueT::float(tag, result_f, self.zero_ptr())
                     }
                 };
                 res
             }
             Expr::Variable(var) => {
-                // compile_expr returns a string/float that is 'owned' by the caller.
-                // If it's a string we need to call copy_string to update the reference count.
-                // If it's a float no-op.
-                // If type is unknown we check tag then copy_string if needed.
                 let var = self.function_scope.get_scalar(&mut self.function, var)?.clone();
-                let string_tag = self.string_tag();
-                match expr.typ {
-                    ScalarType::String => {
-                        let zero = self.function.create_float64_constant(0.0);
-                        let new_ptr = self.runtime.copy_string(&mut self.function, var.pointer);
-                        ValueT::string(string_tag, zero, new_ptr)
-                    }
-                    ScalarType::Variable => {
-                        // If it's a string variable copy it and store that pointer in self.binop_scratch.pointer
-                        // otherwise store zero self.binop_scratch.pointer. After this load self.binop_scratch.pointer
-                        // and make a new value with the old tag/float + new string pointer.
-                        let is_string = self.function.insn_eq(&string_tag, &var.tag);
-                        let mut done_lbl = Label::new();
-                        let mut is_not_str_lbl = Label::new();
-                        self.function.insn_branch_if_not(&is_string, &mut is_not_str_lbl);
-                        let new_ptr = self.runtime.copy_string(&mut self.function, var.pointer);
-                        self.function.insn_store(&self.binop_scratch.pointer, &new_ptr);
-                        self.function.insn_branch(&mut done_lbl);
-
-                        self.function.insn_label(&mut is_not_str_lbl);
-                        self.function.insn_store(&self.binop_scratch.pointer, &self.zero_ptr());
-
-                        self.function.insn_label(&mut done_lbl);
-                        let str_ptr = self.function.insn_load(&self.binop_scratch.pointer);
-                        ValueT::var(var.tag, var.float, str_ptr)
-                    }
-                    ScalarType::Float => var,
-                }
+                self.runtime.copy_if_string(&mut self.function, var, expr.typ)
             }
             Expr::Column(col) => {
                 let column = self.compile_expr(col, false)?;
@@ -708,24 +673,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
     // Free the value if it's a string
     pub fn drop_if_str(&mut self, value: &ValueT, typ: ScalarType) {
-        FunctionCodegen::drop_if_str_no_borrow(self.runtime, &mut self.function, value, typ);
-    }
-
-    fn drop_if_str_no_borrow(runtime: &mut RuntimeT, function: &mut Function, value: &ValueT, typ: ScalarType) {
-        match typ {
-            ScalarType::String => {
-                runtime.free_string(function, value.pointer.clone());
-            }
-            ScalarType::Variable => {
-                let str_tag = function.create_sbyte_constant(STRING_TAG);
-                let mut done_lbl = Label::new();
-                let is_string = function.insn_eq(&str_tag, &value.tag);
-                function.insn_branch_if_not(&is_string, &mut done_lbl);
-                runtime.free_string(function, value.pointer.clone());
-                function.insn_label(&mut done_lbl);
-            }
-            _ => {}
-        };
+        self.runtime.free_if_string(&mut self.function, value.clone(), typ);
     }
 
     pub fn drop(&mut self, value: &Value) {

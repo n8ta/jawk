@@ -8,7 +8,7 @@ pub struct CallableFunction {
 }
 
 impl CallableFunction {
-    pub fn new(context: &mut Context, args: &Vec<Arg>) -> CallableFunction {
+    pub fn new(context: &Context, args: &Vec<Arg>) -> CallableFunction {
         let mut params = Vec::with_capacity(args.len()*3); // May be shorter if some args are arrays
         for arg in args.iter() {
             match arg.typ {

@@ -27,13 +27,15 @@ mod global_scalars;
 
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let args = match AwkArgs::new(args) {
-        Ok(args) => args,
-        Err(_) => return,
-    };
+    for _ in 0..1 {
+        let args: Vec<String> = std::env::args().collect();
 
-    // for i in 0..5000 {
+        let args = match AwkArgs::new(args) {
+            Ok(args) => args,
+            Err(_) => return,
+        };
+
+        // for i in 0..5000 {
         let source = match args.program.load() {
             Ok(program) => program,
             Err(e) => {
@@ -75,8 +77,7 @@ fn main() {
                 eprintln!("{}", err);
             }
         }
-    // }
-
+    }
 
     // Fuck cleanup just sys call out so it's faster
     unsafe { libc::exit(0 as c_int) }

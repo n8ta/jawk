@@ -14,7 +14,6 @@ pub struct Globals {
     arrays: SymbolMapping,
     const_str_allocation: Vec<*mut String>,
     const_str_mapping: HashMap<Symbol, usize>,
-    global_return_idx: i32,
     global_return_value: Vec<i64>,
 }
 
@@ -26,7 +25,6 @@ impl Globals {
         _symbolizer: &mut Symbolizer) -> Self {
         // global scalars + str_consts + return_value
         let scalar_memory = 3 * analysis.global_scalars.len();
-        let global_return_idx = scalar_memory as i32;
         let const_str_memory = analysis.str_consts.len();
 
         let global_scalar_allocation: Vec<i64> = Vec::with_capacity(scalar_memory);
@@ -47,7 +45,6 @@ impl Globals {
             global_return_value,
             const_str_allocation,
             const_str_mapping,
-            global_return_idx,
         };
 
         for (name, _) in init.mapping.mapping().clone() {

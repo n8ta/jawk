@@ -2,12 +2,16 @@ mod call_log;
 mod live;
 mod testing;
 mod arrays;
+mod helpers;
 
 use std::os::raw::c_void;
 use crate::lexer::BinOp;
-use gnu_libjit::{Function, Value};
+use gnu_libjit::{Context, Function, Value};
+use hashbrown::HashMap;
 pub use live::LiveRuntime;
 pub use testing::TestRuntime;
+use crate::codegen::ValueT;
+use crate::parser::ScalarType;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -18,11 +22,13 @@ pub enum ErrorCode {
 }
 
 pub trait Runtime {
-    fn new(files: Vec<String>) -> Self;
+    fn new(context: &Context, files: Vec<String>) -> Self;
     fn call_next_line(&mut self, func: &mut Function) -> Value;
     fn column(&mut self, func: &mut Function, tag: Value, float: Value, ptr: Value) -> Value;
+    fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType);
     fn free_string(&mut self, func: &mut Function, ptr: Value) -> Value;
     fn string_to_number(&mut self, func: &mut Function, ptr: Value) -> Value;
+    fn copy_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) -> ValueT;
     fn copy_string(&mut self, func: &mut Function, ptr: Value) -> Value;
     fn number_to_string(&mut self, func: &mut Function, number: Value) -> Value;
     fn print_string(&mut self, func: &mut Function, ptr: Value);
@@ -42,6 +48,5 @@ pub trait Runtime {
     fn in_array(&mut self, func: &mut Function, array_id: Value, key_tag: Value, key_num: Value, key_ptr: Value) -> Value;
     fn concat_array_indices(&mut self, func: &mut Function, lhs: Value, rhs: Value) -> Value;
     fn printf(&mut self, func: &mut Function, fstring: Value, nargs: Value, args: Value);
-    fn free_string_ptr(&self) -> *mut c_void;
-    fn runtime_data_ptr(&self) -> *mut c_void;
+    fn pointer_to_name_mapping(&self) -> HashMap<String, String>;
 }

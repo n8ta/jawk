@@ -1,4 +1,4 @@
-use crate::codegen::{FLOAT_TAG, STRING_TAG};
+use crate::codegen::{FLOAT_TAG, STRING_TAG, ValueT};
 use crate::columns::Columns;
 use crate::lexer::BinOp;
 use crate::runtime::call_log::{Call, CallLog};
@@ -6,8 +6,11 @@ use crate::runtime::{ErrorCode, Runtime};
 use gnu_libjit::{Abi, Context, Function, Value};
 use std::ffi::c_void;
 use std::rc::Rc;
+use hashbrown::HashMap;
 use mawk_regex::Regex;
+use crate::parser::ScalarType;
 use crate::runtime::arrays::Arrays;
+use crate::runtime::helpers::{build_copy_if_str_helper, build_free_if_string_helper};
 
 pub const CANARY: &str = "this is the canary!";
 
@@ -360,6 +363,13 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
     };
 }
 
+// Helper for build debug mapping form pointers to their runtime function
+fn insert( mapping: &mut HashMap<String,String>, ptr: *mut c_void, name: &str) {
+    let ptr_hex = format!("0x{:x}", ptr as i64);
+    let with_name = format!("{} 0x{:x}", name, ptr as i64);
+    mapping.insert(ptr_hex, with_name);
+}
+
 pub struct TestRuntime {
     runtime_data: *mut c_void,
     next_line: *mut c_void,
@@ -379,6 +389,8 @@ pub struct TestRuntime {
     array_assign: *mut c_void,
     in_array: *mut c_void,
     printf: *mut c_void,
+    free_if_string_helper: Function,
+    copy_if_string_helper: Function,
 }
 
 pub struct RuntimeData {
@@ -434,9 +446,11 @@ impl TestRuntime {
 }
 
 impl Runtime for TestRuntime {
-    fn new(files: Vec<String>) -> TestRuntime {
+    fn new(context: &Context, files: Vec<String>) -> TestRuntime {
         let data = Box::new(RuntimeData::new(files));
         let runtime_data = (Box::leak(data) as *mut RuntimeData) as *mut c_void;
+        let free_if_string_helper = build_free_if_string_helper(context, free_string as *mut c_void, runtime_data);
+        let copy_if_string_helper = build_copy_if_str_helper(context, copy_string as *mut c_void, runtime_data);
         let rt = TestRuntime {
             runtime_data,
             next_line: next_line as *mut c_void,
@@ -456,6 +470,9 @@ impl Runtime for TestRuntime {
             in_array: in_array as *mut c_void,
             concat_array_indices: concat_array_indices as *mut c_void,
             printf: printf as *mut c_void,
+            free_if_string_helper,
+            copy_if_string_helper,
+
         };
         println!("binop {:?}", rt.binop);
         rt
@@ -605,13 +622,47 @@ impl Runtime for TestRuntime {
         func.insn_call_native(self.printf, vec![data_ptr, fstring, nargs, args], None, Abi::VarArg);
     }
 
-    fn free_string_ptr(&self) -> *mut std::os::raw::c_void {
-        self.free_string
+    fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) {
+        match typ {
+            ScalarType::String => { self.free_string(func, value.pointer); },
+            ScalarType::Float => {},
+            ScalarType::Variable => { func.insn_call(&self.free_if_string_helper, vec![value.tag, value.pointer]); }
+        };
     }
 
-    fn runtime_data_ptr(&self) -> *mut std::os::raw::c_void {
-        self.runtime_data as *mut c_void
+    fn copy_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) -> ValueT {
+        let ptr = match typ {
+            ScalarType::String => self.copy_string(func, value.pointer),
+            ScalarType::Float => value.pointer,
+            ScalarType::Variable => func.insn_call(&self.copy_if_string_helper, vec![value.tag.clone(), value.pointer]),
+        };
+        ValueT::new(value.tag, value.float, ptr)
     }
+
+
+    fn pointer_to_name_mapping(&self) -> HashMap<String, String> {
+        let mut mapping = HashMap::new();
+        insert(&mut mapping, self.runtime_data, "runtime_data");
+        insert(&mut mapping, self.next_line, "next_line");
+        insert(&mut mapping, self.column, "column");
+        insert(&mut mapping, self.free_string, "free_string");
+        insert(&mut mapping, self.string_to_number, "string_to_number");
+        insert(&mut mapping, self.copy_string, "copy_string");
+        insert(&mut mapping, self.number_to_string, "number_to_string");
+        insert(&mut mapping, self.print_string, "print_string");
+        insert(&mut mapping, self.print_float, "print_float");
+        insert(&mut mapping, self.concat, "concat");
+        insert(&mut mapping, self.empty_string, "empty_string");
+        insert(&mut mapping, self.binop, "binop");
+        insert(&mut mapping, self.print_error, "print_error");
+        insert(&mut mapping, self.array_access, "array_access");
+        insert(&mut mapping, self.array_assign, "array_assign");
+        insert(&mut mapping, self.in_array, "in_array");
+        insert(&mut mapping, self.concat_array_indices, "concat_array_indices");
+        insert(&mut mapping, self.printf, "printf");
+        mapping
+    }
+
 }
 
 pub fn cast_to_runtime_data(data: *mut c_void) -> &'static mut RuntimeData {

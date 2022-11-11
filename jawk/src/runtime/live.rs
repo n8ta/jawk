@@ -1,14 +1,17 @@
-use crate::codegen::{FLOAT_TAG, STRING_TAG};
+use crate::codegen::{FLOAT_TAG, STRING_TAG, ValueT};
 use crate::columns::Columns;
 use crate::lexer::BinOp;
 use crate::runtime::{ErrorCode, Runtime};
-use gnu_libjit::{Abi, Context, Function, Value};
+use gnu_libjit::{Abi, Context, Function, Label, Value};
 use std::ffi::c_void;
 use std::io::{BufWriter, StdoutLock, Write};
 use std::rc::Rc;
+use hashbrown::HashMap;
 use mawk_regex::Regex;
 use lru_cache::LruCache;
+use crate::parser::ScalarType;
 use crate::runtime::arrays::{Arrays};
+use crate::runtime::helpers::{build_copy_if_str_helper, build_free_if_string_helper};
 
 // Live runtime used by most programs.
 // A pointer to the runtime data is provided for all calls but only used for some.
@@ -191,7 +194,6 @@ extern "C" fn array_assign(data_ptr: *mut std::os::raw::c_void,
         // We don't drop it here because it is now stored in the hashmap.
         Rc::into_raw(val);
     }
-
 }
 
 extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
@@ -297,6 +299,8 @@ pub struct LiveRuntime {
     pub array_assign: *mut c_void,
     pub in_array: *mut c_void,
     pub printf: *mut c_void,
+    pub free_if_string_helper: Function,
+    pub copy_if_string_helper: Function,
 }
 
 impl Drop for LiveRuntime {
@@ -334,11 +338,14 @@ impl LiveRuntime {
 }
 
 impl Runtime for LiveRuntime {
-    fn new(files: Vec<String>) -> LiveRuntime {
+    fn new(context: &Context, files: Vec<String>) -> LiveRuntime {
         let data = Box::new(RuntimeData::new(files));
         let ptr = Box::leak(data);
+        let ptr = ptr as *mut RuntimeData;
+        let free_if_string_helper = build_free_if_string_helper(context, free_string as *mut c_void, ptr as *mut c_void );
+        let copy_if_string_helper = build_copy_if_str_helper(context, copy_string as *mut c_void, ptr as *mut c_void);
         LiveRuntime {
-            runtime_data: ptr as *mut RuntimeData,
+            runtime_data: ptr,
             next_line: next_line as *mut c_void,
             column: column as *mut c_void,
             free_string: free_string as *mut c_void,
@@ -356,6 +363,8 @@ impl Runtime for LiveRuntime {
             array_assign: array_assign as *mut c_void,
             in_array: in_array as *mut c_void,
             printf: printf as *mut c_void,
+            free_if_string_helper,
+            copy_if_string_helper,
         }
     }
 
@@ -516,12 +525,25 @@ impl Runtime for LiveRuntime {
         func.insn_call_native(self.printf, &[data_ptr, fstring, nargs, args], None, Abi::VarArg);
     }
 
-    fn free_string_ptr(&self) -> *mut std::os::raw::c_void {
-        self.free_string
+    fn pointer_to_name_mapping(&self) -> HashMap<String, String> {
+        HashMap::new()
     }
 
-    fn runtime_data_ptr(&self) -> *mut std::os::raw::c_void {
-        self.runtime_data as *mut c_void
+    fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) {
+        match typ {
+            ScalarType::String => { self.free_string(func, value.pointer); },
+            ScalarType::Float => {},
+            ScalarType::Variable => { func.insn_call(&self.free_if_string_helper, vec![value.tag, value.pointer]); }
+        };
+    }
+
+    fn copy_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) -> ValueT {
+        let ptr = match typ {
+            ScalarType::String => self.copy_string(func, value.pointer),
+            ScalarType::Float => value.pointer,
+            ScalarType::Variable => func.insn_call(&self.copy_if_string_helper, vec![value.tag.clone(), value.pointer]),
+        };
+        ValueT::new(value.tag, value.float, ptr)
     }
 }
 

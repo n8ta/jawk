@@ -1,4 +1,3 @@
-use std::hash::Hash;
 use std::os::raw::c_void;
 use gnu_libjit::{Function, Value};
 use hashbrown::{HashMap};

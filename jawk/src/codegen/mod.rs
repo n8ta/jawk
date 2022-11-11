@@ -33,17 +33,19 @@ pub const STRING_TAG: i8 = 1;
 
 // Entry point to run a program
 pub fn compile_and_run(prog: Program, files: &[String], symbolizer: &mut Symbolizer) -> Result<(), PrintableError> {
-    let mut runtime = LiveRuntime::new(files.to_vec());
-    let mut codegen = CodeGen::compile(&mut runtime, symbolizer, prog, false, false)?;
+    let context = Context::new();
+    let mut runtime = LiveRuntime::new(&context, files.to_vec());
+    let mut codegen = CodeGen::compile(&context, &mut runtime, symbolizer, prog, false, false)?;
     codegen.run();
     Ok(())
 }
 
 // Entry point to run and debug/test a program. Use the test runtime.
 pub fn compile_and_capture(prog: Program, files: &[String], symbolizer: &mut Symbolizer, dump: bool) -> Result<TestRuntime, PrintableError> {
-    let mut test_runtime = TestRuntime::new(files.to_vec());
+    let context = Context::new();
+    let mut test_runtime = TestRuntime::new(&context, files.to_vec());
     {
-        let mut codegen = CodeGen::compile(&mut test_runtime, symbolizer, prog, true, dump)?;
+        let mut codegen = CodeGen::compile(&context, &mut test_runtime, symbolizer, prog, true, dump)?;
         codegen.run();
     }
     assert_eq!(test_runtime.strings_in(), test_runtime.strings_out(), "LEFT strings in does not match RIGHT strings out. This program caused a memory leak.");
@@ -52,7 +54,7 @@ pub fn compile_and_capture(prog: Program, files: &[String], symbolizer: &mut Sym
 
 struct CodeGen<'a, RuntimeT: Runtime> {
     main: Function,
-    context: Context,
+    context: &'a Context,
     runtime: &'a mut RuntimeT,
     symbolizer: &'a mut Symbolizer,
     globals: Globals,
@@ -61,13 +63,14 @@ struct CodeGen<'a, RuntimeT: Runtime> {
 }
 
 impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
-    fn compile(runtime: &'a mut RuntimeT,
+    fn compile(
+               context: &'a Context,
+               runtime: &'a mut RuntimeT,
                symbolizer: &'a mut Symbolizer,
                prog: Program,
                debug_asserts: bool,
                dump: bool,
     ) -> Result<Self, PrintableError> {
-        let mut context = Context::new();
 
         // Main gets created apart from normal function_codegen since it needs
         // to do some runtime setup.
@@ -117,7 +120,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         // Gen stubs for each function, main already created
         for (name, parser_func) in &prog.functions {
             if *name == main_sym { continue; };
-            let callable = CallableFunction::new(&mut self.context, &parser_func.args);
+            let callable = CallableFunction::new(&self.context, &parser_func.args);
             self.function_map.insert(name.clone(), callable);
         }
 
