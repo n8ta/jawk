@@ -16,6 +16,7 @@ use gnu_libjit::{Abi, Context, Function, Value};
 use crate::codegen::callable_function::CallableFunction;
 use crate::codegen::function_codegen::{FunctionCodegen};
 use crate::codegen::globals::Globals;
+use crate::global_scalars::SymbolMapping;
 use crate::symbolizer::Symbol;
 
 /// ValueT is the jit values that make up a struct. It's not a tagged union
@@ -115,6 +116,8 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         let mut global_analysis = AnalysisResults::new();
         std::mem::swap(&mut global_analysis, &mut prog.global_analysis);
 
+        let global_scalars = global_analysis.global_scalars.clone();
+
         self.runtime.allocate_arrays(num_arrays);
 
         // Gen stubs for each function, main already created
@@ -134,6 +137,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             let jit_func = self.function_map.get(name).expect("func to exist");
             FunctionCodegen::build_function(jit_func.function.clone(),
                                             parser_func,
+                                            &global_scalars,
                                             self.runtime,
                                             &self.function_map,
                                             &mut self.context,
@@ -150,6 +154,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         let main_jit_func = self.function_map.get(&main_sym).expect("main function to exist");
         FunctionCodegen::build_function(main_jit_func.function.clone(),
                                         parser_func,
+                                        &global_scalars,
                                         self.runtime,
                                         &self.function_map,
                                         &mut self.context,

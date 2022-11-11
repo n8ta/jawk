@@ -9,6 +9,7 @@ use crate::parser::{ArgT, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError, Symbolizer};
 use crate::codegen::callable_function::CallableFunction;
 use crate::codegen::function_scope::FunctionScope;
+use crate::global_scalars::SymbolMapping;
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
@@ -49,6 +50,7 @@ fn fill_in<RuntimeT: Runtime>(mut body: String, runtime: &RuntimeT, scope: &Func
 impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     pub fn build_function(mut function: Function,
                           parser_func: &crate::parser::Function,
+                          global_scalars: &SymbolMapping,
                           runtime: &'a mut RuntimeT,
                           function_map: &'a HashMap<Symbol, CallableFunction>,
                           context: &'a Context,
@@ -97,7 +99,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         };
 
 
-        func_gen.compile_function(parser_func, dump, debug_asserts, is_main)?;
+        func_gen.compile_function(parser_func, global_scalars, dump, debug_asserts, is_main)?;
         Ok(func_gen.done())
     }
 
@@ -107,6 +109,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
     fn compile_function(&mut self,
                         func: &crate::parser::Function,
+                        global_scalars: &SymbolMapping,
                         dump: bool,
                         debug_asserts: bool,
                         is_main: bool) -> Result<(), PrintableError> {
@@ -119,7 +122,6 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
         self.compile_stmt(&func.body)?;
 
-
         if !is_main {
             // Only hit if function doesn't have a return it.
             let str = self.runtime.empty_string(&mut self.function);
@@ -130,8 +132,10 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         self.function.insn_label(&mut self.return_lbl.clone());
 
         if is_main && debug_asserts {
-            for global in self.function_scope.all_globals(&mut self.function) {
-                self.drop_if_str(&global, ScalarType::Variable)
+            // Main function drops all globals when it completes
+            for (global, _) in global_scalars.mapping() {
+                let value = self.function_scope.get_scalar(&mut self.function,global)?;
+                self.drop_if_str(value, ScalarType::Variable)
             }
         }
 
@@ -140,7 +144,9 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         }
 
         // All global scalars that this function used need to flushed from function locals back to the heap
-        self.function_scope.flush(&mut self.function);
+        if !is_main {
+            self.function_scope.flush(&mut self.function);
+        }
 
         self.function.insn_return(&zero);
         if dump {
@@ -211,7 +217,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 if let Some(if_not) = if_not {
                     let test_value = self.compile_expr(test, false)?;
                     let bool_value = self.truthy_ret_integer(&test_value, test.typ);
-                    self.drop_if_str(&test_value, test.typ);
+                    self.drop_if_str(test_value.clone(), test.typ);
                     let mut then_lbl = Label::new();
                     let mut done_lbl = Label::new();
                     self.function.insn_branch_if(&bool_value, &mut then_lbl);
@@ -223,7 +229,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 } else {
                     let test_value = self.compile_expr(test, false)?;
                     let bool_value = self.truthy_ret_integer(&test_value, test.typ);
-                    self.drop_if_str(&test_value, test.typ);
+                    self.drop_if_str(test_value.clone(), test.typ);
                     let mut done_lbl = Label::new();
                     self.function.insn_branch_if_not(&bool_value, &mut done_lbl);
                     self.compile_stmt(if_so)?;
@@ -237,7 +243,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 self.function.insn_label(&mut test_label);
                 let test_value = self.compile_expr(test, false)?;
                 let bool_value = self.truthy_ret_integer(&test_value, test.typ);
-                self.drop_if_str(&test_value, test.typ);
+                self.drop_if_str(test_value.clone(), test.typ);
                 self.function.insn_branch_if_not(&bool_value, &mut done_label);
                 self.compile_stmt(body)?;
                 self.function.insn_branch(&mut test_label);
@@ -265,7 +271,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                             // If arg is untyped it is unused in the target function
                             // just compile for side-effects and drop the result.
                             let compiled = self.compile_expr(ast_arg, true)?;
-                            self.drop_if_str(&compiled, ast_arg.typ);
+                            self.drop_if_str(compiled, ast_arg.typ);
                         }
                         Some(arg_t) => {
                             match arg_t {
@@ -291,7 +297,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 self.function.insn_call(&target.function, call_args);
                 let ret_value = self.function_scope.get_returned_value(&mut self.function);
                 if side_effect_only {
-                    self.drop_if_str(&ret_value, ScalarType::Variable);
+                    self.drop_if_str(ret_value.clone(), ScalarType::Variable);
                     self.no_op_value()
                 } else {
                     ret_value
@@ -311,7 +317,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 if let Expr::Concatenation(vars) = &value.expr {
                     let old_value = self.function_scope.get_scalar(&mut self.function, var)?.clone();
                     let strings_to_concat = self.compile_expressions_to_str(vars)?;
-                    self.drop_if_str(&old_value, ScalarType::Variable);
+                    self.drop_if_str(old_value, ScalarType::Variable);
                     let new_value = self.concat_values(&strings_to_concat);
                     self.function_scope.set_scalar(&mut self.function, var, &new_value);
                     return Ok(if side_effect_only {
@@ -322,7 +328,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 }
                 let new_value = self.compile_expr(value, false)?;
                 let old_value = self.function_scope.get_scalar(&mut self.function, var)?.clone();
-                self.drop_if_str(&old_value, ScalarType::Variable);
+                self.drop_if_str(old_value, ScalarType::Variable);
                 self.function_scope.set_scalar(&mut self.function, &var, &new_value);
                 if side_effect_only {
                     self.no_op_value()
@@ -361,8 +367,8 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                     MathOp::Modulus => self.function.insn_rem(&left_float, &right_float),
                     MathOp::Exponent => self.function.insn_pow(&left_float, &right_float),
                 };
-                self.drop_if_str(&left, left_expr.typ);
-                self.drop_if_str(&right, right_expr.typ);
+                self.drop_if_str(left, left_expr.typ);
+                self.drop_if_str(right, right_expr.typ);
 
                 ValueT::float(self.float_tag(), result, self.zero_ptr())
             }
@@ -417,11 +423,11 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                         let mut done = Label::new();
                         let left_val = self.compile_expr(left, false)?;
                         let l = self.truthy_ret_integer(&left_val, left.typ);
-                        self.drop_if_str(&left_val, left.typ);
+                        self.drop_if_str(left_val, left.typ);
                         self.function.insn_branch_if_not(&l, &mut ret_false);
                         let right_val = self.compile_expr(right, false)?;
                         let r = self.truthy_ret_integer(&right_val, right.typ);
-                        self.drop_if_str(&right_val, right.typ);
+                        self.drop_if_str(right_val, right.typ);
                         self.function.insn_branch_if_not(&r, &mut ret_false);
                         self.function.insn_store(&self.binop_scratch.float, &float_1);
                         self.function.insn_branch(&mut done);
@@ -438,11 +444,11 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                         let mut return_true = Label::new();
                         let left_val = self.compile_expr(left, false)?;
                         let l = self.truthy_ret_integer(&left_val, left.typ);
-                        self.drop_if_str(&left_val, left.typ);
+                        self.drop_if_str(left_val, left.typ);
                         self.function.insn_branch_if(&l, &mut return_true);
                         let right_val = self.compile_expr(right, false)?;
                         let r = self.truthy_ret_integer(&right_val, right.typ);
-                        self.drop_if_str(&right_val, right.typ);
+                        self.drop_if_str(right_val, right.typ);
                         self.function.insn_branch_if(&r, &mut return_true);
                         self.function.insn_store(&self.binop_scratch.float, &float_0);
                         self.function.insn_branch(&mut done);
@@ -469,7 +475,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                     column.pointer.clone(),
                 );
                 let tag = self.string_tag();
-                self.drop_if_str(&column, col.typ);
+                self.drop_if_str(column, col.typ);
                 ValueT::string(tag, self.function.create_float64_constant(0.0), val)
             }
             Expr::NextLine => {
@@ -672,8 +678,8 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     }
 
     // Free the value if it's a string
-    pub fn drop_if_str(&mut self, value: &ValueT, typ: ScalarType) {
-        self.runtime.free_if_string(&mut self.function, value.clone(), typ);
+    pub fn drop_if_str(&mut self, value: ValueT, typ: ScalarType) {
+        self.runtime.free_if_string(&mut self.function, value, typ);
     }
 
     pub fn drop(&mut self, value: &Value) {

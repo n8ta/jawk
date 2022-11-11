@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use crate::symbolizer::Symbol;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct SymbolMapping {
     mapping: HashMap<Symbol, i32>,
 }
