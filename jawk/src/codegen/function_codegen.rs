@@ -345,13 +345,13 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
             }
             Expr::String(str) => {
                 let ptr = self.function.create_void_ptr_constant(self.function_scope.get_const_str(&str)?);
-                let new_ptr = self.runtime.copy_string(&mut self.function, ptr);
-                ValueT::string(self.string_tag(), self.sentinel_f(), new_ptr)
+                let val = ValueT::new(self.string_tag(), self.zero_f(), ptr);
+                self.runtime.copy_if_string(&mut self.function, val, ScalarType::String)
             }
             Expr::Regex(str) => {
                 let ptr = self.function.create_void_ptr_constant(self.function_scope.get_const_str(&str)?);
-                let new_ptr = self.runtime.copy_string(&mut self.function, ptr);
-                ValueT::string(self.string_tag(), self.zero_f(), new_ptr)
+                let val = ValueT::new(self.string_tag(), self.zero_f(), ptr);
+                self.runtime.copy_if_string(&mut self.function, val, ScalarType::String)
             }
             Expr::MathOp(left_expr, op, right_expr) => {
                 // Convert left and right to floats if needed and perform the MathOp
@@ -683,7 +683,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     }
 
     pub fn drop(&mut self, value: &Value) {
-        self.runtime.free_string(&mut self.function, value.clone());
+        self.drop_if_str(ValueT::new(self.string_tag(), self.zero_f(), value.clone()), ScalarType::String);
     }
 
     // Take a value and return an int 0 or 1
@@ -696,28 +696,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     }
 
     pub fn copy_if_string(&mut self, value: ValueT, typ: ScalarType) -> ValueT {
-        let zero = self.function.create_float64_constant(0.0);
-        let str_tag = self.string_tag();
-        match typ {
-            ScalarType::String => {
-                let ptr = self.runtime.copy_string(&mut self.function, value.pointer);
-                ValueT::new(str_tag, zero, ptr)
-            }
-            ScalarType::Float => value, // Float copy is a no-op
-            ScalarType::Variable => {
-                // If type unknown, check tag and call runtime if it's a string
-                let mut done = Label::new();
-                let is_string = self.function.insn_eq(&str_tag, &value.tag);
-                self.function
-                    .insn_store(&self.binop_scratch.pointer, &self.c.zero_ptr);
-                self.function.insn_branch_if_not(&is_string, &mut done);
-                let ptr = self.runtime.copy_string(&mut self.function, value.pointer);
-                self.function.insn_store(&self.binop_scratch.pointer, &ptr);
-                self.function.insn_label(&mut done);
-                let string = self.function.insn_load(&self.binop_scratch.pointer);
-                ValueT::string(value.tag, value.float, string)
-            }
-        }
+        self.runtime.copy_if_string(&mut self.function, value, typ)
     }
 
     pub fn float_binop(&mut self, a: &Value, b: &Value, op: BinOp) -> Value {

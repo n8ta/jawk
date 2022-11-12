@@ -10,7 +10,6 @@ use hashbrown::HashMap;
 use mawk_regex::Regex;
 use crate::parser::ScalarType;
 use crate::runtime::arrays::Arrays;
-use crate::runtime::helpers::{build_copy_if_str_helper, build_free_if_string_helper};
 
 pub const CANARY: &str = "this is the canary!";
 
@@ -87,6 +86,12 @@ extern "C" fn free_string(data_ptr: *mut c_void, ptr: *const String) -> f64 {
         Rc::strong_count(&string_data).saturating_sub(1)
     );
     0.0
+}
+
+extern "C" fn free_if_string(data_ptr: *mut c_void, tag: i8, string: *const String) {
+    if tag == STRING_TAG {
+        free_string(data_ptr, string);
+    }
 }
 
 extern "C" fn concat(
@@ -180,6 +185,14 @@ extern "C" fn copy_string(data_ptr: *mut c_void, ptr: *mut String) -> *const Str
     let copy = Rc::into_raw(copy);
     println!("\tCopy is: {:?}", copy);
     copy
+}
+
+extern "C" fn copy_if_string(_data: *mut c_void, tag: i8, ptr: *mut String) -> *const String {
+    if tag == STRING_TAG {
+        copy_string(_data, ptr)
+    } else {
+        ptr
+    }
 }
 
 extern "C" fn binop(
@@ -372,25 +385,6 @@ fn insert( mapping: &mut HashMap<String,String>, ptr: *mut c_void, name: &str) {
 
 pub struct TestRuntime {
     runtime_data: *mut c_void,
-    next_line: *mut c_void,
-    column: *mut c_void,
-    free_string: *mut c_void,
-    string_to_number: *mut c_void,
-    number_to_string: *mut c_void,
-    print_string: *mut c_void,
-    print_float: *mut c_void,
-    concat: *mut c_void,
-    concat_array_indices: *mut c_void,
-    copy_string: *mut c_void,
-    binop: *mut c_void,
-    empty_string: *mut c_void,
-    print_error: *mut c_void,
-    array_access: *mut c_void,
-    array_assign: *mut c_void,
-    in_array: *mut c_void,
-    printf: *mut c_void,
-    free_if_string_helper: Function,
-    copy_if_string_helper: Function,
 }
 
 pub struct RuntimeData {
@@ -449,39 +443,15 @@ impl Runtime for TestRuntime {
     fn new(context: &Context, files: Vec<String>) -> TestRuntime {
         let data = Box::new(RuntimeData::new(files));
         let runtime_data = (Box::leak(data) as *mut RuntimeData) as *mut c_void;
-        let free_if_string_helper = build_free_if_string_helper(context, free_string as *mut c_void, runtime_data);
-        let copy_if_string_helper = build_copy_if_str_helper(context, copy_string as *mut c_void, runtime_data);
-        let rt = TestRuntime {
+        TestRuntime {
             runtime_data,
-            next_line: next_line as *mut c_void,
-            column: column as *mut c_void,
-            free_string: free_string as *mut c_void,
-            string_to_number: string_to_number as *mut c_void,
-            copy_string: copy_string as *mut c_void,
-            number_to_string: number_to_string as *mut c_void,
-            print_string: print_string as *mut c_void,
-            print_float: print_float as *mut c_void,
-            concat: concat as *mut c_void,
-            empty_string: empty_string as *mut c_void,
-            binop: binop as *mut c_void,
-            print_error: print_error as *mut c_void,
-            array_access: array_access as *mut c_void,
-            array_assign: array_assign as *mut c_void,
-            in_array: in_array as *mut c_void,
-            concat_array_indices: concat_array_indices as *mut c_void,
-            printf: printf as *mut c_void,
-            free_if_string_helper,
-            copy_if_string_helper,
-
-        };
-        println!("binop {:?}", rt.binop);
-        rt
+        }
     }
 
     fn call_next_line(&mut self, func: &mut Function) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
-            self.next_line,
+            next_line as *mut c_void,
             vec![data_ptr],
             Some(Context::float64_type()),
             Abi::Cdecl,
@@ -491,41 +461,27 @@ impl Runtime for TestRuntime {
     fn column(&mut self, func: &mut Function, tag: Value, float: Value, pointer: Value) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
-            self.column,
+            column as *mut c_void,
             vec![data_ptr, tag, float, pointer],
             Some(Context::void_ptr_type()),
             Abi::Cdecl,
         )
     }
 
-    fn free_string(&mut self, func: &mut Function, ptr: Value) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.free_string, vec![data_ptr, ptr], None, Abi::Cdecl)
-    }
-
     fn string_to_number(&mut self, func: &mut Function, ptr: Value) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
-            self.string_to_number,
+            string_to_number as *mut c_void,
             vec![data_ptr, ptr],
             Some(Context::float64_type()),
             Abi::Cdecl,
         )
     }
 
-    fn copy_string(&mut self, func: &mut Function, ptr: Value) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            self.copy_string,
-            vec![data_ptr, ptr],
-            Some(Context::void_ptr_type()), Abi::Cdecl,
-        )
-    }
-
     fn number_to_string(&mut self, func: &mut Function, number: Value) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
-            self.number_to_string,
+            number_to_string as *mut c_void,
             vec![data_ptr, number],
             Some(Context::void_ptr_type()), Abi::Cdecl,
         )
@@ -533,18 +489,18 @@ impl Runtime for TestRuntime {
 
     fn print_string(&mut self, func: &mut Function, ptr: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.print_string, vec![data_ptr, ptr], None, Abi::Cdecl);
+        func.insn_call_native(print_string as *mut c_void, vec![data_ptr, ptr], None, Abi::Cdecl);
     }
 
     fn print_float(&mut self, func: &mut Function, number: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.print_float, vec![data_ptr, number], None, Abi::Cdecl);
+        func.insn_call_native(print_float as *mut c_void, vec![data_ptr, number], None, Abi::Cdecl);
     }
 
     fn concat(&mut self, func: &mut Function, ptr1: Value, ptr2: Value) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
-            self.concat,
+            concat as *mut c_void,
             vec![data_ptr, ptr1, ptr2],
             Some(Context::void_ptr_type()),
             Abi::Cdecl,
@@ -554,7 +510,7 @@ impl Runtime for TestRuntime {
     fn concat_array_indices(&mut self, func: &mut Function, ptr1: Value, ptr2: Value) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
-            self.concat_array_indices,
+            concat_array_indices as *mut c_void,
             vec![data_ptr, ptr1, ptr2],
             Some(Context::void_ptr_type()),
             Abi::Cdecl,
@@ -568,19 +524,19 @@ impl Runtime for TestRuntime {
     fn empty_string(&mut self, func: &mut Function) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
-            self.empty_string,
+            empty_string as *mut c_void,
             vec![data_ptr],
             Some(Context::void_ptr_type()),
             Abi::Cdecl,
         )
     }
 
-    fn binop(&mut self, func: &mut Function, ptr1: Value, ptr2: Value, binop: BinOp) -> Value {
-        let binop = func.create_sbyte_constant(binop as i8);
+    fn binop(&mut self, func: &mut Function, ptr1: Value, ptr2: Value, binop_val: BinOp) -> Value {
+        let binop_val = func.create_sbyte_constant(binop_val as i8);
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
-            self.binop,
-            vec![data_ptr, ptr1, ptr2, binop],
+            binop as *mut c_void,
+            vec![data_ptr, ptr1, ptr2, binop_val],
             Some(Context::float64_type()),
             Abi::Cdecl,
         )
@@ -590,7 +546,7 @@ impl Runtime for TestRuntime {
         let binop = func.create_sbyte_constant(error as i8);
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
-            self.print_error,
+            print_error as *mut c_void,
             vec![data_ptr, binop],
             None,
             Abi::Cdecl,
@@ -599,17 +555,17 @@ impl Runtime for TestRuntime {
 
     fn array_access(&mut self, func: &mut Function, array: Value, key_tag: Value, key_num: Value, key_ptr: Value, out_tag_ptr: Value, out_float_ptr: Value, out_ptr_ptr: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.array_access, vec![data_ptr, array, key_tag, key_num, key_ptr, out_tag_ptr, out_float_ptr, out_ptr_ptr], None, Abi::Cdecl);
+        func.insn_call_native(array_access as *mut c_void, vec![data_ptr, array, key_tag, key_num, key_ptr, out_tag_ptr, out_float_ptr, out_ptr_ptr], None, Abi::Cdecl);
     }
 
     fn array_assign(&mut self, func: &mut Function, array: Value, key_tag: Value, key_num: Value, key_ptr: Value, tag: Value, float: Value, ptr: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.array_assign, vec![data_ptr, array, key_tag, key_num, key_ptr, tag, float, ptr], None, Abi::Cdecl);
+        func.insn_call_native(array_assign as *mut c_void, vec![data_ptr, array, key_tag, key_num, key_ptr, tag, float, ptr], None, Abi::Cdecl);
     }
 
     fn in_array(&mut self, func: &mut Function, array: Value, key_tag: Value, key_num: Value, key_ptr: Value) -> Value {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.in_array, vec![data_ptr, array, key_tag, key_num, key_ptr], Some(Context::float64_type()), Abi::Cdecl)
+        func.insn_call_native(in_array as *mut c_void, vec![data_ptr, array, key_tag, key_num, key_ptr], Some(Context::float64_type()), Abi::Cdecl)
     }
 
     fn allocate_arrays(&mut self, count: usize) {
@@ -619,47 +575,49 @@ impl Runtime for TestRuntime {
 
     fn printf(&mut self, func: &mut Function, fstring: Value, nargs: Value, args: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(self.printf, vec![data_ptr, fstring, nargs, args], None, Abi::VarArg);
+        func.insn_call_native(printf as *mut c_void, vec![data_ptr, fstring, nargs, args], None, Abi::VarArg);
     }
 
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) {
+        let data_ptr = self.data_ptr(func);
         match typ {
-            ScalarType::String => { self.free_string(func, value.pointer); },
+            ScalarType::String => {func.insn_call_native(free_string as *mut c_void, &[data_ptr, value.pointer], None, Abi::Cdecl);},
             ScalarType::Float => {},
-            ScalarType::Variable => { func.insn_call(&self.free_if_string_helper, vec![value.tag, value.pointer]); }
+            ScalarType::Variable => {func.insn_call_native(free_if_string as *mut c_void, &[data_ptr, value.tag, value.pointer], None, Abi::Cdecl);},
         };
     }
-
     fn copy_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) -> ValueT {
+        let data_ptr = self.data_ptr(func);
         let ptr = match typ {
-            ScalarType::String => self.copy_string(func, value.pointer),
+            ScalarType::String => func.insn_call_native(copy_string as *mut c_void, &[data_ptr, value.pointer], Some(Context::void_ptr_type()), Abi::Cdecl),
             ScalarType::Float => value.pointer,
-            ScalarType::Variable => func.insn_call(&self.copy_if_string_helper, vec![value.tag.clone(), value.pointer]),
+            ScalarType::Variable => func.insn_call_native(copy_if_string as *mut c_void, &[data_ptr, value.tag.clone(), value.pointer], Some(Context::void_ptr_type()), Abi::Cdecl),
         };
         ValueT::new(value.tag, value.float, ptr)
     }
 
-
     fn pointer_to_name_mapping(&self) -> HashMap<String, String> {
         let mut mapping = HashMap::new();
         insert(&mut mapping, self.runtime_data, "runtime_data");
-        insert(&mut mapping, self.next_line, "next_line");
-        insert(&mut mapping, self.column, "column");
-        insert(&mut mapping, self.free_string, "free_string");
-        insert(&mut mapping, self.string_to_number, "string_to_number");
-        insert(&mut mapping, self.copy_string, "copy_string");
-        insert(&mut mapping, self.number_to_string, "number_to_string");
-        insert(&mut mapping, self.print_string, "print_string");
-        insert(&mut mapping, self.print_float, "print_float");
-        insert(&mut mapping, self.concat, "concat");
-        insert(&mut mapping, self.empty_string, "empty_string");
-        insert(&mut mapping, self.binop, "binop");
-        insert(&mut mapping, self.print_error, "print_error");
-        insert(&mut mapping, self.array_access, "array_access");
-        insert(&mut mapping, self.array_assign, "array_assign");
-        insert(&mut mapping, self.in_array, "in_array");
-        insert(&mut mapping, self.concat_array_indices, "concat_array_indices");
-        insert(&mut mapping, self.printf, "printf");
+        insert(&mut mapping, next_line as *mut c_void, "next_line");
+        insert(&mut mapping, column as *mut c_void, "column");
+        insert(&mut mapping, free_string as *mut c_void, "free_string");
+        insert(&mut mapping, free_if_string as *mut c_void, "free_if_string");
+        insert(&mut mapping, string_to_number as *mut c_void, "string_to_number");
+        insert(&mut mapping, copy_string as *mut c_void, "copy_string");
+        insert(&mut mapping, copy_if_string as *mut c_void, "copy_if_string");
+        insert(&mut mapping, number_to_string as *mut c_void, "number_to_string");
+        insert(&mut mapping, print_string as *mut c_void, "print_string");
+        insert(&mut mapping, print_float as *mut c_void, "print_float");
+        insert(&mut mapping, concat as *mut c_void, "concat");
+        insert(&mut mapping, empty_string as *mut c_void, "empty_string");
+        insert(&mut mapping, binop as *mut c_void, "binop");
+        insert(&mut mapping, print_error as *mut c_void, "print_error");
+        insert(&mut mapping, array_access as *mut c_void, "array_access");
+        insert(&mut mapping, array_assign as *mut c_void, "array_assign");
+        insert(&mut mapping, in_array as *mut c_void, "in_array");
+        insert(&mut mapping, concat_array_indices as *mut c_void, "concat_array_indices");
+        insert(&mut mapping, printf as *mut c_void, "printf");
         mapping
     }
 

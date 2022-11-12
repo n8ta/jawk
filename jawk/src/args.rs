@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use crate::PrintableError;
 
 // TODO: Find a small library to do this
 
@@ -17,17 +18,17 @@ pub enum ProgramType {
 }
 
 impl ProgramType {
-    pub fn load(&self) -> Result<String, String> {
+    pub fn load(&self) -> Result<String, PrintableError> {
         match self {
             ProgramType::CLI(s) => Ok(s.clone()),
             ProgramType::File(s) =>
                 {
                     match std::fs::read_to_string(s) {
                         Ok(s) => Ok(s),
-                        Err(e) => return Err(format!(
+                        Err(e) => Err(PrintableError::new(format!(
                             "Unable to load source program '{}'\nGot error: {}",
                             s, e
-                        )),
+                        )))
                     }
                 },
         }
@@ -45,7 +46,7 @@ Usage: llawk [--debug] [--save path] 'program' file ...
 }
 
 impl AwkArgs {
-    pub fn new(args: Vec<String>) -> Result<Self, ()> {
+    pub fn new(args: Vec<String>) -> Result<Self, PrintableError> {
         let mut debug = false;
         let mut program: Option<ProgramType> = None;
         let mut files: Vec<String> = vec![];
@@ -62,22 +63,19 @@ impl AwkArgs {
                     if let Some(next) = args.get(i + 1) {
                         save_executable = Some(PathBuf::from(next));
                     } else {
-                        eprintln!("Expected path after --save");
-                        return Err(());
+                        return Err(PrintableError::new("Expected path after --save"))
                     }
                     i += 2;
                 }
                 "-f" => {
                     if program != None {
                         print_help();
-                        eprintln!("Cannot specify multiple programs!");
-                        return Err(());
+                        return Err(PrintableError::new("Cannot specify multiple programs!"))
                     }
                     let next = match args.get(i + 1) {
                         None => {
                             print_help();
-                            eprint!("-f must be followed by a file name\n");
-                            return Err(());
+                            return Err(PrintableError::new("-f must be followed by a file name"));
                         }
                         Some(path) => path,
                     };
@@ -97,8 +95,7 @@ impl AwkArgs {
         let program = match program {
             None => {
                 print_help();
-                eprintln!("You must specify a program either if -f file.awk or as an arg '$1 == 0 {{ print $1 }}'");
-                return Err(());
+                return Err(PrintableError::new("You must specify a program either if -f file.awk or as an arg '$1 == 0 {{ print $1 }}'"));
             }
             Some(prog) => prog,
         };

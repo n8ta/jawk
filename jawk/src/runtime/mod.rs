@@ -2,7 +2,6 @@ mod call_log;
 mod live;
 mod testing;
 mod arrays;
-mod helpers;
 
 use std::os::raw::c_void;
 use crate::lexer::BinOp;
@@ -26,10 +25,8 @@ pub trait Runtime {
     fn call_next_line(&mut self, func: &mut Function) -> Value;
     fn column(&mut self, func: &mut Function, tag: Value, float: Value, ptr: Value) -> Value;
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType);
-    fn free_string(&mut self, func: &mut Function, ptr: Value) -> Value;
     fn string_to_number(&mut self, func: &mut Function, ptr: Value) -> Value;
     fn copy_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) -> ValueT;
-    fn copy_string(&mut self, func: &mut Function, ptr: Value) -> Value;
     fn number_to_string(&mut self, func: &mut Function, number: Value) -> Value;
     fn print_string(&mut self, func: &mut Function, ptr: Value);
     fn print_float(&mut self, func: &mut Function, number: Value);

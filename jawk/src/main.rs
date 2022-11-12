@@ -26,59 +26,32 @@ mod symbolizer;
 mod global_scalars;
 
 
-fn main() {
-    for _ in 0..1 {
-        let args: Vec<String> = std::env::args().collect();
+pub fn runner(args: Vec<String>) -> Result<() ,PrintableError> {
+    let args = AwkArgs::new(args)?;
+    let source = args.program.load()?;
 
-        let args = match AwkArgs::new(args) {
-            Ok(args) => args,
-            Err(_) => return,
-        };
+    let mut symbolizer = Symbolizer::new();
+    let ast = analyze(parse(lex(&source, &mut symbolizer).unwrap(), &mut symbolizer))?;
 
-        // for i in 0..5000 {
-        let source = match args.program.load() {
-            Ok(program) => program,
-            Err(e) => {
-                eprintln!("{}", e);
-                return;
-            }
-        };
-        // 1. Lex into token
-        // 2. Parse into tree
-        // 3. Type checking pass
-        // 4. Run it
-
-
-        let mut symbolizer = Symbolizer::new();
-        // 1,2,3
-        let ast = analyze(parse(lex(&source, &mut symbolizer).unwrap(), &mut symbolizer));
-
-        // 4
-        let program = match ast {
-            Ok(results) => results,
-            Err(err) => {
-                eprintln!("{}", err);
-                return;
-            }
-        };
-
-        if args.debug {
-            println!("{:?}", program);
-            println!("{}", program);
-        }
-
-        // 5
-        if args.debug {
-            if let Err(err) = codegen::compile_and_capture(program, &args.files, &mut symbolizer, true) {
-                eprintln!("{}", err);
-            }
-        } else {
-            if let Err(err) = codegen::compile_and_run(program, &args.files, &mut symbolizer) {
-                eprintln!("{}", err);
-            }
-        }
+    if args.debug {
+        println!("{:?}", ast);
+        println!("{}", ast);
     }
 
+    if args.debug {
+        codegen::compile_and_capture(ast, &args.files, &mut symbolizer, true)?;
+    } else {
+        codegen::compile_and_run(ast, &args.files, &mut symbolizer)?;
+    }
+    Ok(())
+}
+
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if let Err(err) = runner(args) {
+        eprintln!("{}", err);
+    }
     // Fuck cleanup just sys call out so it's faster
     unsafe { libc::exit(0 as c_int) }
 }
