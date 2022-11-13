@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use hashbrown::{HashMap, HashSet};
 use immutable_chunkmap::map::Map;
 use crate::global_scalars::SymbolMapping;
@@ -84,27 +86,41 @@ impl Call {
     }
 }
 
-pub struct TypedFunc {
-    pub func: Function,
-    pub callers: HashSet<Symbol>,
-    pub calls: Vec<Call>,
+struct TypedFuncInner {
+    func: Function,
+    callers: HashSet<Symbol>,
+    calls: Vec<Call>,
+}
+
+struct TypedFunc {
+    inner: Rc<RefCell<TypedFuncInner>>,
 }
 
 impl TypedFunc {
     pub fn new(func: Function, calls: Vec<Call>) -> Self {
         Self {
-            func,
-            callers: HashSet::new(),
-            calls,
+            inner: Rc::new(RefCell::new(TypedFuncInner {
+                func,
+                callers: HashSet::new(),
+                calls,
+            }))
         }
     }
-    pub fn get_arg(&mut self, name: &Symbol) -> Option<&mut Arg> {
+    pub fn get_arg(&self, name: &Symbol) -> Option<&mut Arg> {
         if let Some(arg) = self.func.args.iter_mut().find(|a| a.name == *name) {
             Some(arg)
         } else {
             None
         }
     }
+    pub fn get_arg_idx_and_type(&self, name: &Symbol) -> Option<(usize, Option<ArgT>)> {
+        if let Some((idx, arg)) = self.func.args.iter().enumerate().find(|(idx, a)| a.name == *name) {
+            Some((idx, arg.typ.clone()))
+        } else {
+            None
+        }
+    }
+
     pub fn use_as_array(&mut self, var: &Symbol, global_analysis: &mut AnalysisResults) -> Result<Option<Symbol>, PrintableError> {
         if let Some(arg) = self.get_arg(var) {
             if let Some(arg_typ) = arg.typ {
