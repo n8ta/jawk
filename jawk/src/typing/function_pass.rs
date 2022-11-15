@@ -10,6 +10,7 @@ pub struct FunctionAnalysis {
     global_arrays: SymbolMapping,
     func_names: HashSet<Symbol>,
     str_consts: HashSet<Symbol>,
+    functions: HashMap<Symbol, TypedFunc>,
 }
 
 impl FunctionAnalysis {
@@ -19,38 +20,22 @@ impl FunctionAnalysis {
             global_arrays: SymbolMapping::new(),
             func_names: Default::default(),
             str_consts: Default::default(),
+            functions: HashMap::new()
         }
     }
-}
-
-fn get_arg<'a>(func_state: &'a mut FuncState, name: &Symbol) -> Option<&'a mut Arg> {
-    if let Some(arg) = func_state.args.iter_mut().find(|a| a.name == *name) {
-        Some(arg)
-    } else {
-        None
-    }
-}
-
-struct FuncState<'a> {
-    args: &'a mut [Arg],
-    calls: Vec<Call>,
-    globals_used: &'a mut HashSet<Symbol>,
 }
 
 impl FunctionAnalysis {
     pub fn analyze_program(mut self, prog: Program) -> Result<TypedProgram, PrintableError> {
-        for (name, _) in &prog.functions {
-            self.func_names.insert(name.clone());
-        }
-
         let mut functions = HashMap::new();
-        for (name, mut func) in prog.functions {
-            let calls = {
-                let mut fstate = FuncState { args: &mut func.args, calls: vec![], globals_used: &mut func.globals_used };
-                self.analyze_stmt(&mut func.body, &mut fstate)?;
-                fstate.calls
-            };
-            functions.insert(name, TypedFunc::new(func, calls));
+        for (name, function) in prog.functions {
+            self.func_names.insert(name.clone());
+            functions.insert(name, TypedFunc::new(function));
+        }
+        self.functions = functions;
+
+        for (_name, mut func) in &self.functions {
+            self.analyze_stmt(&mut func.body(), &func)?;
         }
 
         let mut global_scalars = SymbolMapping::new();
@@ -63,17 +48,14 @@ impl FunctionAnalysis {
             global_arrays: self.global_arrays,
         };
 
-        Ok(TypedProgram::new(functions, results))
+        Ok(TypedProgram::new(self.functions, results))
     }
-    fn use_as_scalar(&mut self, var: &Symbol, typ: ScalarType, func_state: &mut FuncState) -> Result<(), PrintableError> {
-        if let Some(arg) = get_arg(func_state, var) {
-            if let Some(arg_typ) = arg.typ {
-                match arg_typ {
-                    ArgT::Scalar => {} // scalar arg used as scalar, lgtm
-                    ArgT::Array => return Err(PrintableError::new(format!("fatal: attempt to use array `{}` in a scalar context", var)))
-                }
-            } else {
-                arg.typ = Some(ArgT::Scalar)
+    fn use_as_scalar(&mut self, var: &Symbol, typ: ScalarType, function: &TypedFunc) -> Result<(), PrintableError> {
+        if let Some((_idx, arg_t)) = function.get_arg_idx_and_type(var) {
+            match arg_t {
+                ArgT::Scalar => {} // scalar arg used as scalar, lgtm
+                ArgT::Array => return Err(PrintableError::new(format!("fatal: attempt to use array `{}` in a scalar context", var))),
+                ArgT::Unknown => { function.set_arg_type(var, ArgT::Scalar)?; }
             }
             return Ok(());
         }
@@ -83,19 +65,16 @@ impl FunctionAnalysis {
         if self.global_arrays.contains_key(var) {
             return Err(PrintableError::new(format!("fatal: attempt to use array `{}` in a scalar context", var)));
         }
-        func_state.globals_used.insert(var.clone());
+        function.use_global(var);
         self.global_scalars = self.global_scalars.insert(var.clone(), typ).0;
         Ok(())
     }
-    fn use_as_array(&mut self, var: &Symbol, func_state: &mut FuncState) -> Result<(), PrintableError> {
-        if let Some(arg) = get_arg(func_state, var) {
-            if let Some(arg_typ) = arg.typ {
-                match arg_typ {
-                    ArgT::Scalar => return Err(PrintableError::new(format!("fatal: attempt to use scalar `{}` in a array context", var))),
-                    ArgT::Array => {}
-                }
-            } else {
-                arg.typ = Some(ArgT::Array)
+    fn use_as_array(&mut self, var: &Symbol, function: &TypedFunc) -> Result<(), PrintableError> {
+        if let Some((_idx, arg_t)) = function.get_arg_idx_and_type(var) {
+            match arg_t {
+                ArgT::Scalar => return Err(PrintableError::new(format!("fatal: attempt to use scalar `{}` in a array context", var))),
+                ArgT::Array => {}
+                ArgT::Unknown => { function.set_arg_type(var, ArgT::Array)?; }
             }
             return Ok(());
         }
@@ -109,59 +88,59 @@ impl FunctionAnalysis {
         Ok(())
     }
 
-    fn analyze_stmt(&mut self, stmt: &mut Stmt, func_state: &mut FuncState) -> Result<(), PrintableError> {
+    fn analyze_stmt(&mut self, stmt: &mut Stmt, function: &TypedFunc) -> Result<(), PrintableError> {
         match stmt {
             Stmt::Return(ret) => {
                 if let Some(ret_value) = ret {
-                    self.analyze_expr(ret_value, func_state, true)?;
+                    self.analyze_expr(ret_value, function, true)?;
                 }
             }
             Stmt::Printf { args: printf_args, fstring } => {
                 for arg in printf_args {
-                    self.analyze_expr(arg, func_state, false)?;
+                    self.analyze_expr(arg, function, false)?;
                 }
-                self.analyze_expr(fstring, func_state, false)?;
+                self.analyze_expr(fstring, function, false)?;
             }
             Stmt::Break => {}
-            Stmt::Expr(expr) => self.analyze_expr(expr, func_state, false)?,
-            Stmt::Print(expr) => self.analyze_expr(expr, func_state, false)?,
+            Stmt::Expr(expr) => self.analyze_expr(expr, function, false)?,
+            Stmt::Print(expr) => self.analyze_expr(expr, function, false)?,
             Stmt::Group(grouping) => {
                 for stmt in grouping {
-                    self.analyze_stmt(stmt, func_state)?;
+                    self.analyze_stmt(stmt, function)?;
                 }
             }
             Stmt::If(test, if_so, if_not) => {
-                self.analyze_expr(test, func_state, false)?;
+                self.analyze_expr(test, function, false)?;
                 let mut if_so_map = self.global_scalars.clone();
                 let mut if_not_map = self.global_scalars.clone();
                 std::mem::swap(&mut if_so_map, &mut self.global_scalars);
 
-                self.analyze_stmt(if_so, func_state)?;
+                self.analyze_stmt(if_so, function)?;
                 std::mem::swap(&mut if_so_map, &mut self.global_scalars);
                 std::mem::swap(&mut if_not_map, &mut self.global_scalars);
                 if let Some(else_case) = if_not {
-                    self.analyze_stmt(else_case, func_state)?
+                    self.analyze_stmt(else_case, function)?
                 }
                 std::mem::swap(&mut if_not_map, &mut self.global_scalars);
                 self.global_scalars = FunctionAnalysis::merge_maps(&[&if_so_map, &if_not_map]);
             }
             Stmt::While(test, body) => {
                 let pre_map = self.global_scalars.clone();
-                self.analyze_expr(test, func_state, false)?;
+                self.analyze_expr(test, function, false)?;
 
                 let after_test_map = self.global_scalars.clone();
 
-                self.analyze_stmt(body, func_state)?;
+                self.analyze_stmt(body, function)?;
 
 
                 let after_body_map = self.global_scalars.clone();
 
                 self.global_scalars = FunctionAnalysis::merge_maps(&[&after_test_map, &after_body_map, &pre_map]);
 
-                self.analyze_expr(test, func_state, false)?;
+                self.analyze_expr(test, function, false)?;
 
                 let after_test_map = self.global_scalars.clone();
-                self.analyze_stmt(body, func_state)?;
+                self.analyze_stmt(body, function)?;
                 let after_body_map = self.global_scalars.clone();
 
                 // Pass in an empty map to show that it's possible body branch never taken
@@ -171,31 +150,24 @@ impl FunctionAnalysis {
         Ok(())
     }
 
-    fn analyze_expr(&mut self, expr: &mut TypedExpr, func_state: &mut FuncState, is_returned: bool) -> Result<(), PrintableError> {
+    fn analyze_expr(&mut self, expr: &mut TypedExpr, function: &TypedFunc, is_returned: bool) -> Result<(), PrintableError> {
         match &mut expr.expr {
             Expr::Call { args, target } => {
                 for arg in args.iter_mut() {
                     if let Expr::Variable(_str) = &arg.expr {} else {
-                        self.analyze_expr(arg, func_state, false)?;
+                        self.analyze_expr(arg, function, false)?;
                     }
                 }
                 let call_args = args.iter_mut().map(|arg| {
                     if let Expr::Variable(var_name) = &arg.expr {
-                        if let Some(arg_t) = get_arg(func_state, var_name) {
-                            CallArg::new(arg_t.name.clone())
-                        } else if self.global_arrays.contains_key(var_name) {
-                            CallArg::new(var_name.clone())
-                        } else if self.global_scalars.get(var_name).is_some() {
-                            CallArg::new(var_name.clone())
-                        } else {
-                            CallArg::new(var_name.clone())
-                        }
+                        CallArg::new(var_name.clone())
                     } else {
                         CallArg::new_scalar()
                     }
                 });
-                let call = Call::new(target.clone(), call_args.collect());
-                func_state.calls.push(call)
+                let func = self.functions.get(target).unwrap().clone();
+                let call = Call::new(func.clone(), call_args.collect());
+                func.add_call(call);
             }
             Expr::NumberF64(_) => {
                 expr.typ = ScalarType::Float;
@@ -205,23 +177,23 @@ impl FunctionAnalysis {
                 expr.typ = ScalarType::String;
             }
             Expr::BinOp(left, _op, right) => {
-                self.analyze_expr(left, func_state, false)?;
-                self.analyze_expr(right, func_state, false)?;
+                self.analyze_expr(left, function, false)?;
+                self.analyze_expr(right, function, false)?;
                 expr.typ = ScalarType::Float;
             }
             Expr::MathOp(left, _op, right) => {
-                self.analyze_expr(left, func_state, false)?;
-                self.analyze_expr(right, func_state, false)?;
+                self.analyze_expr(left, function, false)?;
+                self.analyze_expr(right, function, false)?;
                 expr.typ = ScalarType::Float;
             }
             Expr::LogicalOp(left, _op, right) => {
-                self.analyze_expr(left, func_state, false)?;
-                self.analyze_expr(right, func_state, false)?;
+                self.analyze_expr(left, function, false)?;
+                self.analyze_expr(right, function, false)?;
                 expr.typ = ScalarType::Float;
             }
             Expr::ScalarAssign(var, value) => {
-                self.analyze_expr(value, func_state, false)?;
-                self.use_as_scalar(var, value.typ, func_state)?;
+                self.analyze_expr(value, function, false)?;
+                self.use_as_scalar(var, value.typ, function)?;
                 expr.typ = value.typ;
             }
             Expr::Regex(sym) => {
@@ -229,63 +201,62 @@ impl FunctionAnalysis {
                 expr.typ = ScalarType::String;
             }
             Expr::Ternary(cond, expr1, expr2) => {
-                self.analyze_expr(cond, func_state, false)?;
+                self.analyze_expr(cond, function, false)?;
                 let mut if_so_map = self.global_scalars.clone();
                 let mut if_not_map = self.global_scalars.clone();
                 std::mem::swap(&mut if_so_map, &mut self.global_scalars);
 
-                self.analyze_expr(expr1, func_state, false)?;
+                self.analyze_expr(expr1, function, false)?;
                 std::mem::swap(&mut if_so_map, &mut self.global_scalars);
                 std::mem::swap(&mut if_not_map, &mut self.global_scalars);
-                self.analyze_expr(expr2, func_state, false)?;
+                self.analyze_expr(expr2, function, false)?;
                 std::mem::swap(&mut if_not_map, &mut self.global_scalars);
                 self.global_scalars = FunctionAnalysis::merge_maps(&[&if_so_map, &if_not_map]);
                 expr.typ = Self::merge_types(&expr1.typ, &expr2.typ);
             }
             Expr::Variable(var) => {
-                if let Some(arg) = func_state.args.iter().find(|arg| arg.name == *var) {
-                    if arg.typ == Some(ArgT::Array) && is_returned {
+                if let Some((idx, arg_t)) = function.get_arg_idx_and_type(var) {
+                    if arg_t == ArgT::Array && is_returned {
                         return Err(PrintableError::new(format!("fatal: attempted to use array {} in scalar context", var)));
                     }
-                    expr.typ = ScalarType::Variable;
                 } else if self.global_arrays.contains_key(var) && is_returned {
                     return Err(PrintableError::new(format!("fatal: attempted to use array {} in scalar context", var)));
                 } else if let Some(typ) = self.global_scalars.get(var) {
                     expr.typ = *typ;
                 } else {
                     expr.typ = ScalarType::Variable;
-                    self.use_as_scalar(var, ScalarType::Variable, func_state)?;
+                    self.use_as_scalar(var, ScalarType::Variable, function)?;
                 }
             }
             Expr::Column(col) => {
                 expr.typ = ScalarType::String;
-                self.analyze_expr(col, func_state, false)?;
+                self.analyze_expr(col, function, false)?;
             }
             Expr::NextLine => expr.typ = ScalarType::Float,
             Expr::Concatenation(vals) => {
                 expr.typ = ScalarType::String;
                 for val in vals {
-                    self.analyze_expr(val, func_state, false)?;
+                    self.analyze_expr(val, function, false)?;
                 }
             }
             Expr::ArrayIndex { indices, name } => {
-                self.use_as_array(name, func_state)?;
+                self.use_as_array(name, function)?;
                 for idx in indices {
-                    self.analyze_expr(idx, func_state, false)?;
+                    self.analyze_expr(idx, function, false)?;
                 }
             }
             Expr::InArray { indices, name } => {
-                self.use_as_array(name, func_state)?;
+                self.use_as_array(name, function)?;
                 for idx in indices {
-                    self.analyze_expr(idx, func_state, false)?;
+                    self.analyze_expr(idx, function, false)?;
                 }
             }
             Expr::ArrayAssign { indices, name, value } => {
-                self.use_as_array(name, func_state)?;
+                self.use_as_array(name, function)?;
                 for idx in indices {
-                    self.analyze_expr(idx, func_state, false)?;
+                    self.analyze_expr(idx, function, false)?;
                 }
-                self.analyze_expr(value, func_state, false)?;
+                self.analyze_expr(value, function, false)?;
                 expr.typ = value.typ;
             }
         };

@@ -10,8 +10,8 @@ use crate::printable_error::PrintableError;
 use crate::typing::function_pass::FunctionAnalysis;
 use crate::typing::inference_pass::variable_inference;
 
-pub fn analyze(stmt: Program) -> Result<Program, PrintableError> {
+pub fn analyze(stmt: Program) -> Result<TypedProgram, PrintableError> {
     let func_analysis = FunctionAnalysis::new();
     let typed_program = variable_inference(func_analysis.analyze_program(stmt)?)?;
-    Ok(typed_program.done())
+    Ok(typed_program)
 }

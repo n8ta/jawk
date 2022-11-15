@@ -3,14 +3,14 @@ use std::fmt::{Display, Formatter};
 use hashbrown::HashSet;
 use crate::symbolizer::Symbol;
 
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 pub enum ScalarType {
     String,
     Float,
     Variable,
 }
 
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 pub enum AwkT {
     Scalar(ScalarType),
     Array,
@@ -22,7 +22,7 @@ impl Into<AwkT> for ScalarType {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialOrd, PartialEq, Clone)]
 pub enum Stmt {
     Expr(TypedExpr),
     Print(TypedExpr),
@@ -97,7 +97,7 @@ impl PatternAction {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub struct TypedExpr {
     pub typ: ScalarType,
     pub expr: Expr,
@@ -118,7 +118,7 @@ impl Into<TypedExpr> for Expr {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum Expr {
     ScalarAssign(Symbol, Box<TypedExpr>),
     ArrayAssign { name: Symbol, indices: Vec<TypedExpr>, value: Box<TypedExpr> },
@@ -213,6 +213,7 @@ impl Display for Expr {
 pub enum ArgT {
     Scalar,
     Array,
+    Unknown,
 }
 
 impl Display for ArgT {
@@ -220,6 +221,7 @@ impl Display for ArgT {
         match self {
             ArgT::Scalar => write!(f, "s"),
             ArgT::Array => write!(f, "a"),
+            ArgT::Unknown => write!(f, "u"),
         }
     }
 }
@@ -227,42 +229,34 @@ impl Display for ArgT {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Arg {
     pub name: Symbol,
-    pub typ: Option<ArgT>,
+    pub typ: ArgT,
 }
 
 impl Arg {
-    pub fn new(name: Symbol, typ: Option<ArgT>) -> Self {
+    pub fn new(name: Symbol, typ: ArgT) -> Self {
         Self { name, typ }
     }
 }
 
 impl Display for Arg {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let typ = match self.typ {
-            None => "u".to_string(),
-            Some(inner) => format!("{}", inner)
-        };
-        write!(f, "({} {})", typ, self.name)
+        write!(f, "({} {})", self.typ, self.name)
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub struct Function {
     pub name: Symbol,
-    pub args: Vec<Arg>,
+    pub args: Vec<Symbol>,
     pub body: Stmt,
-    pub return_type: ScalarType,
-    pub globals_used: HashSet<Symbol>,
 }
 
 impl Function {
     pub fn new(name: Symbol, args: Vec<Symbol>, body: Stmt) -> Self {
         Function {
             name: name.into(),
-            args: args.into_iter().map(|arg| Arg { name: arg.into(), typ: None }).collect(),
+            args,
             body,
-            return_type: ScalarType::Variable,
-            globals_used: HashSet::new(),
         }
     }
 }

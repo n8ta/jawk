@@ -9,26 +9,25 @@ pub struct CallableFunction {
 
 impl CallableFunction {
     pub fn new(context: &Context, args: &Vec<Arg>) -> CallableFunction {
-        let mut params = Vec::with_capacity(args.len()*3); // May be shorter if some args are arrays
+        let mut params = Vec::with_capacity(args.len() * 3); // May be shorter if some args are arrays
         for arg in args.iter() {
             match arg.typ {
-                None => {}
-                Some(arg_typ) => {
-                    match arg_typ {
-                        ArgT::Scalar => {
-                            params.push(Context::int_type());
-                            params.push(Context::float64_type());
-                            params.push(Context::void_ptr_type());
-                        }
-                        ArgT::Array => {
-                            params.push(Context::int_type());
-                        }
-                    }
+                ArgT::Scalar => {
+                    params.push(Context::int_type());
+                    params.push(Context::float64_type());
+                    params.push(Context::void_ptr_type());
                 }
+                ArgT::Array => {
+                    params.push(Context::int_type());
+                }
+                ArgT::Unknown => {}
             }
         }
         let function = context.function(Abi::Fastcall, &Context::int_type(), params).unwrap();
-        CallableFunction { function, args: args.clone() }
+        CallableFunction {
+            function,
+            args: args.clone(),
+        }
     }
 }
 

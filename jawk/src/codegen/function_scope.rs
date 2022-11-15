@@ -22,7 +22,7 @@ impl<'a> FunctionScope<'a> {
     pub fn args(&self) -> &HashMap<Symbol, ValueT> {
         &self.pure_local_scalar
     }
-    pub fn new(globals: &'a Globals, function: &mut Function, args: &Vec<Arg>) -> Self {
+    pub fn new(globals: &'a Globals, function: &mut Function, args: &[Arg]) -> Self {
         let mut function_scope = Self {
             globals,
             local_globals: HashMap::with_capacity(1),
@@ -31,30 +31,27 @@ impl<'a> FunctionScope<'a> {
         };
         let mut idx: i32 = 0;
         for arg in args {
-            if let Some(arg_type) = arg.typ {
-                match arg_type {
-                    ArgT::Scalar => {
-                        let value = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr());
-                        let tag = function.arg(idx).unwrap();
-                        let float = function.arg(idx + 1).unwrap();
-                        let pointer = function.arg(idx + 2).unwrap();
-                        // Load args into stack variable
-                        function.insn_store(&value.tag, &tag);
-                        function.insn_store(&value.float, &float);
-                        function.insn_store(&value.pointer, &pointer);
-                        function_scope.pure_local_scalar.insert(arg.name.clone(), value);
-                        idx += 3;
-                    }
-                    ArgT::Array => {
-                        let value = function.create_value_int();
-                        let arr = function.arg(idx).unwrap();
-                        function.insn_store(&value, &arr);
-                        function_scope.pure_local_array.insert(arg.name.clone(), value);
-                        idx += 1;
-                    }
+            match arg.typ {
+                ArgT::Scalar => {
+                    let value = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr());
+                    let tag = function.arg(idx).unwrap();
+                    let float = function.arg(idx + 1).unwrap();
+                    let pointer = function.arg(idx + 2).unwrap();
+                    // Load args into stack variable
+                    function.insn_store(&value.tag, &tag);
+                    function.insn_store(&value.float, &float);
+                    function.insn_store(&value.pointer, &pointer);
+                    function_scope.pure_local_scalar.insert(arg.name.clone(), value);
+                    idx += 3;
                 }
-            } else {
-                // println!("{} has no type", arg.name)
+                ArgT::Array => {
+                    let value = function.create_value_int();
+                    let arr = function.arg(idx).unwrap();
+                    function.insn_store(&value, &arr);
+                    function_scope.pure_local_array.insert(arg.name.clone(), value);
+                    idx += 1;
+                }
+                ArgT::Unknown => {}
             }
         };
         function_scope

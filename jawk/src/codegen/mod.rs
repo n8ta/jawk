@@ -18,6 +18,7 @@ use crate::codegen::function_codegen::{FunctionCodegen};
 use crate::codegen::globals::Globals;
 use crate::global_scalars::SymbolMapping;
 use crate::symbolizer::Symbol;
+use crate::typing::TypedProgram;
 
 /// ValueT is the jit values that make up a struct. It's not a tagged union
 /// just a struct with only one other field being valid to read at a time based on the tag field.
@@ -33,7 +34,7 @@ pub const FLOAT_TAG: i8 = 0;
 pub const STRING_TAG: i8 = 1;
 
 // Entry point to run a program
-pub fn compile_and_run(prog: Program, files: &[String], symbolizer: &mut Symbolizer) -> Result<(), PrintableError> {
+pub fn compile_and_run(prog: TypedProgram, files: &[String], symbolizer: &mut Symbolizer) -> Result<(), PrintableError> {
     let context = Context::new();
     let mut runtime = LiveRuntime::new(&context, files.to_vec());
     let mut codegen = CodeGen::compile(&context, &mut runtime, symbolizer, prog, false, false)?;
@@ -42,7 +43,7 @@ pub fn compile_and_run(prog: Program, files: &[String], symbolizer: &mut Symboli
 }
 
 // Entry point to run and debug/test a program. Use the test runtime.
-pub fn compile_and_capture(prog: Program, files: &[String], symbolizer: &mut Symbolizer, dump: bool) -> Result<TestRuntime, PrintableError> {
+pub fn compile_and_capture(prog: TypedProgram, files: &[String], symbolizer: &mut Symbolizer, dump: bool) -> Result<TestRuntime, PrintableError> {
     let context = Context::new();
     let mut test_runtime = TestRuntime::new(&context, files.to_vec());
     {
@@ -68,7 +69,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
                context: &'a Context,
                runtime: &'a mut RuntimeT,
                symbolizer: &'a mut Symbolizer,
-               prog: Program,
+               prog: TypedProgram,
                debug_asserts: bool,
                dump: bool,
     ) -> Result<Self, PrintableError> {
@@ -86,11 +87,11 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
 
         let main_sym = symbolizer.get("main function");
         let mut function_map = HashMap::with_capacity(1);
-        let args = prog.functions.get(&main_sym).unwrap().args.clone();
+        let args = prog.functions.get(&main_sym).unwrap().args().clone();
         function_map.insert(main_sym.clone(),
                             CallableFunction {
-                                function: main_function.clone(),
-                                args,
+                                    function: main_function.clone(),
+                                    args,
                             });
 
         let mut codegen = CodeGen {
@@ -111,7 +112,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         function();
     }
 
-    fn compile_inner(&mut self, mut prog: Program, debug_asserts: bool, dump: bool, main_sym: Symbol) -> Result<(), PrintableError> {
+    fn compile_inner(&mut self, mut prog: TypedProgram, debug_asserts: bool, dump: bool, main_sym: Symbol) -> Result<(), PrintableError> {
         let num_arrays = prog.global_analysis.global_arrays.len();
         let mut global_analysis = AnalysisResults::new();
         std::mem::swap(&mut global_analysis, &mut prog.global_analysis);
@@ -121,9 +122,9 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         self.runtime.allocate_arrays(num_arrays);
 
         // Gen stubs for each function, main already created
-        for (name, parser_func) in &prog.functions {
+        for (name, function) in &prog.functions {
             if *name == main_sym { continue; };
-            let callable = CallableFunction::new(&self.context, &parser_func.args);
+            let callable = CallableFunction::new(&self.context, function.args());
             self.function_map.insert(name.clone(), callable);
         }
 

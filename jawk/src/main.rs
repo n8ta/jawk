@@ -34,7 +34,6 @@ pub fn runner(args: Vec<String>) -> Result<() ,PrintableError> {
     let ast = analyze(parse(lex(&source, &mut symbolizer).unwrap(), &mut symbolizer))?;
 
     if args.debug {
-        println!("{:?}", ast);
         println!("{}", ast);
     }
 

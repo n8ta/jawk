@@ -13,6 +13,7 @@ use crate::global_scalars::SymbolMapping;
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
+use crate::typing::TypedFunc;
 
 #[allow(dead_code)]
 pub struct FunctionCodegen<'a, RuntimeT: Runtime> {
@@ -49,7 +50,7 @@ fn fill_in<RuntimeT: Runtime>(mut body: String, runtime: &RuntimeT, scope: &Func
 
 impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     pub fn build_function(mut function: Function,
-                          parser_func: &crate::parser::Function,
+                          ast_function: &TypedFunc,
                           global_scalars: &SymbolMapping,
                           runtime: &'a mut RuntimeT,
                           function_map: &'a HashMap<Symbol, CallableFunction>,
@@ -82,7 +83,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         let string_tag = function.create_sbyte_constant(STRING_TAG as c_char);
         let c = CodegenConsts::new(zero_ptr, zero_f, float_tag, string_tag, sentinel_float);
 
-        let function_scope = FunctionScope::new(globals, &mut function, &parser_func.args);
+        let function_scope = FunctionScope::new(globals, &mut function, &ast_function.args());
         let mut func_gen = Self {
             function,
             context,
@@ -99,7 +100,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         };
 
 
-        func_gen.compile_function(parser_func, global_scalars, dump, debug_asserts, is_main)?;
+        func_gen.compile_function(ast_function, global_scalars, dump, debug_asserts, is_main)?;
         Ok(func_gen.done())
     }
 
@@ -108,19 +109,19 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     }
 
     fn compile_function(&mut self,
-                        func: &crate::parser::Function,
+                        func: &TypedFunc,
                         global_scalars: &SymbolMapping,
                         dump: bool,
                         debug_asserts: bool,
                         is_main: bool) -> Result<(), PrintableError> {
         let zero = self.function.create_int_constant(0);
 
-        for global in &func.globals_used {
+        for global in func.globals_used() {
             // Pull all needed globals into function locals
             self.function_scope.get_scalar(&mut self.function, global)?;
         }
 
-        self.compile_stmt(&func.body)?;
+        self.compile_stmt(&func.body())?;
 
         if !is_main {
             // Only hit if function doesn't have a return it.
@@ -134,7 +135,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         if is_main && debug_asserts {
             // Main function drops all globals when it completes
             for (global, _) in global_scalars.mapping() {
-                let value = self.function_scope.get_scalar(&mut self.function,global)?;
+                let value = self.function_scope.get_scalar(&mut self.function, global)?;
                 self.drop_if_str(value, ScalarType::Variable)
             }
         }
@@ -267,29 +268,25 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 let mut call_args = Vec::with_capacity(args.len());
                 for (idx, (ast_arg, target_arg)) in args.iter().zip(&target.args).enumerate() {
                     match target_arg.typ {
-                        None => {
+                        ArgT::Scalar => {
+                            let compiled = self.compile_expr(ast_arg, false)?;
+                            call_args.push(compiled.tag);
+                            call_args.push(compiled.float);
+                            call_args.push(compiled.pointer);
+                        }
+                        ArgT::Array => {
+                            if let Expr::Variable(sym) = &ast_arg.expr {
+                                let array = self.function_scope.get_array(&mut self.function, &sym)?;
+                                call_args.push(array)
+                            } else {
+                                return Err(PrintableError::new(format!("Tried to use scalar as arg #{} to function {} which accepts an array", idx + 1, &target_name)));
+                            }
+                        }
+                        ArgT::Unknown => {
                             // If arg is untyped it is unused in the target function
                             // just compile for side-effects and drop the result.
                             let compiled = self.compile_expr(ast_arg, true)?;
                             self.drop_if_str(compiled, ast_arg.typ);
-                        }
-                        Some(arg_t) => {
-                            match arg_t {
-                                ArgT::Scalar => {
-                                    let compiled = self.compile_expr(ast_arg, false)?;
-                                    call_args.push(compiled.tag);
-                                    call_args.push(compiled.float);
-                                    call_args.push(compiled.pointer);
-                                }
-                                ArgT::Array => {
-                                    if let Expr::Variable(sym) = &ast_arg.expr {
-                                        let array = self.function_scope.get_array(&mut self.function, &sym)?;
-                                        call_args.push(array)
-                                    } else {
-                                        return Err(PrintableError::new(format!("Tried to use scalar as arg #{} to function {} which accepts an array", idx + 1, &target_name)));
-                                    }
-                                }
-                            }
                         }
                     }
                 }
