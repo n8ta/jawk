@@ -34,8 +34,9 @@ impl FunctionAnalysis {
         }
         self.functions = functions;
 
-        for (_name, mut func) in &self.functions {
-            self.analyze_stmt(&mut func.body(), &func)?;
+        for (_name, mut func) in &self.functions.clone() {
+            let mut function = func.function();
+            self.analyze_stmt(&mut function.body, &func.clone())?;
         }
 
         let mut global_scalars = SymbolMapping::new();
@@ -165,9 +166,9 @@ impl FunctionAnalysis {
                         CallArg::new_scalar()
                     }
                 });
-                let func = self.functions.get(target).unwrap().clone();
-                let call = Call::new(func.clone(), call_args.collect());
-                func.add_call(call);
+                let target_func = self.functions.get(target).unwrap().clone();
+                let call = Call::new(target_func.clone(), call_args.collect());
+                function.add_call(call);
             }
             Expr::NumberF64(_) => {
                 expr.typ = ScalarType::Float;

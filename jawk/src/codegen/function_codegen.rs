@@ -116,12 +116,13 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                         is_main: bool) -> Result<(), PrintableError> {
         let zero = self.function.create_int_constant(0);
 
-        for global in func.globals_used() {
+        for global in func.globals_used().iter() {
             // Pull all needed globals into function locals
             self.function_scope.get_scalar(&mut self.function, global)?;
         }
 
-        self.compile_stmt(&func.body())?;
+        let parser_func = func.function();
+        self.compile_stmt(&parser_func.body)?;
 
         if !is_main {
             // Only hit if function doesn't have a return it.

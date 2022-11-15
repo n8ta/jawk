@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell, RefMut};
 use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
 use hashbrown::{HashMap, HashSet};
@@ -44,10 +44,15 @@ impl AnalysisResults {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Call {
     pub target: TypedFunc,
     pub args: Vec<CallArg>,
+}
+impl Debug for Call {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f,"target: {:?}, args: {:?}", self.target.name(), self.args)
+    }
 }
 
 impl Call {
@@ -116,6 +121,7 @@ impl Display for TypedFunc {
 
 impl TypedFunc {
     pub fn new(func: Function) -> Self {
+        let args = func.args.iter().map(|sym| Arg::new(sym.clone(), ArgT::Unknown)).collect();
         Self {
             inner: Rc::new(TypedFuncInner {
                 func: RefCell::new(func),
@@ -123,17 +129,17 @@ impl TypedFunc {
                 calls: RefCell::new((vec![])),
                 return_type: RefCell::new(ScalarType::Variable),
                 globals_used: RefCell::new(HashSet::new()),
-                args: RefCell::new(func.args.iter().map(|sym| Arg::new(sym.clone(), ArgT::Unknown)).collect()),
+                args: RefCell::new(args),
             })
         }
     }
 
-    pub fn args(&self) -> &Vec<Arg> {
-        &self.inner.args.borrow()
+    pub fn args(&self) -> Ref<'_, Vec<Arg>> {
+        self.inner.args.borrow()
     }
 
-    pub fn body(&self) -> &Stmt {
-        &self.inner.func.borrow().body
+    pub fn function(&self) -> RefMut<'_, Function> {
+        self.inner.func.borrow_mut()
     }
 
     pub fn add_call(&self, call: Call) {
@@ -141,12 +147,12 @@ impl TypedFunc {
         calls.push(call);
     }
 
-    pub fn globals_used(&self) -> &HashSet<Symbol>{
-        &self.inner.globals_used.borrow()
+    pub fn globals_used(&self) -> Ref<'_, HashSet<Symbol>> {
+        self.inner.globals_used.borrow()
     }
 
-    pub fn calls(&self) -> &Vec<Call> {
-        &self.inner.calls.borrow()
+    pub fn calls(&self) -> Ref<'_, Vec<Call>> {
+        self.inner.calls.borrow()
     }
 
     pub fn name(&self) -> Symbol {
@@ -211,7 +217,7 @@ impl TypedFunc {
             match typ {
                 ArgT::Scalar => return Err(PrintableError::new(format!("fatal: attempt to use scalar `{}` in a array context", var))),
                 ArgT::Array => {} // No-op type matches
-                ArgT::Unknown => {self.set_arg_type(var, ArgT::Array);},
+                ArgT::Unknown => {self.set_arg_type(var, ArgT::Array)?;},
             }
         }
         if let Some(_type) = global_analysis.global_scalars.get(var) {
@@ -226,7 +232,7 @@ impl TypedFunc {
             match typ {
                 ArgT::Scalar => {} // No-op type matches
                 ArgT::Array => return Err(PrintableError::new(format!("fatal: attempt to use array `{}` in a scalar context", var))),
-                ArgT::Unknown => {self.set_arg_type(var, ArgT::Scalar);},
+                ArgT::Unknown => {self.set_arg_type(var, ArgT::Scalar)?;},
             }
         }
         if let Some(_type) = global_analysis.global_scalars.get(var) {

@@ -49,7 +49,7 @@ fn propogate(program: &mut TypedProgram, link: &CallLink) -> Result<Vec<Symbol>,
     let dest = link.call.target.clone();
     let src = link.source.clone();
 
-    if link.source.arity() != dest.arity() {
+    if link.call.args.len() != dest.arity() {
         return Err(PrintableError::new(format!("Function `{}` accepts {} arguments but was called with {} from function `{}`", dest.name(), dest.arity(), link.call.args.len(), link.source.name())));
     }
 
@@ -100,7 +100,7 @@ pub fn variable_inference(mut prog: TypedProgram) -> Result<TypedProgram, Printa
     let mut links: Vec<CallLink> = vec![];
     // Push every call between functions onto a stack as a link between them
     for (_name, func) in &prog.functions {
-        for call in func.calls() {
+        for call in func.calls().iter() {
             links.push(CallLink { source: func.clone(), call: call.clone() });
         }
     };
@@ -113,7 +113,7 @@ pub fn variable_inference(mut prog: TypedProgram) -> Result<TypedProgram, Printa
         // if the destination updated any of it's symbols push all of the destinations calls
         // that use those symbols back onto the stack to re-propogate
         if updated_in_dest.len() != 0 {
-            for call in link.call.target.calls() {
+            for call in link.call.target.calls().iter() {
                 if call.uses_any(&updated_in_dest) {
                     links.push(CallLink { source: link.call.target.clone(), call: call.clone() })
                 }
@@ -157,7 +157,7 @@ fn test_calls_forward_inference() {
     let main = prog.functions.get(&sym.get("main function")).unwrap();
     let helper = prog.functions.get(&sym.get("helper")).unwrap();
     assert_eq!(main.calls().len(), 1);
-    assert_eq!(main.calls(), &vec![Call::new(helper.clone(), vec![CallArg::new(sym.get("a"))])]);
+    assert_eq!(main.calls().clone(), vec![Call::new(helper.clone(), vec![CallArg::new(sym.get("a"))])]);
 }
 
 #[test]
@@ -216,7 +216,7 @@ fn test_calls_rev_inference() {
     let (prog, mut sym) = function_pass_only_prog("function helper(arg) { arg[0] = 1 } BEGIN { helper(a) }");
     let main = prog.functions.get(&sym.get("main function")).unwrap();
     let helper = prog.functions.get(&sym.get("helper")).unwrap();
-    assert_eq!(main.calls(), &vec![Call::new(helper.clone(), vec![CallArg::new(sym.get("a"))])]);
+    assert_eq!(main.calls().clone(), vec![Call::new(helper.clone(), vec![CallArg::new(sym.get("a"))])]);
     assert_eq!(helper.args()[0].typ, ArgT::Array);
 }
 
@@ -251,8 +251,8 @@ fn test_calls_chain_inference() {
     let main = prog.functions.get(&sym.get("main function")).unwrap();
     let helper1 = prog.functions.get(&sym.get("helper1")).unwrap();
     let helper2 = prog.functions.get(&sym.get("helper2")).unwrap();
-    assert_eq!(main.calls(), &vec![Call::new(helper1.clone(), vec![CallArg::new(sym.get("a"))])]);
-    assert_eq!(helper1.calls(), &vec![Call::new(helper2.clone(), vec![CallArg::new(sym.get("arg1"))])]);
+    assert_eq!(main.calls().clone(), vec![Call::new(helper1.clone(), vec![CallArg::new(sym.get("a"))])]);
+    assert_eq!(helper1.calls().clone(), vec![Call::new(helper2.clone(), vec![CallArg::new(sym.get("arg1"))])]);
     assert_eq!(helper2.args()[0].name, sym.get("arg2"));
     assert_eq!(helper1.args()[0].typ, ArgT::Unknown);
 }

@@ -1,3 +1,4 @@
+use std::cell::Ref;
 use std::ops::Deref;
 use gnu_libjit::{Abi, Context, Function};
 use crate::parser::{Arg, ArgT};
@@ -8,7 +9,7 @@ pub struct CallableFunction {
 }
 
 impl CallableFunction {
-    pub fn new(context: &Context, args: &Vec<Arg>) -> CallableFunction {
+    pub fn new(context: &Context, args: Ref<Vec<Arg>>) -> CallableFunction {
         let mut params = Vec::with_capacity(args.len() * 3); // May be shorter if some args are arrays
         for arg in args.iter() {
             match arg.typ {
