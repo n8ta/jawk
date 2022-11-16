@@ -3,7 +3,8 @@ use crate::parser::{Arg, ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
 use crate::global_scalars::SymbolMapping;
 use crate::symbolizer::Symbol;
-use crate::typing::types::{AnalysisResults, Call, CallArg, MapT, TypedFunc, TypedProgram};
+use crate::typing::typed_function::TypedFunc;
+use crate::typing::types::{AnalysisResults, Call, CallArg, MapT, TypedProgram};
 
 pub struct FunctionAnalysis {
     global_scalars: MapT,
@@ -169,6 +170,7 @@ impl FunctionAnalysis {
                 let target_func = self.functions.get(target).unwrap().clone();
                 let call = Call::new(target_func.clone(), call_args.collect());
                 function.add_call(call);
+                target_func.add_caller(function.clone());
             }
             Expr::NumberF64(_) => {
                 expr.typ = ScalarType::Float;

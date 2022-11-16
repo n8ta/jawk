@@ -1163,6 +1163,7 @@ test!(
     "123\n"
 );
 
+test!(test_scalar_call_simple, "function f(scl) { print scl; } BEGIN { scalar = 5;f(scalar) }", ONE_LINE, "5\n");
 
 test!(test_mixed_call,
 "function f(arr, scalar, arr2) { print arr[0]; print scalar; print arr2[1] } BEGIN { global_a_1[0] = 1; scalar = \"scalar\"; global_arr_2[1] = 2; f(global_a_1, scalar, global_arr_2) }",
