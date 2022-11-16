@@ -1,4 +1,3 @@
-use std::ops::Deref;
 use std::os::raw::{c_char, c_int, c_long, c_void};
 use gnu_libjit::{Context, Function, Label, Value};
 use hashbrown::HashMap;
@@ -606,10 +605,6 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     pub fn zero_f(&self) -> Value {
         self.c.zero_f.clone()
     }
-    pub fn sentinel_f(&self) -> Value {
-        self.c.sentinel_float.clone()
-    }
-
     pub fn zero_ptr(&self) -> Value {
         self.c.zero_ptr.clone()
     }
@@ -766,16 +761,6 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
             }
         }
         result
-    }
-
-    pub fn load(&mut self, ptr: &mut ValuePtrT) -> ValueT {
-        let ptr_tag = self.function.address_of(&mut ptr.tag);
-        let ptr_float = self.function.address_of(&mut ptr.float);
-        let ptr_ptr = self.function.address_of(&mut ptr.pointer);
-        let tag = self.function.insn_load_relative(&ptr_tag, 0, &Context::sbyte_type());
-        let val = self.function.insn_load_relative(&ptr_float, 0, &Context::float64_type());
-        let ptr = self.function.insn_load_relative(&ptr_ptr, 0, &Context::void_ptr_type());
-        ValueT::var(tag, val, ptr)
     }
 
     pub fn store(&mut self, ptr: &mut ValuePtrT, value: &ValueT) {

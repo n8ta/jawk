@@ -1,5 +1,5 @@
 use hashbrown::{HashMap, HashSet};
-use crate::parser::{Arg, ArgT, Program, ScalarType, Stmt, TypedExpr};
+use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
 use crate::global_scalars::SymbolMapping;
 use crate::symbolizer::Symbol;
@@ -35,7 +35,7 @@ impl FunctionAnalysis {
         }
         self.functions = functions;
 
-        for (_name, mut func) in &self.functions.clone() {
+        for (_name, func) in &self.functions.clone() {
             let mut function = func.function();
             self.analyze_stmt(&mut function.body, &func.clone())?;
         }
@@ -218,7 +218,7 @@ impl FunctionAnalysis {
                 expr.typ = Self::merge_types(&expr1.typ, &expr2.typ);
             }
             Expr::Variable(var) => {
-                if let Some((idx, arg_t)) = function.get_arg_idx_and_type(var) {
+                if let Some((_idx, arg_t)) = function.get_arg_idx_and_type(var) {
                     if arg_t == ArgT::Array && is_returned {
                         return Err(PrintableError::new(format!("fatal: attempted to use array {} in scalar context", var)));
                     }

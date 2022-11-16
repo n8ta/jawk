@@ -109,11 +109,6 @@ impl<'a> FunctionScope<'a> {
         self.local_globals.clear();
     }
 
-    pub fn all_globals(&mut self, function: &mut Function) -> Vec<ValueT> {
-        self.flush(function);
-        self.globals.all_globals(function)
-    }
-
     pub fn get_array(&mut self, function: &mut Function, name: &Symbol) -> Result<Value, PrintableError> {
         if let Some(val) = self.pure_local_array.get(name) {
             return Ok(val.clone());

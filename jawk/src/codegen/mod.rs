@@ -8,7 +8,6 @@ mod function_scope;
 mod callable_function;
 
 use hashbrown::HashMap;
-use crate::parser::{Program};
 use crate::printable_error::PrintableError;
 use crate::runtime::{LiveRuntime, Runtime, TestRuntime};
 use crate::{AnalysisResults, Symbolizer};
@@ -16,7 +15,6 @@ use gnu_libjit::{Abi, Context, Function, Value};
 use crate::codegen::callable_function::CallableFunction;
 use crate::codegen::function_codegen::{FunctionCodegen};
 use crate::codegen::globals::Globals;
-use crate::global_scalars::SymbolMapping;
 use crate::symbolizer::Symbol;
 use crate::typing::TypedProgram;
 

@@ -3,7 +3,10 @@ mod types;
 use std::iter::Peekable;
 use std::str::Chars;
 pub use types::{BinOp, LogicalOp, MathOp, Token, TokenType};
-use crate::Symbolizer;
+use crate::{PrintableError, Symbolizer};
+
+type LexerResult = Result<Vec<Token>, PrintableError>;
+
 
 pub fn lex(str: &str, symbolizer: &mut Symbolizer) -> LexerResult {
     let mut lexer = Lexer::new(str, symbolizer);
@@ -26,7 +29,6 @@ struct Lexer<'a, 'b> {
     symbolizer: &'b mut Symbolizer
 }
 
-type LexerResult = Result<Vec<Token>, (String, usize)>;
 
 impl<'a, 'b> Lexer<'a, 'b> {
     fn new(src: &'a str, symbolizer: &'b mut Symbolizer) -> Lexer<'a, 'b> {
@@ -51,10 +53,11 @@ impl<'a, 'b> Lexer<'a, 'b> {
         self.buffer.push(next);
         next
     }
+
     fn add_token(&mut self, tt: Token) {
         self.tokens.push(tt);
     }
-    fn string(&mut self) -> Result<(), String> {
+    fn string(&mut self) -> Result<(), PrintableError> {
         self.buffer.clear();
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
@@ -64,14 +67,14 @@ impl<'a, 'b> Lexer<'a, 'b> {
         }
         if self.is_at_end() {
             let string = self.collect_buffer();
-            return Err(format!("Unterminated String: {}", string));
+            return Err(PrintableError::new(format!("Unterminated String: {}", string)));
         }
         let str = self.collect_buffer();
         self.advance();
         self.add_token(Token::String(str));
         return Ok(());
     }
-    fn regex(&mut self) -> Result<(), String> {
+    fn regex(&mut self) -> Result<(), PrintableError> {
         // a ~ b 
         // a ~ /match/'
         self.buffer.clear();
@@ -85,14 +88,14 @@ impl<'a, 'b> Lexer<'a, 'b> {
 
         if self.is_at_end() {
             let string = self.collect_buffer();
-            return Err(format!("Unterminated regex: {}", string));
+            return Err(PrintableError::new(format!("Unterminated regex: {}", string)));
         }
         let regex = self.collect_buffer();
         self.advance();
         self.add_token(Token::Regex(regex));
         return Ok(());
     }
-    fn number(&mut self) -> Result<Token, String> {
+    fn number(&mut self) -> Result<Token, PrintableError> {
         while self.peek().is_digit(10) {
             self.advance();
         }
@@ -106,12 +109,12 @@ impl<'a, 'b> Lexer<'a, 'b> {
         match num.parse::<f64>() {
             Ok(float) => Ok(Token::NumberF64(float)),
             Err(_) => {
-                return Err(format!("Unable to parse f64 {}", num));
+                return Err(PrintableError::new(format!("Unable to parse f64 {}", num)));
             }
         }
     }
 
-    fn identifier(&mut self) -> Result<(), String> {
+    fn identifier(&mut self) -> Result<(), PrintableError> {
         while self.peek().is_alphanumeric() || self.peek() == '_' {
             self.advance();
         }
@@ -161,7 +164,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
             },
         }
     }
-    fn scan_token(&mut self) -> Result<(), String> {
+    fn scan_token(&mut self) -> Result<(), PrintableError> {
         let c = self.advance();
         match c {
             '$' => self.add_token(Token::Column),
@@ -207,14 +210,14 @@ impl<'a, 'b> Lexer<'a, 'b> {
             '|' => {
                 let tt = match self.matches('|') {
                     true => Token::LogicalOp(LogicalOp::Or),
-                    false => return Err("| must be followed by ||".to_string()),
+                    false => return Err(PrintableError::new("| must be followed by ||".to_string())),
                 };
                 self.add_token(tt);
             }
             '&' => {
                 let tt = match self.matches('&') {
                     true => Token::LogicalOp(LogicalOp::And),
-                    false => return Err("| must be followed by &".to_string()),
+                    false => return Err(PrintableError::new("| must be followed by &".to_string())),
                 };
                 self.add_token(tt);
             }
@@ -293,7 +296,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
                 } else if c.is_alphabetic() {
                     self.identifier()?;
                 } else {
-                    return Err(format!("Unexpected token: `{}`", c));
+                    return Err(PrintableError::new(format!("Unexpected token: `{}`", c)));
                 }
             }
         }
@@ -321,11 +324,9 @@ impl<'a, 'b> Lexer<'a, 'b> {
         }
     }
 
-    fn scan_tokens(&mut self) -> LexerResult {
+    fn scan_tokens(&mut self) -> Result<Vec<Token>, PrintableError> {
         while !self.is_at_end() {
-            if let Err(x) = self.scan_token() {
-                return Err((x, self.line));
-            }
+            self.scan_token()?;
             self.buffer.clear();
         }
         self.tokens.push(Token::EOF);

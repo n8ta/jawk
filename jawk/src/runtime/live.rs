@@ -2,7 +2,7 @@ use crate::codegen::{FLOAT_TAG, STRING_TAG, ValueT};
 use crate::columns::Columns;
 use crate::lexer::BinOp;
 use crate::runtime::{ErrorCode, Runtime};
-use gnu_libjit::{Abi, Context, Function, Label, Value};
+use gnu_libjit::{Abi, Context, Function, Value};
 use std::ffi::c_void;
 use std::io::{BufWriter, StdoutLock, Write};
 use std::rc::Rc;
@@ -331,7 +331,7 @@ impl LiveRuntime {
 }
 
 impl Runtime for LiveRuntime {
-    fn new(context: &Context, files: Vec<String>) -> LiveRuntime {
+    fn new(_context: &Context, files: Vec<String>) -> LiveRuntime {
         let data = Box::new(RuntimeData::new(files));
         let ptr = Box::leak(data);
         let ptr = ptr as *mut RuntimeData;

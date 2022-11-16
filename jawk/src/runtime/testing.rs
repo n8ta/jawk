@@ -440,7 +440,7 @@ impl TestRuntime {
 }
 
 impl Runtime for TestRuntime {
-    fn new(context: &Context, files: Vec<String>) -> TestRuntime {
+    fn new(_context: &Context, files: Vec<String>) -> TestRuntime {
         let data = Box::new(RuntimeData::new(files));
         let runtime_data = (Box::leak(data) as *mut RuntimeData) as *mut c_void;
         TestRuntime {

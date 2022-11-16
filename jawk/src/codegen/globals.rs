@@ -139,16 +139,6 @@ impl Globals {
         Ok(alloc_ptr as *mut c_void)
     }
 
-    pub fn all_globals(&self, function: &mut Function) -> Vec<ValueT> {
-        // TODO: This should return an iterator skipping the vec allocation
-        let mut values: Vec<ValueT> = Vec::with_capacity(self.mapping.len());
-        for (_, idx) in self.mapping.mapping() {
-            let ptr = Globals::ptrs_idx(&self.global_scalar_allocation, *idx, function);
-            values.push(self.load_value(ptr, function));
-        }
-        values
-    }
-
     pub fn get_array(&self, function: &mut Function, name: &Symbol) -> Result<Value, PrintableError> {
         let idx = self.arrays.get(name).expect(&format!("expected array to exist `{}`", name));
         Ok(function.create_int_constant(*idx))

@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::cell::{Ref, RefCell, RefMut};
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -53,7 +52,7 @@ impl TypedFunc {
             inner: Rc::new(TypedFuncInner {
                 func: RefCell::new(func),
                 callers: RefCell::new(HashSet::new()),
-                calls: RefCell::new((vec![])),
+                calls: RefCell::new(vec![]),
                 return_type: RefCell::new(ScalarType::Variable),
                 globals_used: RefCell::new(HashSet::new()),
                 args: RefCell::new(args),
@@ -102,7 +101,7 @@ impl TypedFunc {
 
     pub fn get_arg_idx_and_type(&self, name: &Symbol) -> Option<(usize, ArgT)> {
         let inner = self.inner.args.borrow();
-        if let Some((idx, arg)) = inner.iter().enumerate().find(|(idx, a)| a.name == *name) {
+        if let Some((idx, arg)) = inner.iter().enumerate().find(|(_idx, a)| a.name == *name) {
             Some((idx, arg.typ.clone()))
         } else {
             None

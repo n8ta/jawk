@@ -26,7 +26,7 @@ mod symbolizer;
 mod global_scalars;
 
 
-pub fn runner(args: Vec<String>) -> Result<() ,PrintableError> {
+pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let args = AwkArgs::new(args)?;
     let source = args.program.load()?;
 

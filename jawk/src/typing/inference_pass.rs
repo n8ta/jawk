@@ -3,7 +3,6 @@ use hashbrown::HashSet;
 use crate::{Symbolizer};
 
 use crate::{PrintableError};
-use crate::lexer::Token::Print;
 use crate::parser::{ArgT};
 use crate::symbolizer::Symbol;
 use crate::typing::TypedFunc;
@@ -60,29 +59,23 @@ fn propogate(program: &mut TypedProgram, link: &CallLink) -> Result<(HashSet<Sym
 }
 
 pub fn variable_inference(mut prog: TypedProgram) -> Result<TypedProgram, PrintableError> {
-    println!("---=-==-=--=-=-=-=-=-=-=-=-=-=-=-=");
     let mut links: Vec<CallLink> = vec![];
     // Push every call between functions onto a stack as a link between them
     for (_name, func) in &prog.functions {
         for call in func.calls().iter() {
-            println!("Init, push link from {} with call {:?}", func.name(), call);
             links.push(CallLink { source: func.clone(), call: call.clone() });
         }
     };
 
     while let Some(link) = links.pop() {
-        println!("\n\nanalyzing {} => {}", link.source.name(), link.call.target.name());
-        // while there are links left to analyze
-        // forward propogate any information in the source of the link to the destination
+        // While there are links left to analyze propogate any information in the source of the link to the destination
         let (updated_in_dest, updated_in_src) = propogate(&mut prog, &link)?;
-        println!("Updated in dest {:?} in src {:?}", updated_in_dest, updated_in_src);
 
-        // if the destination updated any of it's symbols push all of the destinations calls
+        // If the destination updated any of its symbols push all of the destination's calls
         // that use those symbols back onto the stack to re-propogate
         if updated_in_dest.len() != 0 {
             for call in link.call.target.calls().iter() {
                 if call.uses_any(&updated_in_dest) {
-                    println!("Pushing link from {} to {}", link.call.target.name(), call.target.name());
                     links.push(CallLink { source: link.call.target.clone(), call: call.clone() })
                 }
             }
@@ -90,12 +83,10 @@ pub fn variable_inference(mut prog: TypedProgram) -> Result<TypedProgram, Printa
 
         if updated_in_src.len() == 0 { continue; }
 
-        println!("source is called by {:?}", link.source.callers().iter().map(|t| t.name()));
         // Loop through functions who call source
         for caller in link.source.callers().iter() {
             for call_to_source in caller.calls().iter().filter(|call_to_src| call_to_src.target == link.source) {
                 // And push them back on the stack
-                println!("Pushing back link from {} to {}", caller.name(), call_to_source.target.name());
                 links.push(CallLink { source: caller.clone(), call: call_to_source.clone() })
             }
         }

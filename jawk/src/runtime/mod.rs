@@ -3,7 +3,6 @@ mod live;
 mod testing;
 mod arrays;
 
-use std::os::raw::c_void;
 use crate::lexer::BinOp;
 use gnu_libjit::{Context, Function, Value};
 use hashbrown::HashMap;

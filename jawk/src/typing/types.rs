@@ -1,13 +1,9 @@
-use std::cell::{Ref, RefCell, RefMut};
 use std::fmt::{Debug, Display, Formatter};
-use std::rc::Rc;
 use hashbrown::{HashMap, HashSet};
 use immutable_chunkmap::map::Map;
 use crate::global_scalars::SymbolMapping;
-use crate::parser::{Arg, ArgT, Function, Program, ScalarType, Stmt};
-use crate::PrintableError;
+use crate::parser::{ScalarType};
 use crate::symbolizer::Symbol;
-use crate::typing::inference_pass::CallLink;
 use crate::typing::TypedFunc;
 
 #[derive(Clone, Debug)]

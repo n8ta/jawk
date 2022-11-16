@@ -1,6 +1,5 @@
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use std::fmt::{Display, Formatter};
-use hashbrown::HashSet;
 use crate::symbolizer::Symbol;
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
