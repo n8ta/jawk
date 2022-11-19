@@ -3,7 +3,6 @@ mod inference_tests {
     use crate::parser::ArgT;
     use crate::Symbolizer;
     use crate::typing::inference_pass::variable_inference;
-    use crate::typing::ITypedFunction;
     use crate::typing::TypedProgram;
     use crate::typing::types::{Call, CallArg};
 

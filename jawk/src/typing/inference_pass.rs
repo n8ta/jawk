@@ -1,11 +1,7 @@
 use hashbrown::HashSet;
-#[cfg(test)]
-use crate::{Symbolizer};
-
 use crate::{PrintableError};
 use crate::parser::{ArgT};
 use crate::symbolizer::Symbol;
-use crate::typing::ityped_function::ITypedFunction;
 use crate::typing::TypedUserFunction;
 use crate::typing::types::{TypedProgram, Call, CallArg};
 

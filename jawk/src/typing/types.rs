@@ -4,7 +4,6 @@ use immutable_chunkmap::map::Map;
 use crate::global_scalars::SymbolMapping;
 use crate::parser::{ScalarType};
 use crate::symbolizer::Symbol;
-use crate::typing::ityped_function::ITypedFunction;
 use crate::typing::TypedUserFunction;
 
 #[derive(Clone, Debug)]

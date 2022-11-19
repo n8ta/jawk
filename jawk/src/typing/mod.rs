@@ -6,12 +6,10 @@ mod typed_function;
 mod inference_tests;
 #[cfg(test)]
 mod test;
-mod ityped_function;
 mod native_func;
 
 pub use crate::typing::types::{TypedProgram, AnalysisResults};
 pub use crate::typing::typed_function::TypedUserFunction;
-pub use crate::typing::ityped_function::ITypedFunction;
 
 use crate::parser::{Program};
 use crate::printable_error::PrintableError;

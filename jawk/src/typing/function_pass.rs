@@ -3,7 +3,6 @@ use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
 use crate::global_scalars::SymbolMapping;
 use crate::symbolizer::Symbol;
-use crate::typing::ityped_function::ITypedFunction;
 use crate::typing::typed_function::{TypedUserFunction};
 use crate::typing::types::{AnalysisResults, Call, CallArg, MapT, TypedProgram};
 

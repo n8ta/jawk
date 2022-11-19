@@ -13,7 +13,6 @@ use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
 use crate::typing::TypedUserFunction;
-use crate::typing::ITypedFunction;
 
 #[allow(dead_code)]
 pub struct FunctionCodegen<'a, RuntimeT: Runtime> {

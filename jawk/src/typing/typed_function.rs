@@ -7,7 +7,6 @@ use crate::parser::{Arg, ArgT, Function, ScalarType};
 use crate::{AnalysisResults, PrintableError};
 use crate::symbolizer::Symbol;
 use crate::typing::inference_pass::CallLink;
-use crate::typing::ityped_function::ITypedFunction;
 use crate::typing::types::{Call, CallArg};
 
 #[derive(Debug)]
@@ -95,36 +94,34 @@ impl TypedUserFunction {
         global_analysis.global_scalars.insert(&var);
         return Ok(Some(var.clone()));
     }
-}
 
-impl ITypedFunction for TypedUserFunction {
-    fn args(&self) -> Ref<'_, Vec<Arg>> {
+    pub fn args(&self) -> Ref<'_, Vec<Arg>> {
         self.inner.args.borrow()
     }
-    fn function(&self) -> RefMut<'_, Function> {
+    pub fn function(&self) -> RefMut<'_, Function> {
         self.inner.func.borrow_mut()
     }
-    fn add_call(&self, call: Call) {
+    pub fn add_call(&self, call: Call) {
         let mut calls = self.inner.calls.borrow_mut();
         calls.push(call);
     }
-    fn add_caller(&self, caller: TypedUserFunction) {
+    pub fn add_caller(&self, caller: TypedUserFunction) {
         let mut callers = self.inner.callers.borrow_mut();
         callers.insert(caller);
     }
-    fn calls(&self) -> Ref<'_, Vec<Call>> {
+    pub fn calls(&self) -> Ref<'_, Vec<Call>> {
         self.inner.calls.borrow()
     }
-    fn callers(&self) -> Ref<'_, HashSet<TypedUserFunction>> {
+    pub fn callers(&self) -> Ref<'_, HashSet<TypedUserFunction>> {
         self.inner.callers.borrow()
     }
-    fn name(&self) -> Symbol {
+    pub fn name(&self) -> Symbol {
         self.name.clone()
     }
-    fn arity(&self) -> usize {
+    pub fn arity(&self) -> usize {
         self.inner.func.borrow().args.len()
     }
-    fn get_arg_idx_and_type(&self, name: &Symbol) -> Option<(usize, ArgT)> {
+    pub fn get_arg_idx_and_type(&self, name: &Symbol) -> Option<(usize, ArgT)> {
         let inner = self.inner.args.borrow();
         if let Some((idx, arg)) = inner.iter().enumerate().find(|(_idx, a)| a.name == *name) {
             Some((idx, arg.typ.clone()))
@@ -132,11 +129,11 @@ impl ITypedFunction for TypedUserFunction {
             None
         }
     }
-    fn use_global(&self, var: &Symbol) {
+    pub fn use_global(&self, var: &Symbol) {
         let mut globals_used = self.inner.globals_used.borrow_mut();
         globals_used.insert(var.clone());
     }
-    fn set_arg_type(&self, var: &Symbol, typ: ArgT) -> Result<(), PrintableError> {
+    pub fn set_arg_type(&self, var: &Symbol, typ: ArgT) -> Result<(), PrintableError> {
         let mut inner = self.inner.args.borrow_mut();
         if let Some(arg) = inner.iter_mut().find(|a| a.name == *var) {
             if arg.typ != ArgT::Unknown && arg.typ != typ {
@@ -146,7 +143,7 @@ impl ITypedFunction for TypedUserFunction {
         }
         Ok(())
     }
-    fn reverse_call(&self, link: &CallLink, args: &[Arg], analysis: &mut AnalysisResults) -> Result<HashSet<Symbol>, PrintableError> {
+    pub fn reverse_call(&self, link: &CallLink, args: &[Arg], analysis: &mut AnalysisResults) -> Result<HashSet<Symbol>, PrintableError> {
         // Used in this case:
         //      function knows_type(arr) { arr[0[] = 1 }
         //      BEGIN { knows_type(a) }
@@ -171,7 +168,7 @@ impl ITypedFunction for TypedUserFunction {
         }
         Ok(updated)
     }
-    fn receive_call(&self, call: &Vec<ArgT>) -> Result<HashSet<Symbol>, PrintableError> {
+    pub fn receive_call(&self, call: &Vec<ArgT>) -> Result<HashSet<Symbol>, PrintableError> {
         // Used in this case:
         //      function arg_unknown(a) { ...  a not used here weirdly ... }
         //      BEGIN { c = 1; arg_unknown(c); }
