@@ -98,8 +98,6 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
             break_lbl: vec![],
             return_lbl: Label::new(),
         };
-
-
         func_gen.compile_function(ast_function, global_scalars, dump, debug_asserts, is_main)?;
         Ok(func_gen.done())
     }

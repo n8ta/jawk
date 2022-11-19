@@ -23,6 +23,7 @@ struct TypedUserFuncInner {
 #[derive(Clone, Debug)]
 pub struct TypedUserFunction {
     inner: Rc<TypedUserFuncInner>,
+    name: Symbol,
 }
 
 impl Eq for TypedUserFunction {}
@@ -48,6 +49,7 @@ impl Display for TypedUserFunction {
 
 impl TypedUserFunction {
     pub fn new(func: Function) -> Self {
+        let name = func.name.clone();
         let args = func.args.iter().map(|sym| Arg::new(sym.clone(), ArgT::Unknown)).collect();
         Self {
             inner: Rc::new(TypedUserFuncInner {
@@ -57,7 +59,8 @@ impl TypedUserFunction {
                 return_type: RefCell::new(ScalarType::Variable),
                 globals_used: RefCell::new(HashSet::new()),
                 args: RefCell::new(args),
-            })
+            }),
+            name,
         }
     }
     pub fn globals_used(&self) -> Ref<'_, HashSet<Symbol>> {
@@ -116,7 +119,7 @@ impl ITypedFunction for TypedUserFunction {
         self.inner.callers.borrow()
     }
     fn name(&self) -> Symbol {
-        self.inner.func.borrow().name.clone()
+        self.name.clone()
     }
     fn arity(&self) -> usize {
         self.inner.func.borrow().args.len()

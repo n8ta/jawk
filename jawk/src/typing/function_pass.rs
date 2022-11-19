@@ -168,7 +168,11 @@ impl FunctionAnalysis {
                         CallArg::new_scalar()
                     }
                 });
-                let target_func = self.functions.get(target).unwrap().clone();
+                let target_func = match self.functions.get(target) {
+                    None => return Err(PrintableError::new(format!("Function `{}` does not exist. Called from function `{}`", target, function.name()))),
+                    Some(f) => f.clone(),
+                    // None => panic!()
+                };
                 let call = Call::new(target_func.clone(), call_args.collect());
                 function.add_call(call);
                 target_func.add_caller(function.clone());
