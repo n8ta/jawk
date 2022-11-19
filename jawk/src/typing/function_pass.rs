@@ -3,7 +3,8 @@ use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
 use crate::global_scalars::SymbolMapping;
 use crate::symbolizer::Symbol;
-use crate::typing::typed_function::TypedFunc;
+use crate::typing::ityped_function::ITypedFunction;
+use crate::typing::typed_function::{TypedUserFunction};
 use crate::typing::types::{AnalysisResults, Call, CallArg, MapT, TypedProgram};
 
 pub struct FunctionAnalysis {
@@ -11,7 +12,7 @@ pub struct FunctionAnalysis {
     global_arrays: SymbolMapping,
     func_names: HashSet<Symbol>,
     str_consts: HashSet<Symbol>,
-    functions: HashMap<Symbol, TypedFunc>,
+    functions: HashMap<Symbol, TypedUserFunction>,
 }
 
 impl FunctionAnalysis {
@@ -31,7 +32,7 @@ impl FunctionAnalysis {
         let mut functions = HashMap::new();
         for (name, function) in prog.functions {
             self.func_names.insert(name.clone());
-            functions.insert(name, TypedFunc::new(function));
+            functions.insert(name, TypedUserFunction::new(function));
         }
         self.functions = functions;
 
@@ -52,7 +53,7 @@ impl FunctionAnalysis {
 
         Ok(TypedProgram::new(self.functions, results))
     }
-    fn use_as_scalar(&mut self, var: &Symbol, typ: ScalarType, function: &TypedFunc) -> Result<(), PrintableError> {
+    fn use_as_scalar(&mut self, var: &Symbol, typ: ScalarType, function: &TypedUserFunction) -> Result<(), PrintableError> {
         if let Some((_idx, arg_t)) = function.get_arg_idx_and_type(var) {
             match arg_t {
                 ArgT::Scalar => {} // scalar arg used as scalar, lgtm
@@ -71,7 +72,7 @@ impl FunctionAnalysis {
         self.global_scalars = self.global_scalars.insert(var.clone(), typ).0;
         Ok(())
     }
-    fn use_as_array(&mut self, var: &Symbol, function: &TypedFunc) -> Result<(), PrintableError> {
+    fn use_as_array(&mut self, var: &Symbol, function: &TypedUserFunction) -> Result<(), PrintableError> {
         if let Some((_idx, arg_t)) = function.get_arg_idx_and_type(var) {
             match arg_t {
                 ArgT::Scalar => return Err(PrintableError::new(format!("fatal: attempt to use scalar `{}` in a array context", var))),
@@ -90,7 +91,7 @@ impl FunctionAnalysis {
         Ok(())
     }
 
-    fn analyze_stmt(&mut self, stmt: &mut Stmt, function: &TypedFunc) -> Result<(), PrintableError> {
+    fn analyze_stmt(&mut self, stmt: &mut Stmt, function: &TypedUserFunction) -> Result<(), PrintableError> {
         match stmt {
             Stmt::Return(ret) => {
                 if let Some(ret_value) = ret {
@@ -152,7 +153,7 @@ impl FunctionAnalysis {
         Ok(())
     }
 
-    fn analyze_expr(&mut self, expr: &mut TypedExpr, function: &TypedFunc, is_returned: bool) -> Result<(), PrintableError> {
+    fn analyze_expr(&mut self, expr: &mut TypedExpr, function: &TypedUserFunction, is_returned: bool) -> Result<(), PrintableError> {
         match &mut expr.expr {
             Expr::Call { args, target } => {
                 for arg in args.iter_mut() {

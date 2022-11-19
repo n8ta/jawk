@@ -12,7 +12,8 @@ use crate::global_scalars::SymbolMapping;
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
-use crate::typing::TypedFunc;
+use crate::typing::TypedUserFunction;
+use crate::typing::ITypedFunction;
 
 #[allow(dead_code)]
 pub struct FunctionCodegen<'a, RuntimeT: Runtime> {
@@ -49,7 +50,7 @@ fn fill_in<RuntimeT: Runtime>(mut body: String, runtime: &RuntimeT, scope: &Func
 
 impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     pub fn build_function(mut function: Function,
-                          ast_function: &TypedFunc,
+                          ast_function: &TypedUserFunction,
                           global_scalars: &SymbolMapping,
                           runtime: &'a mut RuntimeT,
                           function_map: &'a HashMap<Symbol, CallableFunction>,
@@ -108,7 +109,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     }
 
     fn compile_function(&mut self,
-                        func: &TypedFunc,
+                        func: &TypedUserFunction,
                         global_scalars: &SymbolMapping,
                         dump: bool,
                         debug_asserts: bool,

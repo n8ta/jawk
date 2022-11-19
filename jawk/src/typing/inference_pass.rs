@@ -5,18 +5,19 @@ use crate::{Symbolizer};
 use crate::{PrintableError};
 use crate::parser::{ArgT};
 use crate::symbolizer::Symbol;
-use crate::typing::TypedFunc;
+use crate::typing::ityped_function::ITypedFunction;
+use crate::typing::TypedUserFunction;
 use crate::typing::types::{TypedProgram, Call, CallArg};
 
 
 pub struct CallLink {
-    pub source: TypedFunc,
+    pub source: TypedUserFunction,
     pub call: Call,
 }
 
 type CallInfo = Vec<ArgT>;
 
-fn get_type(program: &TypedProgram, func: &TypedFunc, name: &Symbol) -> ArgT {
+fn get_type(program: &TypedProgram, func: &TypedUserFunction, name: &Symbol) -> ArgT {
     if let Some((_idx, typ)) = func.get_arg_idx_and_type(name) {
         return typ;
     }

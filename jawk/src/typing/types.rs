@@ -4,7 +4,8 @@ use immutable_chunkmap::map::Map;
 use crate::global_scalars::SymbolMapping;
 use crate::parser::{ScalarType};
 use crate::symbolizer::Symbol;
-use crate::typing::TypedFunc;
+use crate::typing::ityped_function::ITypedFunction;
+use crate::typing::TypedUserFunction;
 
 #[derive(Clone, Debug)]
 enum VarType {
@@ -44,7 +45,7 @@ impl AnalysisResults {
 
 #[derive(PartialEq, Clone)]
 pub struct Call {
-    pub target: TypedFunc,
+    pub target: TypedUserFunction,
     pub args: Vec<CallArg>,
 }
 
@@ -86,14 +87,14 @@ impl CallArg {
 }
 
 impl Call {
-    pub fn new(target: TypedFunc, args: Vec<CallArg>) -> Self {
+    pub fn new(target: TypedUserFunction, args: Vec<CallArg>) -> Self {
         Self { target, args }
     }
 }
 
 
 pub struct TypedProgram {
-    pub functions: HashMap<Symbol, TypedFunc>,
+    pub functions: HashMap<Symbol, TypedUserFunction>,
     pub global_analysis: AnalysisResults,
 }
 
@@ -112,7 +113,7 @@ impl Display for TypedProgram {
 }
 
 impl TypedProgram {
-    pub fn new(functions: HashMap<Symbol, TypedFunc>, results: AnalysisResults) -> Self {
+    pub fn new(functions: HashMap<Symbol, TypedUserFunction>, results: AnalysisResults) -> Self {
         Self { functions, global_analysis: results }
     }
 }
