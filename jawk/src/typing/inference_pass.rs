@@ -58,9 +58,9 @@ fn propogate(program: &mut TypedProgram, link: &CallLink) -> Result<(HashSet<Sym
 pub fn variable_inference(mut prog: TypedProgram) -> Result<TypedProgram, PrintableError> {
     let mut links: Vec<CallLink> = vec![];
     // Push every call between functions onto a stack as a link between them
-    for (_name, func) in &prog.functions {
+    for (_name, func) in prog.functions.user_functions().iter() {
         for call in func.calls().iter() {
-            links.push(CallLink { source: func.clone(), call: call.clone() });
+            links.push(CallLink { source: *func.clone(), call: call.clone() });
         }
     };
 

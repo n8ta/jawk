@@ -120,7 +120,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         self.runtime.allocate_arrays(num_arrays);
 
         // Gen stubs for each function, main already created
-        for (name, function) in &prog.functions {
+        for (name, function) in prog.functions.user_functions().iter() {
             if *name == main_sym { continue; };
             let callable = CallableFunction::new(&self.context, function.args());
             self.function_map.insert(name.clone(), callable);
@@ -131,7 +131,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             self.globals = Globals::new(global_analysis, self.runtime, &mut self.main, self.symbolizer);
         }
 
-        for (name, parser_func) in &prog.functions {
+        for (name, parser_func) in prog.functions.user_functions().iter() {
             if *name == main_sym { continue;} // Main must be compiled last since it can call other functions
             let jit_func = self.function_map.get(name).expect("func to exist");
             FunctionCodegen::build_function(jit_func.function.clone(),

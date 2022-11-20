@@ -3,6 +3,8 @@ use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
 use crate::global_scalars::SymbolMapping;
 use crate::symbolizer::Symbol;
+use crate::typing::builtin_func::BuiltinFunc;
+use crate::typing::function::FunctionMap;
 use crate::typing::typed_function::{TypedUserFunction};
 use crate::typing::types::{AnalysisResults, Call, CallArg, MapT, TypedProgram};
 
@@ -11,31 +13,32 @@ pub struct FunctionAnalysis {
     global_arrays: SymbolMapping,
     func_names: HashSet<Symbol>,
     str_consts: HashSet<Symbol>,
-    functions: HashMap<Symbol, TypedUserFunction>,
+    functions: FunctionMap,
 }
 
 impl FunctionAnalysis {
-    pub fn new() -> Self {
-        Self {
+    pub fn analyze(prog: Program) -> Result<TypedProgram, PrintableError> {
+        let mut func_names: HashSet<Symbol> = Default::default();
+        let mut functions = HashMap::new();
+        for (name, function) in prog.functions {
+            func_names.insert(name.clone());
+            functions.insert(name, Box::new(TypedUserFunction::new(function)));
+        }
+
+        let analysis = Self {
             global_scalars: MapT::new(),
             global_arrays: SymbolMapping::new(),
-            func_names: Default::default(),
+            func_names,
             str_consts: Default::default(),
-            functions: HashMap::new()
-        }
+            functions: FunctionMap::new(functions),
+        };
+        analysis.analyze_program()
     }
 }
 
 impl FunctionAnalysis {
-    pub fn analyze_program(mut self, prog: Program) -> Result<TypedProgram, PrintableError> {
-        let mut functions = HashMap::new();
-        for (name, function) in prog.functions {
-            self.func_names.insert(name.clone());
-            functions.insert(name, TypedUserFunction::new(function));
-        }
-        self.functions = functions;
-
-        for (_name, func) in &self.functions.clone() {
+    pub fn analyze_program(mut self) -> Result<TypedProgram, PrintableError> {
+        for (_name, func) in &self.functions.user_functions().clone() {
             let mut function = func.function();
             self.analyze_stmt(&mut function.body, &func.clone())?;
         }
@@ -170,9 +173,8 @@ impl FunctionAnalysis {
                 let target_func = match self.functions.get(target) {
                     None => return Err(PrintableError::new(format!("Function `{}` does not exist. Called from function `{}`", target, function.name()))),
                     Some(f) => f.clone(),
-                    // None => panic!()
                 };
-                let call = Call::new(target_func.clone(), call_args.collect());
+                let call = Call::new(*target_func.clone(), call_args.collect());
                 function.add_call(call);
                 target_func.add_caller(function.clone());
             }

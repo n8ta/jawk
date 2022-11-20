@@ -6,7 +6,8 @@ mod typed_function;
 mod inference_tests;
 #[cfg(test)]
 mod test;
-mod native_func;
+mod builtin_func;
+mod function;
 
 pub use crate::typing::types::{TypedProgram, AnalysisResults};
 pub use crate::typing::typed_function::TypedUserFunction;
@@ -17,7 +18,5 @@ use crate::typing::function_pass::FunctionAnalysis;
 use crate::typing::inference_pass::variable_inference;
 
 pub fn analyze(stmt: Program) -> Result<TypedProgram, PrintableError> {
-    let func_analysis = FunctionAnalysis::new();
-    let typed_program = variable_inference(func_analysis.analyze_program(stmt)?)?;
-    Ok(typed_program)
+    variable_inference(FunctionAnalysis::analyze(stmt)?)
 }

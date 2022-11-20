@@ -14,8 +14,7 @@ mod inference_tests {
     fn function_pass_only_prog(prog: &str) -> (TypedProgram, Symbolizer) {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        let fa = crate::typing::function_pass::FunctionAnalysis::new();
-        let prog = fa.analyze_program(parse(lex(prog,
+        let prog = crate::typing::function_pass::FunctionAnalysis::analyze(parse(lex(prog,
                                                 &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
         (prog, symbolizer)
     }
@@ -38,7 +37,7 @@ mod inference_tests {
         let main = prog.functions.get(&sym.get("main function")).unwrap();
         let helper = prog.functions.get(&sym.get("helper")).unwrap();
         assert_eq!(main.calls().len(), 1);
-        assert_eq!(main.calls().clone(), vec![Call::new(helper.clone(), vec![CallArg::new(sym.get("a"))])]);
+        assert_eq!(main.calls().clone(), vec![Call::new(*helper.clone(), vec![CallArg::new(sym.get("a"))])]);
     }
 
     #[test]
@@ -97,7 +96,7 @@ mod inference_tests {
         let (prog, mut sym) = function_pass_only_prog("function helper(arg) { arg[0] = 1 } BEGIN { helper(a) }");
         let main = prog.functions.get(&sym.get("main function")).unwrap();
         let helper = prog.functions.get(&sym.get("helper")).unwrap();
-        assert_eq!(main.calls().clone(), vec![Call::new(helper.clone(), vec![CallArg::new(sym.get("a"))])]);
+        assert_eq!(main.calls().clone(), vec![Call::new(*helper.clone(), vec![CallArg::new(sym.get("a"))])]);
         assert_eq!(helper.args()[0].typ, ArgT::Array);
     }
 
@@ -132,8 +131,8 @@ mod inference_tests {
         let main = prog.functions.get(&sym.get("main function")).unwrap();
         let helper1 = prog.functions.get(&sym.get("helper1")).unwrap();
         let helper2 = prog.functions.get(&sym.get("helper2")).unwrap();
-        assert_eq!(main.calls().clone(), vec![Call::new(helper1.clone(), vec![CallArg::new(sym.get("a"))])]);
-        assert_eq!(helper1.calls().clone(), vec![Call::new(helper2.clone(), vec![CallArg::new(sym.get("arg1"))])]);
+        assert_eq!(main.calls().clone(), vec![Call::new(*helper1.clone(), vec![CallArg::new(sym.get("a"))])]);
+        assert_eq!(helper1.calls().clone(), vec![Call::new(*helper2.clone(), vec![CallArg::new(sym.get("arg1"))])]);
         assert_eq!(helper2.args()[0].name, sym.get("arg2"));
         assert_eq!(helper1.args()[0].typ, ArgT::Unknown);
     }
