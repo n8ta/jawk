@@ -1,5 +1,6 @@
 use std::cell::Ref;
 use std::fmt::{Debug, Display};
+use std::rc::Rc;
 use hashbrown::HashSet;
 use crate::{AnalysisResults, PrintableError};
 use crate::parser::{Arg, ArgT};
@@ -10,7 +11,7 @@ use crate::typing::structs::{Call, CallArg};
 
 pub trait ITypedFunction: Debug + Display  {
     fn args(&self) -> Ref<'_, Vec<Arg>>;
-    fn clone(&self) -> Box<dyn ITypedFunction>;
+    fn clone(&self) -> Rc<dyn ITypedFunction>;
     fn arity(&self) -> usize;
         fn add_caller(&self, caller: TypedUserFunction);
     fn calls(&self) -> Ref<'_, Vec<Call>>;

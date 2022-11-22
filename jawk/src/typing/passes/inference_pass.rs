@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use hashbrown::HashSet;
 use crate::{PrintableError};
 use crate::parser::{ArgT};
@@ -6,7 +7,7 @@ use crate::typing::{CallInfo, CallLink, ITypedFunction, TypedUserFunction};
 use crate::typing::structs::CallArg;
 use crate::typing::types::{TypedProgram};
 
-fn get_type(program: &TypedProgram, func: &Box<dyn ITypedFunction>, name: &Symbol) -> ArgT {
+fn get_type(program: &TypedProgram, func: &Rc<dyn ITypedFunction>, name: &Symbol) -> ArgT {
     if let Some((_idx, typ)) = func.get_arg_idx_and_type(name) {
         return typ;
     }

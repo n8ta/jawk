@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use hashbrown::{HashMap, HashSet};
 use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
@@ -20,7 +21,7 @@ pub fn function_pass(prog: Program) -> Result<TypedProgram, PrintableError> {
     let mut functions = HashMap::new();
     for (name, function) in prog.functions {
         func_names.insert(name.clone());
-        functions.insert(name, Box::new(TypedUserFunction::new(function)));
+        functions.insert(name, Rc::new(TypedUserFunction::new(function)));
     }
 
     let analysis = FunctionAnalysis {
@@ -175,7 +176,7 @@ impl FunctionAnalysis {
                     None => return Err(PrintableError::new(format!("Function `{}` does not exist. Called from function `{}`", target, function.name()))),
                     Some(f) => f.clone(),
                 };
-                let call = Call::new((*target_func).clone(), call_args.collect());
+                let call = Call::new(target_func.clone(), call_args.collect());
                 function.add_call(call);
                 target_func.add_caller(function.clone_as_user_func())
             }

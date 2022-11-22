@@ -8,7 +8,7 @@ use crate::{AnalysisResults, PrintableError};
 use crate::symbolizer::Symbol;
 use crate::typing::CallLink;
 use crate::typing::structs::{Call, CallArg};
-use crate::typing::structs::typed_function::ITypedFunction;
+use crate::typing::structs::ityped_function::ITypedFunction;
 
 #[derive(Debug)]
 struct TypedUserFuncInner {
@@ -52,8 +52,8 @@ impl ITypedFunction for TypedUserFunction {
         self.inner.args.borrow()
     }
 
-    fn clone(&self) -> Box<dyn ITypedFunction> {
-        Box::new(self.clone_as_user_func())
+    fn clone(&self) -> Rc<dyn ITypedFunction> {
+        Rc::new(self.clone_as_user_func())
     }
 
     fn arity(&self) -> usize {

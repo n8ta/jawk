@@ -1,10 +1,11 @@
 use std::fmt::{Debug, Formatter};
+use std::rc::Rc;
 use hashbrown::HashSet;
 use crate::symbolizer::Symbol;
 use crate::typing::ITypedFunction;
 
 pub struct Call {
-    pub target: Box<dyn ITypedFunction>,
+    pub target: Rc<dyn ITypedFunction>,
     pub args: Vec<CallArg>,
 }
 impl PartialEq for Call {
@@ -59,7 +60,7 @@ impl CallArg {
 }
 
 impl Call {
-    pub fn new(target: Box<dyn ITypedFunction>, args: Vec<CallArg>) -> Self {
+    pub fn new(target: Rc<dyn ITypedFunction>, args: Vec<CallArg>) -> Self {
         Self { target, args }
     }
 }
