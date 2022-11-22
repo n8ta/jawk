@@ -6,9 +6,9 @@ use hashbrown::HashSet;
 use crate::parser::{Arg, ArgT, Function, ScalarType};
 use crate::{AnalysisResults, PrintableError};
 use crate::symbolizer::Symbol;
-use crate::typing::inference_pass::CallLink;
-use crate::typing::typed_function::ITypedFunction;
-use crate::typing::types::{Call, CallArg};
+use crate::typing::CallLink;
+use crate::typing::structs::{Call, CallArg};
+use crate::typing::structs::typed_function::ITypedFunction;
 
 #[derive(Debug)]
 struct TypedUserFuncInner {

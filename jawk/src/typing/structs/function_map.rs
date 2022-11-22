@@ -3,7 +3,7 @@ use std::hash::Hash;
 use hashbrown::hash_map::Iter;
 use hashbrown::HashMap;
 use crate::symbolizer::Symbol;
-use crate::typing::typed_function::ITypedFunction;
+use crate::typing::structs::typed_function::ITypedFunction;
 use crate::typing::TypedUserFunction;
 
 pub struct FunctionMap {

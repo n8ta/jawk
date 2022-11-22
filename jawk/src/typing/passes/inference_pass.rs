@@ -2,16 +2,9 @@ use hashbrown::HashSet;
 use crate::{PrintableError};
 use crate::parser::{ArgT};
 use crate::symbolizer::Symbol;
-use crate::typing::{ITypedFunction, TypedUserFunction};
-use crate::typing::types::{TypedProgram, Call, CallArg};
-
-
-pub struct CallLink {
-    pub source: Box<dyn ITypedFunction>,
-    pub call: Call,
-}
-
-type CallInfo = Vec<ArgT>;
+use crate::typing::{CallInfo, CallLink, ITypedFunction, TypedUserFunction};
+use crate::typing::structs::CallArg;
+use crate::typing::types::{TypedProgram};
 
 fn get_type(program: &TypedProgram, func: &Box<dyn ITypedFunction>, name: &Symbol) -> ArgT {
     if let Some((_idx, typ)) = func.get_arg_idx_and_type(name) {
@@ -55,7 +48,7 @@ fn propogate(program: &mut TypedProgram, link: &CallLink) -> Result<(HashSet<Sym
     Ok((updated_in_dest, updated_in_src))
 }
 
-pub fn variable_inference(mut prog: TypedProgram) -> Result<TypedProgram, PrintableError> {
+pub fn inference_pass(mut prog: TypedProgram) -> Result<TypedProgram, PrintableError> {
     let mut links: Vec<CallLink> = vec![];
     // Push every call between functions onto a stack as a link between them
     for (_name, func) in prog.functions.user_functions().iter() {

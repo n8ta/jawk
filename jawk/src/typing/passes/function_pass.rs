@@ -3,10 +3,9 @@ use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
 use crate::global_scalars::SymbolMapping;
 use crate::symbolizer::Symbol;
-use crate::typing::function_map::FunctionMap;
 use crate::typing::ITypedFunction;
-use crate::typing::typed_user_function::{TypedUserFunction};
-use crate::typing::types::{AnalysisResults, Call, CallArg, MapT, TypedProgram};
+use crate::typing::structs::{TypedUserFunction, FunctionMap, CallArg, Call};
+use crate::typing::types::{AnalysisResults, MapT, TypedProgram};
 
 pub struct FunctionAnalysis {
     global_scalars: MapT,
@@ -16,24 +15,22 @@ pub struct FunctionAnalysis {
     functions: FunctionMap,
 }
 
-impl FunctionAnalysis {
-    pub fn analyze(prog: Program) -> Result<TypedProgram, PrintableError> {
-        let mut func_names: HashSet<Symbol> = Default::default();
-        let mut functions = HashMap::new();
-        for (name, function) in prog.functions {
-            func_names.insert(name.clone());
-            functions.insert(name, Box::new(TypedUserFunction::new(function)));
-        }
-
-        let analysis = Self {
-            global_scalars: MapT::new(),
-            global_arrays: SymbolMapping::new(),
-            func_names,
-            str_consts: Default::default(),
-            functions: FunctionMap::new(functions),
-        };
-        analysis.analyze_program()
+pub fn function_pass(prog: Program) -> Result<TypedProgram, PrintableError> {
+    let mut func_names: HashSet<Symbol> = Default::default();
+    let mut functions = HashMap::new();
+    for (name, function) in prog.functions {
+        func_names.insert(name.clone());
+        functions.insert(name, Box::new(TypedUserFunction::new(function)));
     }
+
+    let analysis = FunctionAnalysis {
+        global_scalars: MapT::new(),
+        global_arrays: SymbolMapping::new(),
+        func_names,
+        str_consts: Default::default(),
+        functions: FunctionMap::new(functions),
+    };
+    analysis.analyze_program()
 }
 
 impl FunctionAnalysis {

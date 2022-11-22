@@ -1,24 +1,18 @@
-mod inference_pass;
-mod function_pass;
 mod types;
-mod typed_user_function;
+mod passes;
+mod structs;
 #[cfg(test)]
-mod inference_tests;
-#[cfg(test)]
-mod test;
-mod builtin_func;
-mod function_map;
-mod typed_function;
+mod tests;
 
-pub use crate::typing::types::{TypedProgram, AnalysisResults};
-pub use crate::typing::typed_user_function::TypedUserFunction;
-pub use crate::typing::typed_function::ITypedFunction;
+pub use crate::typing::types::{AnalysisResults, TypedProgram};
+pub use structs::TypedUserFunction;
+pub use structs::ITypedFunction;
+pub use crate::typing::structs::{CallInfo, CallLink};
+pub(crate) use crate::typing::passes::{function_pass, inference_pass};
 
-use crate::parser::{Program};
+use crate::parser::Program;
 use crate::printable_error::PrintableError;
-use crate::typing::function_pass::FunctionAnalysis;
-use crate::typing::inference_pass::variable_inference;
 
 pub fn analyze(stmt: Program) -> Result<TypedProgram, PrintableError> {
-    variable_inference(FunctionAnalysis::analyze(stmt)?)
+    inference_pass(function_pass(stmt)?)
 }

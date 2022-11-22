@@ -4,9 +4,9 @@ use hashbrown::HashSet;
 use crate::{AnalysisResults, PrintableError};
 use crate::parser::{Arg, ArgT};
 use crate::symbolizer::Symbol;
-use crate::typing::inference_pass::CallLink;
+use crate::typing::CallLink;
 use crate::typing::TypedUserFunction;
-use crate::typing::types::{Call, CallArg};
+use crate::typing::structs::{Call, CallArg};
 
 pub trait ITypedFunction: Debug + Display  {
     fn args(&self) -> Ref<'_, Vec<Arg>>;

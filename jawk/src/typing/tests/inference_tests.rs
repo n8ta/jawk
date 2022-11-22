@@ -1,20 +1,20 @@
-
+#[cfg(test)]
 mod inference_tests {
     use crate::parser::ArgT;
     use crate::Symbolizer;
-    use crate::typing::inference_pass::variable_inference;
+    use crate::typing::{function_pass, inference_pass};
     use crate::typing::{ITypedFunction, TypedProgram};
-    use crate::typing::types::{Call, CallArg};
+    use crate::typing::structs::{Call, CallArg};
 
     fn fully_typed_prog(prog: &str) -> (TypedProgram, Symbolizer) {
         let res = function_pass_only_prog(prog);
-        (variable_inference(res.0).unwrap(), res.1)
+        (inference_pass(res.0).unwrap(), res.1)
     }
 
     fn function_pass_only_prog(prog: &str) -> (TypedProgram, Symbolizer) {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        let prog = crate::typing::function_pass::FunctionAnalysis::analyze(parse(lex(prog,
+        let prog = function_pass(parse(lex(prog,
                                                 &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
         (prog, symbolizer)
     }

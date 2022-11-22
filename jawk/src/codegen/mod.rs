@@ -64,12 +64,12 @@ struct CodeGen<'a, RuntimeT: Runtime> {
 
 impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
     fn compile(
-               context: &'a Context,
-               runtime: &'a mut RuntimeT,
-               symbolizer: &'a mut Symbolizer,
-               prog: TypedProgram,
-               debug_asserts: bool,
-               dump: bool,
+        context: &'a Context,
+        runtime: &'a mut RuntimeT,
+        symbolizer: &'a mut Symbolizer,
+        prog: TypedProgram,
+        debug_asserts: bool,
+        dump: bool,
     ) -> Result<Self, PrintableError> {
 
         // Main gets created apart from normal function_codegen since it needs
@@ -88,8 +88,8 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         let args = prog.functions.get(&main_sym).unwrap().args().clone();
         function_map.insert(main_sym.clone(),
                             CallableFunction {
-                                    function: main_function.clone(),
-                                    args,
+                                function: main_function.clone(),
+                                args,
                             });
 
         let mut codegen = CodeGen {
@@ -126,13 +126,11 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             self.function_map.insert(name.clone(), callable);
         }
 
-        {
-            // Init globals in main function
-            self.globals = Globals::new(global_analysis, self.runtime, &mut self.main, self.symbolizer);
-        }
+        // Init globals in main function
+        self.globals = Globals::new(global_analysis, self.runtime, &mut self.main, self.symbolizer);
 
         for (name, parser_func) in prog.functions.user_functions().iter() {
-            if *name == main_sym { continue;} // Main must be compiled last since it can call other functions
+            if *name == main_sym { continue; } // Main must be compiled last since it can call other functions
             let jit_func = self.function_map.get(name).expect("func to exist");
             FunctionCodegen::build_function(jit_func.function.clone(),
                                             parser_func,
