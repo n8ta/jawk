@@ -4,8 +4,8 @@ use immutable_chunkmap::map::Map;
 use crate::global_scalars::SymbolMapping;
 use crate::parser::{ScalarType};
 use crate::symbolizer::Symbol;
-use crate::typing::function::FunctionMap;
-use crate::typing::TypedUserFunction;
+use crate::typing::function_map::FunctionMap;
+use crate::typing::{ITypedFunction, TypedUserFunction};
 
 pub type MapT = Map<Symbol, ScalarType, 1000>;
 
@@ -26,10 +26,22 @@ impl AnalysisResults {
     }
 }
 
-#[derive(PartialEq, Clone)]
 pub struct Call {
-    pub target: TypedUserFunction,
+    pub target: Box<dyn ITypedFunction>,
     pub args: Vec<CallArg>,
+}
+impl PartialEq for Call {
+    fn eq(&self, other: &Self) -> bool {
+        self.target.name() == other.target.name() && self.args == other.args
+    }
+}
+impl Clone for Call {
+    fn clone(&self) -> Self {
+        Self {
+            target: self.target.clone(),
+            args: self.args.clone()
+        }
+    }
 }
 
 impl Debug for Call {
@@ -70,7 +82,7 @@ impl CallArg {
 }
 
 impl Call {
-    pub fn new(target: TypedUserFunction, args: Vec<CallArg>) -> Self {
+    pub fn new(target: Box<dyn ITypedFunction>, args: Vec<CallArg>) -> Self {
         Self { target, args }
     }
 }

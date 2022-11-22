@@ -2,18 +2,18 @@ use hashbrown::HashSet;
 use crate::{PrintableError};
 use crate::parser::{ArgT};
 use crate::symbolizer::Symbol;
-use crate::typing::TypedUserFunction;
+use crate::typing::{ITypedFunction, TypedUserFunction};
 use crate::typing::types::{TypedProgram, Call, CallArg};
 
 
 pub struct CallLink {
-    pub source: TypedUserFunction,
+    pub source: Box<dyn ITypedFunction>,
     pub call: Call,
 }
 
 type CallInfo = Vec<ArgT>;
 
-fn get_type(program: &TypedProgram, func: &TypedUserFunction, name: &Symbol) -> ArgT {
+fn get_type(program: &TypedProgram, func: &Box<dyn ITypedFunction>, name: &Symbol) -> ArgT {
     if let Some((_idx, typ)) = func.get_arg_idx_and_type(name) {
         return typ;
     }
@@ -60,7 +60,7 @@ pub fn variable_inference(mut prog: TypedProgram) -> Result<TypedProgram, Printa
     // Push every call between functions onto a stack as a link between them
     for (_name, func) in prog.functions.user_functions().iter() {
         for call in func.calls().iter() {
-            links.push(CallLink { source: *func.clone(), call: call.clone() });
+            links.push(CallLink { source: (*func).clone(), call: call.clone() });
         }
     };
 
@@ -82,7 +82,7 @@ pub fn variable_inference(mut prog: TypedProgram) -> Result<TypedProgram, Printa
 
         // Loop through functions who call source
         for caller in link.source.callers().iter() {
-            for call_to_source in caller.calls().iter().filter(|call_to_src| call_to_src.target == link.source) {
+            for call_to_source in caller.calls().iter().filter(|call_to_src| call_to_src.target.name() == link.source.name()) {
                 // And push them back on the stack
                 links.push(CallLink { source: caller.clone(), call: call_to_source.clone() })
             }

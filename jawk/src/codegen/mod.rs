@@ -16,7 +16,7 @@ use crate::codegen::callable_function::CallableFunction;
 use crate::codegen::function_codegen::{FunctionCodegen};
 use crate::codegen::globals::Globals;
 use crate::symbolizer::Symbol;
-use crate::typing::{TypedProgram};
+use crate::typing::{ITypedFunction, TypedProgram};
 
 /// ValueT is the jit values that make up a struct. It's not a tagged union
 /// just a struct with only one other field being valid to read at a time based on the tag field.
@@ -149,7 +149,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             )?;
         }
 
-        let parser_func = prog.functions.get(&main_sym).unwrap();
+        let parser_func = prog.functions.get_user_func(&main_sym).unwrap();
         let main_jit_func = self.function_map.get(&main_sym).expect("main function to exist");
         FunctionCodegen::build_function(main_jit_func.function.clone(),
                                         parser_func,

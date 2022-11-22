@@ -3,9 +3,9 @@ use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
 use crate::global_scalars::SymbolMapping;
 use crate::symbolizer::Symbol;
-use crate::typing::builtin_func::BuiltinFunc;
-use crate::typing::function::FunctionMap;
-use crate::typing::typed_function::{TypedUserFunction};
+use crate::typing::function_map::FunctionMap;
+use crate::typing::ITypedFunction;
+use crate::typing::typed_user_function::{TypedUserFunction};
 use crate::typing::types::{AnalysisResults, Call, CallArg, MapT, TypedProgram};
 
 pub struct FunctionAnalysis {
@@ -38,9 +38,13 @@ impl FunctionAnalysis {
 
 impl FunctionAnalysis {
     pub fn analyze_program(mut self) -> Result<TypedProgram, PrintableError> {
-        for (_name, func) in &self.functions.user_functions().clone() {
-            let mut function = func.function();
-            self.analyze_stmt(&mut function.body, &func.clone())?;
+        let user_functions: Vec<TypedUserFunction> = self.functions.user_functions()
+            .iter()
+            .map(|(k, v)| v.clone_as_user_func())
+            .collect();
+        for func in user_functions {
+            let mut parser_func = func.function();
+            self.analyze_stmt(&mut parser_func.body, &func)?;
         }
 
         let mut global_scalars = SymbolMapping::new();
@@ -174,9 +178,9 @@ impl FunctionAnalysis {
                     None => return Err(PrintableError::new(format!("Function `{}` does not exist. Called from function `{}`", target, function.name()))),
                     Some(f) => f.clone(),
                 };
-                let call = Call::new(*target_func.clone(), call_args.collect());
+                let call = Call::new((*target_func).clone(), call_args.collect());
                 function.add_call(call);
-                target_func.add_caller(function.clone());
+                target_func.add_caller(function.clone_as_user_func())
             }
             Expr::NumberF64(_) => {
                 expr.typ = ScalarType::Float;

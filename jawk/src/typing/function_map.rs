@@ -3,6 +3,7 @@ use std::hash::Hash;
 use hashbrown::hash_map::Iter;
 use hashbrown::HashMap;
 use crate::symbolizer::Symbol;
+use crate::typing::typed_function::ITypedFunction;
 use crate::typing::TypedUserFunction;
 
 pub struct FunctionMap {
@@ -15,7 +16,14 @@ impl FunctionMap {
             functions
         }
     }
-    pub fn get(&self, name: &Symbol) -> Option<&Box<TypedUserFunction>> {
+    // pub fn get(&self, name: &Symbol) -> Option<&Box<dyn ITypedFunction>> {
+    pub fn get<'a>(&self, name: &Symbol) -> Option<Box<dyn ITypedFunction>> {
+        match  self.functions.get(name) {
+            None => None,
+            Some(boxed) => Some(TypedUserFunction::clone(boxed)),
+        }
+    }
+    pub fn get_user_func(&self, name: &Symbol) -> Option<&Box<TypedUserFunction>> {
         self.functions.get(name)
     }
     pub fn user_functions(&self) -> &HashMap<Symbol, Box<TypedUserFunction>> {
