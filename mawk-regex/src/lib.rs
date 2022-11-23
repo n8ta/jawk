@@ -1,8 +1,7 @@
 extern crate core;
 
 use std::os::raw::c_char;
-use mawk_regex_sys::{REtest, REcompile, REmatch, PTR, REdestroy};
-use std::ops::Deref;
+use mawk_regex_sys::{REtest, REcompile, PTR, REdestroy};
 
 pub struct Regex {
     ptr: PTR,
