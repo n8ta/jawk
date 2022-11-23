@@ -76,9 +76,11 @@ pub fn inference_pass(mut prog: TypedProgram) -> Result<TypedProgram, PrintableE
 
         // Loop through functions who call source
         for caller in link.source.callers().iter() {
-            for call_to_source in caller.calls().iter().filter(|call_to_src| call_to_src.target.name() == link.source.name()) {
+            for call_to_source in caller.calls()
+                .iter()
+                .filter(|call_to_src| call_to_src.target.name() == link.source.name()) {
                 // And push them back on the stack
-                links.push(CallLink { source: caller.clone(), call: call_to_source.clone() })
+                links.push(CallLink { source: caller.clone(), call: (*call_to_source).clone() })
             }
         }
     }

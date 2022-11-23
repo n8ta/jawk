@@ -36,9 +36,9 @@ pub fn function_pass(prog: Program) -> Result<TypedProgram, PrintableError> {
 
 impl FunctionAnalysis {
     pub fn analyze_program(mut self) -> Result<TypedProgram, PrintableError> {
-        let user_functions: Vec<TypedUserFunction> = self.functions.user_functions()
+        let user_functions: Vec<Rc<TypedUserFunction>> = self.functions.user_functions()
             .iter()
-            .map(|(k, v)| v.clone_as_user_func())
+            .map(|(k, v)| v.clone())
             .collect();
         for func in user_functions {
             let mut parser_func = func.function();
@@ -57,7 +57,7 @@ impl FunctionAnalysis {
 
         Ok(TypedProgram::new(self.functions, results))
     }
-    fn use_as_scalar(&mut self, var: &Symbol, typ: ScalarType, function: &TypedUserFunction) -> Result<(), PrintableError> {
+    fn use_as_scalar(&mut self, var: &Symbol, typ: ScalarType, function: &Rc<TypedUserFunction>) -> Result<(), PrintableError> {
         if let Some((_idx, arg_t)) = function.get_arg_idx_and_type(var) {
             match arg_t {
                 ArgT::Scalar => {} // scalar arg used as scalar, lgtm
@@ -76,7 +76,7 @@ impl FunctionAnalysis {
         self.global_scalars = self.global_scalars.insert(var.clone(), typ).0;
         Ok(())
     }
-    fn use_as_array(&mut self, var: &Symbol, function: &TypedUserFunction) -> Result<(), PrintableError> {
+    fn use_as_array(&mut self, var: &Symbol, function: &Rc<TypedUserFunction>) -> Result<(), PrintableError> {
         if let Some((_idx, arg_t)) = function.get_arg_idx_and_type(var) {
             match arg_t {
                 ArgT::Scalar => return Err(PrintableError::new(format!("fatal: attempt to use scalar `{}` in a array context", var))),
@@ -95,7 +95,7 @@ impl FunctionAnalysis {
         Ok(())
     }
 
-    fn analyze_stmt(&mut self, stmt: &mut Stmt, function: &TypedUserFunction) -> Result<(), PrintableError> {
+    fn analyze_stmt(&mut self, stmt: &mut Stmt, function: &Rc<TypedUserFunction>) -> Result<(), PrintableError> {
         match stmt {
             Stmt::Return(ret) => {
                 if let Some(ret_value) = ret {
@@ -157,7 +157,7 @@ impl FunctionAnalysis {
         Ok(())
     }
 
-    fn analyze_expr(&mut self, expr: &mut TypedExpr, function: &TypedUserFunction, is_returned: bool) -> Result<(), PrintableError> {
+    fn analyze_expr(&mut self, expr: &mut TypedExpr, function: &Rc<TypedUserFunction>, is_returned: bool) -> Result<(), PrintableError> {
         match &mut expr.expr {
             Expr::Call { args, target } => {
                 for arg in args.iter_mut() {
@@ -178,7 +178,7 @@ impl FunctionAnalysis {
                 };
                 let call = Call::new(target_func.clone(), call_args.collect());
                 function.add_call(call);
-                target_func.add_caller(function.clone_as_user_func())
+                target_func.add_caller(function.clone())
             }
             Expr::NumberF64(_) => {
                 expr.typ = ScalarType::Float;
@@ -247,11 +247,11 @@ impl FunctionAnalysis {
             Expr::Concatenation(vals) => {
                 expr.typ = ScalarType::String;
                 for val in vals {
-                    self.analyze_expr(val, function, false)?;
+                    self.analyze_expr(val, &function, false)?;
                 }
             }
             Expr::ArrayIndex { indices, name } => {
-                self.use_as_array(name, function)?;
+                self.use_as_array(name, &function)?;
                 for idx in indices {
                     self.analyze_expr(idx, function, false)?;
                 }

@@ -4,6 +4,7 @@ use crate::lexer::BinOp;
 use crate::runtime::{ErrorCode, Runtime};
 use gnu_libjit::{Abi, Context, Function, Value};
 use std::ffi::c_void;
+use std::fmt;
 use std::io::{BufWriter, StdoutLock, Write};
 use std::rc::Rc;
 use hashbrown::HashMap;
@@ -292,11 +293,11 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
 }
 
 
-pub struct LiveRuntime {
+pub struct ReleaseRuntime {
     runtime_data: *mut RuntimeData,
 }
 
-impl Drop for LiveRuntime {
+impl Drop for ReleaseRuntime {
     fn drop(&mut self) {
         unsafe {
             (*self.runtime_data).stdout.flush().expect("could not flush stdout");
@@ -324,18 +325,18 @@ impl RuntimeData {
     }
 }
 
-impl LiveRuntime {
+impl ReleaseRuntime {
     fn data_ptr(&mut self, func: &mut Function) -> Value {
         func.create_void_ptr_constant(self.runtime_data as *mut c_void)
     }
 }
 
-impl Runtime for LiveRuntime {
-    fn new(_context: &Context, files: Vec<String>) -> LiveRuntime {
+impl Runtime for ReleaseRuntime {
+    fn new(_context: &Context, files: Vec<String>) -> ReleaseRuntime {
         let data = Box::new(RuntimeData::new(files));
         let ptr = Box::leak(data);
         let ptr = ptr as *mut RuntimeData;
-        LiveRuntime {
+        ReleaseRuntime {
             runtime_data: ptr,
         }
     }

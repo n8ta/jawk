@@ -9,7 +9,7 @@ mod callable_function;
 
 use hashbrown::HashMap;
 use crate::printable_error::PrintableError;
-use crate::runtime::{LiveRuntime, Runtime, TestRuntime};
+use crate::runtime::{ReleaseRuntime, Runtime, DebugRuntime};
 use crate::{AnalysisResults, Symbolizer};
 use gnu_libjit::{Abi, Context, Function, Value};
 use crate::codegen::callable_function::CallableFunction;
@@ -34,16 +34,16 @@ pub const STRING_TAG: i8 = 1;
 // Entry point to run a program
 pub fn compile_and_run(prog: TypedProgram, files: &[String], symbolizer: &mut Symbolizer) -> Result<(), PrintableError> {
     let context = Context::new();
-    let mut runtime = LiveRuntime::new(&context, files.to_vec());
+    let mut runtime = ReleaseRuntime::new(&context, files.to_vec());
     let mut codegen = CodeGen::compile(&context, &mut runtime, symbolizer, prog, false, false)?;
     codegen.run();
     Ok(())
 }
 
 // Entry point to run and debug/test a program. Use the test runtime.
-pub fn compile_and_capture(prog: TypedProgram, files: &[String], symbolizer: &mut Symbolizer, dump: bool) -> Result<TestRuntime, PrintableError> {
+pub fn compile_and_capture(prog: TypedProgram, files: &[String], symbolizer: &mut Symbolizer, dump: bool) -> Result<DebugRuntime, PrintableError> {
     let context = Context::new();
-    let mut test_runtime = TestRuntime::new(&context, files.to_vec());
+    let mut test_runtime = DebugRuntime::new(&context, files.to_vec());
     {
         let mut codegen = CodeGen::compile(&context, &mut test_runtime, symbolizer, prog, true, dump)?;
         codegen.run();

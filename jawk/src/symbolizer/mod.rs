@@ -2,6 +2,7 @@ use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::{Weak, Rc};
 use hashbrown::HashSet;
+use lru_cache::LruCache;
 
 #[derive(Clone, Debug)]
 struct WeaklyHeldStr {
@@ -43,7 +44,11 @@ impl Hash for WeaklyHeldStr {
 }
 
 pub struct Symbolizer {
+    // Full list of known symbols weakly held to allow large string to be freed
     known: HashSet<WeaklyHeldStr>,
+    // The LruCache is quite a bit faster for lookups so store the last 32 symbols
+    // here. Since most awk programs are short this speeds things up.
+    last: LruCache<String, Symbol>,
 }
 
 #[derive(Clone, Debug, Hash, PartialOrd, Ord)]
@@ -79,9 +84,14 @@ impl Display for Symbol {
 }
 
 impl Symbolizer {
-    pub fn new() -> Self { Symbolizer { known: HashSet::with_capacity(8) } }
-    pub fn get<T: Into<String>>(&mut self, str: T) -> Symbol {
-        let sym = Rc::new(str.into());
+    pub fn new() -> Self {
+        Symbolizer {
+            last: LruCache::new(32),
+            known: HashSet::with_capacity(8),
+        }
+    }
+    fn get_internal(&mut self, sym: String) -> Symbol {
+        let sym = Rc::new(sym);
         let s: Symbol = Symbol { sym: sym.clone() };
         let weakly_held = WeaklyHeldStr { w: Rc::downgrade(&sym) };
         if let Some(existing) = self.known.get(&weakly_held) {
@@ -90,8 +100,24 @@ impl Symbolizer {
                 return existing_symbol.clone();
             }
         }
+        self.last.insert(sym.to_string(), s.clone());
         self.known.insert(weakly_held);
         s
+    }
+    pub fn get_from_string(&mut self, str: String) -> Symbol {
+        // This method exists to avoid the extra str -> String
+        // allocation when the caller has already allocated a String
+        // and we can re-use it
+        if let Some(cached) = self.last.get_mut(&str) {
+            return cached.clone();
+        }
+        self.get_internal(str) // no copy of string here!
+    }
+    pub fn get(&mut self, str: &str) -> Symbol {
+        if let Some(cached) = self.last.get_mut(str) {
+            return cached.clone();
+        }
+        self.get_internal(str.to_string()) // copies str to String
     }
 }
 
@@ -102,18 +128,18 @@ fn test() {
         let abc1 = String::from("abc");
         let abc2 = String::from("abc");
         let other = String::from("other");
-        let sym1 = symbolizer.get(abc1);
-        let sym2 = symbolizer.get(abc2);
-        let sym_other = symbolizer.get(other);
+        let sym1 = symbolizer.get_from_string(abc1);
+        let sym2 = symbolizer.get_from_string(abc2);
+        let sym_other = symbolizer.get_from_string(other);
         assert_eq!(sym1, sym2);
         assert_ne!(sym_other, sym1);
         assert_ne!(sym1, sym_other);
     };
     let a = String::from("yyz");
-    let aa = symbolizer.get(a);
+    let aa = symbolizer.get_from_string(a);
     {
         let a2 = String::from("yyz");
-        let aaa = symbolizer.get(a2);
+        let aaa = symbolizer.get_from_string(a2);
         assert_eq!(aa, aaa);
     }
 }

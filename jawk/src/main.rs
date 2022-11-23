@@ -31,8 +31,10 @@ pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let source = args.program.load()?;
 
     let mut symbolizer = Symbolizer::new();
+    for x in 0..1000 {
+        let ast = analyze(parse(lex(&source, &mut symbolizer).unwrap(), &mut symbolizer))?;
+    }
     let ast = analyze(parse(lex(&source, &mut symbolizer).unwrap(), &mut symbolizer))?;
-
     if args.debug {
         println!("{}", ast);
     }

@@ -1,13 +1,13 @@
 mod call_log;
-mod live;
-mod testing;
+mod release_runtime;
+mod debug_runtime;
 mod arrays;
 
 use crate::lexer::BinOp;
 use gnu_libjit::{Context, Function, Value};
 use hashbrown::HashMap;
-pub use live::LiveRuntime;
-pub use testing::TestRuntime;
+pub use release_runtime::ReleaseRuntime;
+pub use debug_runtime::DebugRuntime;
 use crate::codegen::ValueT;
 use crate::parser::ScalarType;
 

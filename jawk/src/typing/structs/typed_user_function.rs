@@ -11,71 +11,60 @@ use crate::typing::structs::{Call, CallArg};
 use crate::typing::structs::ityped_function::ITypedFunction;
 
 #[derive(Debug)]
-struct TypedUserFuncInner {
+pub struct TypedUserFunction {
     func: RefCell<Function>,
-    callers: RefCell<HashSet<TypedUserFunction>>,
+    callers: RefCell<HashSet<Rc<TypedUserFunction>>>,
     calls: RefCell<Vec<Call>>,
     return_type: RefCell<ScalarType>,
     globals_used: RefCell<HashSet<Symbol>>,
     args: RefCell<Vec<Arg>>,
+    name: Symbol,
 }
 
-#[derive(Debug)]
-pub struct TypedUserFunction {
-    inner: Rc<TypedUserFuncInner>,
-    name: Symbol,
+impl Hash for TypedUserFunction {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state)
+    }
 }
 
 impl Eq for TypedUserFunction {}
 
-impl Hash for TypedUserFunction {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        // Since all TypedFunc's live for the entire program this is fine
-        Rc::as_ptr(&self.inner).hash(state)
-    }
-}
-
 impl PartialEq for TypedUserFunction {
     fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.inner, &other.inner)
+        self.name == other.name()
     }
 }
 
 impl Display for TypedUserFunction {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.inner.func.borrow())
+        write!(f, "{}", self.func.borrow())
     }
 }
 
 impl ITypedFunction for TypedUserFunction {
     fn args(&self) -> Ref<'_, Vec<Arg>> {
-        self.inner.args.borrow()
+        self.args.borrow()
     }
-
-    fn clone(&self) -> Rc<dyn ITypedFunction> {
-        Rc::new(self.clone_as_user_func())
-    }
-
     fn arity(&self) -> usize {
-        self.inner.func.borrow().args.len()
+        self.func.borrow().args.len()
     }
-    fn add_caller(&self, caller: TypedUserFunction) {
-        let mut callers = self.inner.callers.borrow_mut();
+    fn add_caller(&self, caller: Rc<TypedUserFunction>) {
+        let mut callers = self.callers.borrow_mut();
         callers.insert(caller);
     }
     fn calls(&self) -> Ref<'_, Vec<Call>> {
-        self.inner.calls.borrow()
+        self.calls.borrow()
     }
-    fn callers(&self) -> Ref<'_, HashSet<TypedUserFunction>> {
-        self.inner.callers.borrow()
+    fn callers(&self) -> Ref<'_, HashSet<Rc<TypedUserFunction>>> {
+        self.callers.borrow()
     }
     fn name(&self) -> Symbol {
         self.name.clone()
     }
 
     fn get_arg_idx_and_type(&self, name: &Symbol) -> Option<(usize, ArgT)> {
-        let inner = self.inner.args.borrow();
-        if let Some((idx, arg)) = inner.iter().enumerate().find(|(_idx, a)| a.name == *name) {
+        let args = self.args.borrow();
+        if let Some((idx, arg)) = args.iter().enumerate().find(|(_idx, a)| a.name == *name) {
             Some((idx, arg.typ.clone()))
         } else {
             None
@@ -113,7 +102,7 @@ impl ITypedFunction for TypedUserFunction {
         //      BEGIN { c = 1; arg_unknown(c); }
         // receive_call is called on arg_unknown with call: vec![ArgT::Scalar] and
         // then arg_unknown can update its arg a to be a scalar.
-        let mut args = self.inner.args.borrow_mut();
+        let mut args = self.args.borrow_mut();
         let mut updated_in_dest = HashSet::new();
         if call.len() != args.len() {
             return Err(PrintableError::new(format!("fatal: call to `{}` with {} args but accepts {} args", self.name(), call.len(), self.arity())));
@@ -144,27 +133,18 @@ impl TypedUserFunction {
         let name = func.name.clone();
         let args = func.args.iter().map(|sym| Arg::new(sym.clone(), ArgT::Unknown)).collect();
         Self {
-            inner: Rc::new(TypedUserFuncInner {
-                func: RefCell::new(func),
-                callers: RefCell::new(HashSet::new()),
-                calls: RefCell::new(vec![]),
-                return_type: RefCell::new(ScalarType::Variable),
-                globals_used: RefCell::new(HashSet::new()),
-                args: RefCell::new(args),
-            }),
+            func: RefCell::new(func),
+            callers: RefCell::new(HashSet::new()),
+            calls: RefCell::new(vec![]),
+            return_type: RefCell::new(ScalarType::Variable),
+            globals_used: RefCell::new(HashSet::new()),
+            args: RefCell::new(args),
             name,
         }
     }
 
-    pub fn clone_as_user_func(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            name: self.name.clone()
-        }
-    }
-
     pub fn globals_used(&self) -> Ref<'_, HashSet<Symbol>> {
-        self.inner.globals_used.borrow()
+        self.globals_used.borrow()
     }
 
     fn use_as_array(&self, var: &Symbol, global_analysis: &mut AnalysisResults) -> Result<Option<Symbol>, PrintableError> {
@@ -197,21 +177,21 @@ impl TypedUserFunction {
     }
 
     pub fn function(&self) -> RefMut<'_, Function> {
-        self.inner.func.borrow_mut()
+        self.func.borrow_mut()
     }
     pub fn add_call(&self, call: Call) {
-        let mut calls = self.inner.calls.borrow_mut();
+        let mut calls = self.calls.borrow_mut();
         calls.push(call);
     }
     pub fn use_global(&self, var: &Symbol) {
-        let mut globals_used = self.inner.globals_used.borrow_mut();
+        let mut globals_used = self.globals_used.borrow_mut();
         globals_used.insert(var.clone());
     }
     pub fn set_arg_type(&self, var: &Symbol, typ: ArgT) -> Result<(), PrintableError> {
-        let mut inner = self.inner.args.borrow_mut();
-        if let Some(arg) = inner.iter_mut().find(|a| a.name == *var) {
+        let mut args = self.args.borrow_mut();
+        if let Some(arg) = args.iter_mut().find(|a| a.name == *var) {
             if arg.typ != ArgT::Unknown && arg.typ != typ {
-                return Err(PrintableError::new(format!("fatal: attempt to mix array and scalar types for function {} arg {}", self.inner.func.borrow().name, var)));
+                return Err(PrintableError::new(format!("fatal: attempt to mix array and scalar types for function {} arg {}", self.func.borrow().name, var)));
             }
             arg.typ = typ;
         }

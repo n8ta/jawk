@@ -383,7 +383,7 @@ fn insert( mapping: &mut HashMap<String,String>, ptr: *mut c_void, name: &str) {
     mapping.insert(ptr_hex, with_name);
 }
 
-pub struct TestRuntime {
+pub struct DebugRuntime {
     runtime_data: *mut c_void,
 }
 
@@ -419,7 +419,7 @@ impl RuntimeData {
     }
 }
 
-impl TestRuntime {
+impl DebugRuntime {
     #[allow(dead_code)]
     pub fn output(&self) -> String {
         cast_to_runtime_data(self.runtime_data).output.clone()
@@ -439,11 +439,11 @@ impl TestRuntime {
     }
 }
 
-impl Runtime for TestRuntime {
-    fn new(_context: &Context, files: Vec<String>) -> TestRuntime {
+impl Runtime for DebugRuntime {
+    fn new(_context: &Context, files: Vec<String>) -> DebugRuntime {
         let data = Box::new(RuntimeData::new(files));
         let runtime_data = (Box::leak(data) as *mut RuntimeData) as *mut c_void;
-        TestRuntime {
+        DebugRuntime {
             runtime_data,
         }
     }

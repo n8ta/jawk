@@ -151,7 +151,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
         } else if src == "printf" {
             self.add_token(Token::Printf);
         } else {
-            let ident = self.symbolizer.get(src);
+            let ident = self.symbolizer.get_from_string(src);
             self.add_token(Token::Ident(ident));
         }
         Ok(())
