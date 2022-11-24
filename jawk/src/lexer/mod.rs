@@ -67,7 +67,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
         }
         if self.is_at_end() {
             let string = self.collect_buffer();
-            return Err(PrintableError::new(format!("Unterminated String: {}", string)));
+            return Err(PrintableError::new(format!("Unterminated String: `{}`", string)));
         }
         let str = self.collect_buffer();
         self.advance();

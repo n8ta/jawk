@@ -4,6 +4,7 @@ mod parser_tests {
     use crate::lexer::Token;
 
     use crate::symbolizer::Symbolizer;
+    use crate::lexer::lex;
 
 
     macro_rules! num {
@@ -53,9 +54,12 @@ mod parser_tests {
         parse(tokens, symbolizer).unwrap()
     }
 
+    fn parse_it(input: &str, symbolizer: &mut Symbolizer) -> Program {
+        parse_unwrap(lex(input, symbolizer).unwrap(), symbolizer)
+    }
+
     #[test]
     fn test_ast_number() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
 
         let prog = Program::new(
@@ -65,7 +69,7 @@ mod parser_tests {
                         bnum!(2.0)
                     )))], vec![]);
         assert_eq!(
-            parse_unwrap(lex("{1 + 2;}", &mut symbolizer).unwrap(), &mut symbolizer),
+            parse_it("{1+2}", &mut symbolizer),
             prog
         );
     }
@@ -78,7 +82,7 @@ mod parser_tests {
         let left = bnum!(1.0);
         let right = Box::new(mathop!(bnum!(3.0), MathOp::Star, bnum!(2.0)));
         let expected = Program::new_action_only(symbolizer.get("main function"), Stmt::Expr(mathop!(left, MathOp::Plus, right)));
-        let actual = parse_unwrap(lex("{1 + 3 * 2;}", &mut symbolizer).unwrap(), &mut symbolizer);
+        let actual = parse_it("{1 + 3 * 2;}", &mut symbolizer);
         assert_eq!(
             actual,
             expected, "\nactual {} expected {}", actual, expected
@@ -97,7 +101,7 @@ mod parser_tests {
     )));
         let mult = Stmt::Expr(texpr!(Expr::MathOp(right, MathOp::Plus, left)));
         assert_eq!(
-            parse_unwrap(lex("{1 * 3 + 2;}", &mut symbolizer).unwrap(), &mut symbolizer),
+            parse_it("{1 * 3 + 2;}", &mut symbolizer),
             Program::new_action_only(symbolizer.get("main function"), mult)
         );
     }

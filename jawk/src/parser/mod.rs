@@ -165,11 +165,10 @@ impl<'a> Parser<'a> {
             return self.advance();
         }
         Err(PrintableError::new(format!(
-            "{} - didn't find a {} as expected. Found a {} {:?}",
+            "{} - didn't find a {} as expected. Found {}",
             message,
             TokenType::name(typ),
             TokenType::name(self.peek().ttype()),
-            self.peek()
         )))
     }
 
@@ -482,7 +481,7 @@ impl<'a> Parser<'a> {
         while self.matches(flags!(TokenType::In)) {
             let name =
                 if let Token::Ident(name) = self.consume(TokenType::Ident, "An array name must follow `<expr> in`")?
-                    { name } else { unreachable!() };
+                { name } else { unreachable!() };
             expr = Expr::InArray { name, indices: vec![expr] }.into()
         }
         Ok(expr)
@@ -514,7 +513,7 @@ impl<'a> Parser<'a> {
 
         // Check if we match the regex \(.+\) in if so call the helper
         if *self.peek_at(idx) == Token::LeftParen {
-            while *self.peek_at(idx) != Token::RightParen { idx += 1; }
+            while *self.peek_at(idx) != Token::RightParen && *self.peek_at(idx) != Token::EOF { idx += 1; }
             if *self.peek_at(idx) == Token::RightParen && *self.peek_at(idx + 1) == Token::In {
                 return self.helper_multi_dim_array();
             }

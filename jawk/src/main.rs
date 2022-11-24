@@ -38,7 +38,7 @@ pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let args = AwkArgs::new(args)?;
 
     let mut symbolizer = Symbolizer::new();
-    let ast = analyze(parse(lex(&args.program, &mut symbolizer).unwrap(), &mut symbolizer)?)?;
+    let ast = analyze(parse(lex(&args.program, &mut symbolizer)?, &mut symbolizer)?)?;
     if args.debug {
         println!("{}", ast);
     }
