@@ -250,12 +250,6 @@ impl<'a> FunctionCodegen<'a> {
         Ok(())
     }
 
-    // When compile_expr returns a string the caller is responsible for freeing it
-    // side_effect_only:
-    // print a; would be false for expr::variable(a)
-    // a[0] = 5;  would be true for expr::array_assign(...) since while technically
-    // a[0] = 5 is an expr and you could do y = a[0] = 5; In many cases it's just a Stmt::Expr
-    // and result is unused.
     fn compile_expr(&mut self, expr: &TypedExpr, side_effect_only: bool) -> Result<ValueT, PrintableError> {
         Ok(match &expr.expr {
             Expr::Call { target: target_name, args } => {

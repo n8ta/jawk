@@ -10,7 +10,7 @@ gnu-libjit = { path = "../gnu-libjit" }
 mawk-regex = { path = "../mawk-regex" }
 # Immutable map very helpful for typechecking scopes
 immutable-chunkmap = "1.0.4"
-# Lots of FFI stuff using this
+# Lots of stuff using this
 libc = "0.2.127"
 # Used in a few places to speed up access where a hashmap is overkill
 lru-cache = "0.1.2"

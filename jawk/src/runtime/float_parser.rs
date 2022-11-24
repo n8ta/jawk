@@ -5,6 +5,8 @@ pub struct FloatParser {
     options: Options,
 }
 
+const FORMAT: u128 = lexical_core::format::STANDARD;
+
 impl FloatParser {
     pub fn new() -> Self {
         let mut options = lexical_core::WriteFloatOptions::new();
@@ -16,10 +18,18 @@ impl FloatParser {
             options,
         } }
     pub fn parse(&mut self, flt: f64) -> String {
-        const FORMAT: u128 = lexical_core::format::STANDARD;
+        #[cfg(debug_assertions)]
+        lexical_core::write_with_options::<_, FORMAT>(flt, &mut self.buffer, &self.options);
+
         let res = unsafe {
             lexical_core::write_with_options_unchecked::<_, FORMAT>(flt, &mut self.buffer, &self.options)
         };
-        String::from_utf8_lossy(res).to_string()
+
+        #[cfg(debug_assertions)]
+        String::from_utf8_lossy(res).to_string();
+
+        unsafe {
+            String::from_utf8_unchecked(res.to_vec())
+        }
     }
 }
