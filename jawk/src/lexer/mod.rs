@@ -57,6 +57,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
     fn add_token(&mut self, tt: Token) {
         self.tokens.push(tt);
     }
+
     fn string(&mut self) -> Result<(), PrintableError> {
         self.buffer.clear();
         while self.peek() != '"' && !self.is_at_end() {

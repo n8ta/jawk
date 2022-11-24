@@ -165,7 +165,7 @@ impl<'a> Parser<'a> {
             return self.advance();
         }
         Err(PrintableError::new(format!(
-            "{} - didn't find a {} as expected. Found {}",
+            "{} - didn't find a `{}` as expected. Found `{}`",
             message,
             TokenType::name(typ),
             TokenType::name(self.peek().ttype()),
@@ -234,13 +234,13 @@ impl<'a> Parser<'a> {
             pa
         } else if self.matches(flags!(TokenType::Begin)) {
             // BEGIN { print 1; }
-            self.consume(TokenType::LeftBrace, "Expected a '{' after a begin")?;
+            self.consume(TokenType::LeftBrace, "Expected a `{` after a begin")?;
             let pa = PAType::Begin(self.stmts()?);
             self.consume(TokenType::RightBrace, "Begin action should end with '}'")?;
             pa
         } else if self.matches(flags!(TokenType::End)) {
             // END { print 1; }
-            self.consume(TokenType::LeftBrace, "Expected a {' after a end")?;
+            self.consume(TokenType::LeftBrace, "Expected a `{` after a end")?;
             let pa = PAType::End(self.stmts()?);
             self.consume(TokenType::RightBrace, "End action should end with '}'")?;
             pa
@@ -260,9 +260,9 @@ impl<'a> Parser<'a> {
         Ok(b)
     }
     fn group(&mut self) -> Result<Stmt, PrintableError> {
-        self.consume(TokenType::LeftBrace, "Expected a '{' to start group")?;
+        self.consume(TokenType::LeftBrace, "Expected a `{` to start group")?;
         let stmt = self.stmts()?;
-        self.consume(TokenType::RightBrace, "Expected a '}' to end group")?;
+        self.consume(TokenType::RightBrace, "Expected a `}` to end group")?;
         Ok(stmt)
     }
 
@@ -294,38 +294,38 @@ impl<'a> Parser<'a> {
         } else if self.matches(flags!(TokenType::Break)) {
             Stmt::Break
         } else if self.matches(flags!(TokenType::For)) {
-            self.consume(TokenType::LeftParen, "Expected a '(' after the for keyword")?;
+            self.consume(TokenType::LeftParen, "Expected a `(` after the for keyword")?;
             let init = self.stmt()?;
             self.consume(
                 TokenType::Semicolon,
-                "Expected a ';' after for loop init statement",
+                "Expected a `;` after for loop init statement",
             )?;
             let test = self.expression()?;
             self.consume(
                 TokenType::Semicolon,
-                "Expected a ';' after for loop test statement",
+                "Expected a `;` after for loop test statement",
             )?;
             let incr = self.stmt()?;
-            self.consume(TokenType::RightParen, "Expected a ')' to end for loop")?;
+            self.consume(TokenType::RightParen, "Expected a `)` to end for loop")?;
             self.consume(
                 TokenType::LeftBrace,
-                "Expected a '{' to begin for loop body",
+                "Expected a `{` to begin for loop body",
             )?;
             let body = self.stmts()?;
-            self.consume(TokenType::RightBrace, "Expected a '}' after for loop body")?;
+            self.consume(TokenType::RightBrace, "Expected a `}` after for loop body")?;
             Stmt::Group(vec![
                 init,
                 Stmt::While(test, Box::new(Stmt::Group(vec![body, incr]))),
             ])
         } else if self.peek_next().ttype() == TokenType::Eq {
             let str = if let Token::Ident(str) =
-                self.consume(TokenType::Ident, "Expected identifier before '='")?
+                self.consume(TokenType::Ident, "Expected identifier before `=`")?
             {
                 str
             } else {
-                panic!("Expected identifier before '='")
+                panic!("Expected identifier before `=`")
             };
-            self.consume(TokenType::Eq, "Expected '=' after identifier")?;
+            self.consume(TokenType::Eq, "Expected `=` after identifier")?;
             Stmt::Expr(TypedExpr::new(Expr::ScalarAssign(
                 str,
                 Box::new(self.expression()?),
@@ -374,9 +374,9 @@ impl<'a> Parser<'a> {
     }
 
     fn if_stmt(&mut self) -> Result<Stmt, PrintableError> {
-        self.consume(TokenType::LeftParen, "Expected '(' after if")?;
+        self.consume(TokenType::LeftParen, "Expected `(` after if")?;
         let predicate = self.expression()?;
-        self.consume(TokenType::RightParen, "Expected ')' after if predicate")?;
+        self.consume(TokenType::RightParen, "Expected `)` after if predicate")?;
 
         let then_blk = if self.peek().ttype() == TokenType::LeftBrace {
             self.group()?
@@ -476,7 +476,9 @@ impl<'a> Parser<'a> {
     }
 
     fn array_membership(&mut self) -> Result<TypedExpr, PrintableError> {
-        // <expr> in array_name
+        // <expr> (in array_name)*
+        // Weird example: `BEGIN { print 1 in a in b in c }`
+        // is totally valid and prints 0
         let mut expr = self.multi_dim_array_membership()?;
         while self.matches(flags!(TokenType::In)) {
             let name =
@@ -510,10 +512,9 @@ impl<'a> Parser<'a> {
 
     fn multi_dim_array_membership(&mut self) -> Result<TypedExpr, PrintableError> {
         let mut idx = self.current;
-
         // Check if we match the regex \(.+\) in if so call the helper
         if *self.peek_at(idx) == Token::LeftParen {
-            while *self.peek_at(idx) != Token::RightParen && *self.peek_at(idx) != Token::EOF { idx += 1; }
+            while *self.peek_at(idx) != Token::RightParen && !self.is_at_end() { idx += 1; }
             if *self.peek_at(idx) == Token::RightParen && *self.peek_at(idx + 1) == Token::In {
                 return self.helper_multi_dim_array();
             }
