@@ -3,6 +3,7 @@ use gnu_libjit::{Function, Value};
 use hashbrown::{HashMap};
 use crate::codegen::globals::Globals;
 use crate::codegen::ValueT;
+use crate::global_scalars::SymbolMapping;
 use crate::parser::{Arg, ArgT};
 use crate::PrintableError;
 use crate::symbolizer::Symbol;
@@ -76,6 +77,10 @@ impl<'a> FunctionScope<'a> {
 
     pub fn get_returned_value(&mut self, function: &mut Function) -> ValueT {
         self.globals.get_returned_value(function)
+    }
+
+    pub fn global_scalars(&self) -> &SymbolMapping {
+        self.globals.global_scalars()
     }
 
     pub fn set_scalar(&mut self, function: &mut Function, name: &Symbol, value: &ValueT) {

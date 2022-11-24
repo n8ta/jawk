@@ -3,9 +3,8 @@ use hashbrown::HashSet;
 use crate::{PrintableError};
 use crate::parser::{ArgT};
 use crate::symbolizer::Symbol;
-use crate::typing::{CallInfo, CallLink, ITypedFunction, TypedUserFunction};
+use crate::typing::{CallInfo, CallLink, ITypedFunction, TypedProgram};
 use crate::typing::structs::CallArg;
-use crate::typing::types::{TypedProgram};
 
 fn get_type(program: &TypedProgram, func: &Rc<dyn ITypedFunction>, name: &Symbol) -> ArgT {
     if let Some((_idx, typ)) = func.get_arg_idx_and_type(name) {

@@ -7,7 +7,7 @@ use crate::parser::{Arg, ArgT};
 use crate::symbolizer::Symbol;
 use crate::typing::CallLink;
 use crate::typing::TypedUserFunction;
-use crate::typing::structs::{Call, CallArg};
+use crate::typing::structs::{Call};
 
 pub trait ITypedFunction: Debug + Display  {
     fn args(&self) -> Ref<'_, Vec<Arg>>;

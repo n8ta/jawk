@@ -10,13 +10,13 @@ mod callable_function;
 use hashbrown::HashMap;
 use crate::printable_error::PrintableError;
 use crate::runtime::{ReleaseRuntime, Runtime, DebugRuntime};
-use crate::{AnalysisResults, Symbolizer};
+use crate::{Symbolizer};
 use gnu_libjit::{Abi, Context, Function, Value};
 use crate::codegen::callable_function::CallableFunction;
 use crate::codegen::function_codegen::{FunctionCodegen};
 use crate::codegen::globals::Globals;
 use crate::symbolizer::Symbol;
-use crate::typing::{ITypedFunction, TypedProgram};
+use crate::typing::{FunctionMap, ITypedFunction, TypedProgram};
 
 /// ValueT is the jit values that make up a struct. It's not a tagged union
 /// just a struct with only one other field being valid to read at a time based on the tag field.
@@ -78,8 +78,15 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             .function(Abi::Cdecl, &Context::int_type(), vec![])
             .expect("to create function");
 
-        let globals = Globals::new(AnalysisResults::new(), runtime, &mut main_function, symbolizer);
+        // Allocate global arrays
+        let num_arrays = prog.global_analysis.global_arrays.len();
+        runtime.allocate_arrays(num_arrays);
 
+        // Setup heap space for global scalars
+        let globals = Globals::new(prog.global_analysis, runtime, &mut main_function, symbolizer);
+
+        // printf is a variadic function. Allocate a bunch of heap space for it's args
+        // right now it could overflow. TODO: Fix overflow
         let var_arg_scratch = unsafe { libc::malloc(100 * 8) };
         let var_arg_scratch = main_function.create_void_ptr_constant(var_arg_scratch);
 
@@ -101,7 +108,7 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             var_arg_scratch,
             function_map,
         };
-        codegen.compile_inner(prog, debug_asserts, dump, main_sym)?;
+        codegen.compile_inner(prog.functions, debug_asserts, dump, main_sym)?;
         Ok(codegen)
     }
 
@@ -110,57 +117,37 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         function();
     }
 
-    fn compile_inner(&mut self, mut prog: TypedProgram, debug_asserts: bool, dump: bool, main_sym: Symbol) -> Result<(), PrintableError> {
-        let num_arrays = prog.global_analysis.global_arrays.len();
-        let mut global_analysis = AnalysisResults::new();
-        std::mem::swap(&mut global_analysis, &mut prog.global_analysis);
-
-        let global_scalars = global_analysis.global_scalars.clone();
-
-        self.runtime.allocate_arrays(num_arrays);
+    fn compile_inner(&mut self,
+                     functions: FunctionMap,
+                     debug_asserts: bool,
+                     dump: bool,
+                     main_sym: Symbol) -> Result<(), PrintableError> {
 
         // Gen stubs for each function, main already created
-        for (name, function) in prog.functions.user_functions().iter() {
+        // We need to create a stub for each function before we compile the others to allow
+        // functions call any other function regardless of order they are compiled in
+        for (name, function) in functions.user_functions().iter() {
             if *name == main_sym { continue; };
             let callable = CallableFunction::new(&self.context, function.args());
             self.function_map.insert(name.clone(), callable);
         }
 
-        // Init globals in main function
-        self.globals = Globals::new(global_analysis, self.runtime, &mut self.main, self.symbolizer);
-
-        for (name, parser_func) in prog.functions.user_functions().iter() {
-            if *name == main_sym { continue; } // Main must be compiled last since it can call other functions
+        // Compile bodies of each function (including main)
+        for (name, parser_func) in functions.user_functions().iter() {
             let jit_func = self.function_map.get(name).expect("func to exist");
             FunctionCodegen::build_function(jit_func.function.clone(),
                                             parser_func,
-                                            &global_scalars,
                                             self.runtime,
                                             &self.function_map,
                                             &mut self.context,
                                             &mut self.globals,
                                             self.symbolizer,
                                             &self.var_arg_scratch,
-                                            false,
+                                            *name == main_sym,
                                             debug_asserts,
                                             dump,
             )?;
         }
-
-        let parser_func = prog.functions.get_user_func(&main_sym).unwrap();
-        let main_jit_func = self.function_map.get(&main_sym).expect("main function to exist");
-        FunctionCodegen::build_function(main_jit_func.function.clone(),
-                                        parser_func,
-                                        &global_scalars,
-                                        self.runtime,
-                                        &self.function_map,
-                                        &mut self.context,
-                                        &mut self.globals,
-                                        self.symbolizer,
-                                        &self.var_arg_scratch,
-                                        true,
-                                        debug_asserts,
-                                        dump)?;
 
         self.context.build_end();
         Ok(())

@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-use std::hash::Hash;
 use std::rc::Rc;
 use hashbrown::hash_map::Iter;
 use hashbrown::HashMap;
@@ -22,9 +20,6 @@ impl FunctionMap {
             None => None,
             Some(boxed) => Some(boxed.clone()),
         }
-    }
-    pub fn get_user_func(&self, name: &Symbol) -> Option<&Rc<TypedUserFunction>> {
-        self.functions.get(name)
     }
     pub fn user_functions(&self) -> &HashMap<Symbol, Rc<TypedUserFunction>> {
         &self.functions

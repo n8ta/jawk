@@ -1,6 +1,14 @@
 #![deny(unused_must_use)]
 
-use libc::c_int;
+// Jemalloc showed huge perf gains on malloc/free bound programs
+// like evaluating a regex in a tight loop.
+#[cfg(not(target_env = "msvc"))]
+use jemallocator::Jemalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
 use crate::args::AwkArgs;
 use crate::parser::{Expr};
 use crate::printable_error::PrintableError;
@@ -28,13 +36,9 @@ mod global_scalars;
 
 pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let args = AwkArgs::new(args)?;
-    let source = args.program.load()?;
 
     let mut symbolizer = Symbolizer::new();
-    for x in 0..1000 {
-        let ast = analyze(parse(lex(&source, &mut symbolizer).unwrap(), &mut symbolizer))?;
-    }
-    let ast = analyze(parse(lex(&source, &mut symbolizer).unwrap(), &mut symbolizer))?;
+    let ast = analyze(parse(lex(&args.program, &mut symbolizer).unwrap(), &mut symbolizer))?;
     if args.debug {
         println!("{}", ast);
     }
@@ -54,5 +58,5 @@ fn main() {
         eprintln!("{}", err);
     }
     // Fuck cleanup just sys call out so it's faster
-    unsafe { libc::exit(0 as c_int) }
+    unsafe { libc::exit(0 as libc::c_int) }
 }

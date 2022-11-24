@@ -6,7 +6,7 @@ use crate::PrintableError;
 #[derive(Debug, PartialEq)]
 pub struct AwkArgs {
     pub debug: bool,
-    pub program: ProgramType,
+    pub program: String,
     pub files: Vec<String>,
     pub save_executable: Option<PathBuf>,
 }
@@ -18,17 +18,14 @@ pub enum ProgramType {
 }
 
 impl ProgramType {
-    pub fn load(&self) -> Result<String, PrintableError> {
+    pub fn load(self) -> Result<String, PrintableError> {
         match self {
-            ProgramType::CLI(s) => Ok(s.clone()),
+            ProgramType::CLI(s) => Ok(s),
             ProgramType::File(s) =>
                 {
-                    match std::fs::read_to_string(s) {
+                    match std::fs::read_to_string(&s) {
                         Ok(s) => Ok(s),
-                        Err(e) => Err(PrintableError::new(format!(
-                            "Unable to load source program '{}'\nGot error: {}",
-                            s, e
-                        )))
+                        Err(e) => Err(PrintableError::new(format!("Unable to load source program '{}'\nGot error: {}", s, e)))
                     }
                 },
         }
@@ -95,10 +92,11 @@ impl AwkArgs {
         let program = match program {
             None => {
                 print_help();
-                return Err(PrintableError::new("You must specify a program either if -f file.awk or as an arg '$1 == 0 {{ print $1 }}'"));
+                return Err(PrintableError::new("You must specify a program either with -f file.awk or as an arg '$1 == 0 {{ print $1 }}'"));
             }
             Some(prog) => prog,
         };
+        let program = program.load()?;
         Ok(AwkArgs {
             debug,
             program,

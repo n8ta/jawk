@@ -4,9 +4,9 @@ use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError};
 use crate::global_scalars::SymbolMapping;
 use crate::symbolizer::Symbol;
-use crate::typing::ITypedFunction;
+use crate::typing::{ITypedFunction, TypedProgram};
 use crate::typing::structs::{TypedUserFunction, FunctionMap, CallArg, Call};
-use crate::typing::types::{AnalysisResults, MapT, TypedProgram};
+use crate::typing::types::{AnalysisResults, MapT};
 
 pub struct FunctionAnalysis {
     global_scalars: MapT,
@@ -38,7 +38,7 @@ impl FunctionAnalysis {
     pub fn analyze_program(mut self) -> Result<TypedProgram, PrintableError> {
         let user_functions: Vec<Rc<TypedUserFunction>> = self.functions.user_functions()
             .iter()
-            .map(|(k, v)| v.clone())
+            .map(|(_, v)| v.clone())
             .collect();
         for func in user_functions {
             let mut parser_func = func.function();

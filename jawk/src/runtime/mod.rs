@@ -2,6 +2,7 @@ mod call_log;
 mod release_runtime;
 mod debug_runtime;
 mod arrays;
+mod float_parser;
 
 use crate::lexer::BinOp;
 use gnu_libjit::{Context, Function, Value};

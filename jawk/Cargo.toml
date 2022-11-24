@@ -4,13 +4,27 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
+# JIT compiler
 gnu-libjit = { path = "../gnu-libjit" }
+# Mawk regex is very fast just steal it
 mawk-regex = { path = "../mawk-regex" }
+# Immutable map very helpful for typechecking scopes
 immutable-chunkmap = "1.0.4"
-tempfile = "3.3.0"
+# Lots of FFI stuff using this
 libc = "0.2.127"
+# Used in a few places to speed up access where a hashmap is overkill
 lru-cache = "0.1.2"
-hashbrown = "0.12.3"
+# Default rust hashmap is resistant against DOS we don't need that
+hashbrown = {version = "0.13.1", features = []}
+# 50% perf improvement over default allocated
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+jemallocator = "0.3.2"
+# Faster than stdlib convert float to string
+lexical-core = { version = "^0.8.0", features = ["format", "write-floats"] }
+
+[dev-dependencies]
+# Used in tests
+tempfile = "3.3.0"
 
 [[bin]]
 name = "jawk"
@@ -18,4 +32,4 @@ path = "src/main.rs"
 
 [profile.release]
 lto = true
-#codegen-units = 1
+codegen-units = 1

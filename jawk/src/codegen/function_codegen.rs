@@ -8,7 +8,6 @@ use crate::parser::{ArgT, ScalarType, Stmt, TypedExpr};
 use crate::{Expr, PrintableError, Symbolizer};
 use crate::codegen::callable_function::CallableFunction;
 use crate::codegen::function_scope::FunctionScope;
-use crate::global_scalars::SymbolMapping;
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
@@ -50,7 +49,6 @@ fn fill_in<RuntimeT: Runtime>(mut body: String, runtime: &RuntimeT, scope: &Func
 impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     pub fn build_function(mut function: Function,
                           ast_function: &TypedUserFunction,
-                          global_scalars: &SymbolMapping,
                           runtime: &'a mut RuntimeT,
                           function_map: &'a HashMap<Symbol, CallableFunction>,
                           context: &'a Context,
@@ -97,7 +95,7 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
             break_lbl: vec![],
             return_lbl: Label::new(),
         };
-        func_gen.compile_function(ast_function, global_scalars, dump, debug_asserts, is_main)?;
+        func_gen.compile_function(ast_function, dump, debug_asserts, is_main)?;
         Ok(func_gen.done())
     }
 
@@ -107,7 +105,6 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
     fn compile_function(&mut self,
                         func: &TypedUserFunction,
-                        global_scalars: &SymbolMapping,
                         dump: bool,
                         debug_asserts: bool,
                         is_main: bool) -> Result<(), PrintableError> {
@@ -132,8 +129,8 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
 
         if is_main && debug_asserts {
             // Main function drops all globals when it completes
-            for (global, _) in global_scalars.mapping() {
-                let value = self.function_scope.get_scalar(&mut self.function, global)?;
+            for (global, _) in self.function_scope.global_scalars().mapping().clone() {
+                let value = self.function_scope.get_scalar(&mut self.function, &global)?;
                 self.drop_if_str(value, ScalarType::Variable)
             }
         }
@@ -393,8 +390,6 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
                 let res = self.runtime.binop(&mut self.function, left_as_string.clone(), right_as_string.clone(), *op);
                 let result = ValueT::float(self.float_tag(), res, self.zero_ptr());
                 self.store(&mut self.binop_scratch.clone(), &result);
-                self.drop(&left_as_string);
-                self.drop(&right_as_string);
                 self.function.insn_branch(&mut done_lbl);
 
                 // Float/Float case

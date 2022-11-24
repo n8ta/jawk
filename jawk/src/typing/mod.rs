@@ -4,12 +4,10 @@ mod structs;
 #[cfg(test)]
 mod tests;
 
-pub use crate::typing::types::{AnalysisResults, TypedProgram};
-pub use structs::TypedUserFunction;
-pub use structs::ITypedFunction;
-pub use crate::typing::structs::{CallInfo, CallLink};
-pub(crate) use crate::typing::passes::{function_pass, inference_pass};
+pub use crate::typing::types::{AnalysisResults};
+pub use structs::{ITypedFunction, FunctionMap, TypedUserFunction, TypedProgram, CallLink, CallInfo};
 
+use passes::{function_pass, inference_pass};
 use crate::parser::Program;
 use crate::printable_error::PrintableError;
 

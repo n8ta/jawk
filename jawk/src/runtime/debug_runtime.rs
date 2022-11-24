@@ -10,6 +10,7 @@ use hashbrown::HashMap;
 use mawk_regex::Regex;
 use crate::parser::ScalarType;
 use crate::runtime::arrays::Arrays;
+use crate::runtime::float_parser::FloatParser;
 
 pub const CANARY: &str = "this is the canary!";
 
@@ -153,13 +154,8 @@ extern "C" fn number_to_string(data_ptr: *mut c_void, value: f64) -> *const Stri
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::NumberToString);
     println!("\tnum: {}", value);
-    let value = if value.fract() == 0.0 {
-        value.floor()
-    } else {
-        value
-    };
-
-    let heap_alloc_string = Rc::new(value.to_string());
+    let str = data.float_parser.parse(value);
+    let heap_alloc_string = Rc::new(str);
     data.string_out("number_to_string", &*heap_alloc_string);
     let ptr = Rc::into_raw(heap_alloc_string);
     ptr
@@ -203,7 +199,7 @@ extern "C" fn binop(
 ) -> std::os::raw::c_double {
     let data = cast_to_runtime_data(data);
     data.calls.log(Call::BinOp);
-        let left = unsafe { Rc::from_raw(l_ptr) };
+    let left = unsafe { Rc::from_raw(l_ptr) };
     let right = unsafe { Rc::from_raw(r_ptr) };
 
     let res = match binop {
@@ -227,8 +223,9 @@ extern "C" fn binop(
         "\tBinop called: '{}' {:?} '{}' == {}",
         left, binop, right, res
     );
-    Rc::into_raw(left);
-    Rc::into_raw(right);
+    data.string_in("binop left", &*left);
+    data.string_in("binop right", &*right);
+    // Implicitly drop left and right
     res
 }
 
@@ -377,7 +374,7 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
 }
 
 // Helper for build debug mapping form pointers to their runtime function
-fn insert( mapping: &mut HashMap<String,String>, ptr: *mut c_void, name: &str) {
+fn insert(mapping: &mut HashMap<String, String>, ptr: *mut c_void, name: &str) {
     let ptr_hex = format!("0x{:x}", ptr as i64);
     let with_name = format!("{} 0x{:x}", name, ptr as i64);
     mapping.insert(ptr_hex, with_name);
@@ -395,6 +392,7 @@ pub struct RuntimeData {
     string_out: usize,
     strings_in: usize,
     arrays: Arrays,
+    float_parser: FloatParser,
 }
 
 impl RuntimeData {
@@ -415,6 +413,7 @@ impl RuntimeData {
             string_out: 0,
             strings_in: 0,
             arrays: Arrays::new(),
+            float_parser: FloatParser::new(),
         }
     }
 }
@@ -581,9 +580,9 @@ impl Runtime for DebugRuntime {
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) {
         let data_ptr = self.data_ptr(func);
         match typ {
-            ScalarType::String => {func.insn_call_native(free_string as *mut c_void, &[data_ptr, value.pointer], None, Abi::Cdecl);},
-            ScalarType::Float => {},
-            ScalarType::Variable => {func.insn_call_native(free_if_string as *mut c_void, &[data_ptr, value.tag, value.pointer], None, Abi::Cdecl);},
+            ScalarType::String => { func.insn_call_native(free_string as *mut c_void, &[data_ptr, value.pointer], None, Abi::Cdecl); }
+            ScalarType::Float => {}
+            ScalarType::Variable => { func.insn_call_native(free_if_string as *mut c_void, &[data_ptr, value.tag, value.pointer], None, Abi::Cdecl); }
         };
     }
     fn copy_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) -> ValueT {
@@ -620,10 +619,9 @@ impl Runtime for DebugRuntime {
         insert(&mut mapping, printf as *mut c_void, "printf");
         mapping
     }
-
 }
 
-pub fn cast_to_runtime_data(data: *mut c_void) -> &'static mut RuntimeData {
+fn cast_to_runtime_data(data: *mut c_void) -> &'static mut RuntimeData {
     unsafe {
         let data = data as *mut RuntimeData;
         let d = &mut *data;

@@ -57,6 +57,10 @@ impl Globals {
         init
     }
 
+    pub fn global_scalars(&self) -> &SymbolMapping {
+        &self.mapping
+    }
+
     pub fn get_returned_value(&self, function: &mut Function) -> ValueT {
         let ptrs = Globals::ptrs_idx(&self.global_return_value, 0, function);
         self.load_value(ptrs, function)

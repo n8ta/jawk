@@ -4,7 +4,6 @@ use crate::lexer::BinOp;
 use crate::runtime::{ErrorCode, Runtime};
 use gnu_libjit::{Abi, Context, Function, Value};
 use std::ffi::c_void;
-use std::fmt;
 use std::io::{BufWriter, StdoutLock, Write};
 use std::rc::Rc;
 use hashbrown::HashMap;
@@ -13,9 +12,8 @@ use lru_cache::LruCache;
 use crate::parser::ScalarType;
 use crate::runtime::arrays::{Arrays};
 
-// Live runtime used by most programs.
-// A pointer to the runtime data is provided for all calls but only used for some.
-// Its mainly here for the test runtime.
+use lexical_core::write;
+use crate::runtime::float_parser::FloatParser;
 
 pub extern "C" fn print_string(data: *mut c_void, value: *mut String) {
     let data = cast_to_runtime_data(data);
@@ -129,10 +127,8 @@ extern "C" fn binop(
             !reg.matches(&left)
         }
     };
-    let res = if res { 1.0 } else { 0.0 };
-    Rc::into_raw(left);
-    Rc::into_raw(right);
-    res
+    if res { 1.0 } else { 0.0 }
+    // Implicitly drop left and right
 }
 
 extern "C" fn string_to_number(_data: *mut c_void, ptr: *const String) -> f64 {
@@ -149,14 +145,9 @@ extern "C" fn string_to_number(_data: *mut c_void, ptr: *const String) -> f64 {
     res
 }
 
-extern "C" fn number_to_string(_data: *mut c_void, value: f64) -> *const String {
-    let value = if value.fract() == 0.0 {
-        value.floor()
-    } else {
-        value
-    };
-    let str = value.to_string();
-    Rc::into_raw(Rc::new(str))
+extern "C" fn number_to_string(data_ptr: *mut c_void, value: f64) -> *const String {
+    let runtime_data = cast_to_runtime_data(data_ptr);
+    Rc::into_raw(Rc::new(runtime_data.float_parser.parse(value)))
 }
 
 extern "C" fn copy_string(_data_ptr: *mut c_void, ptr: *mut String) -> *const String {
@@ -312,6 +303,7 @@ pub struct RuntimeData {
     stdout: BufWriter<StdoutLock<'static>>,
     regex_cache: LruCache<String, Regex>,
     arrays: Arrays,
+    float_parser: FloatParser,
 }
 
 impl RuntimeData {
@@ -319,8 +311,9 @@ impl RuntimeData {
         RuntimeData {
             columns: Columns::new(files),
             stdout: BufWriter::new(std::io::stdout().lock()),
-            regex_cache: LruCache::new(10),
+            regex_cache: LruCache::new(8),
             arrays: Arrays::new(),
+            float_parser: FloatParser::new(),
         }
     }
 }
@@ -508,10 +501,9 @@ impl Runtime for ReleaseRuntime {
     }
 }
 
-pub fn cast_to_runtime_data(data: *mut c_void) -> &'static mut RuntimeData {
+fn cast_to_runtime_data(data: *mut c_void) -> &'static mut RuntimeData {
     unsafe {
         let data = data as *mut RuntimeData;
-        let d = &mut *data;
-        d
+        &mut *data
     }
 }

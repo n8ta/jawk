@@ -37,7 +37,7 @@ impl Context {
     /// let mut context = Context::new();
     /// let params = vec![JitType::Int]
     /// let function = context.function(Abi::Cdecl, JitType::Int, params.as_slice());
-    pub fn function(&mut self, abi: Abi, return_type: &JitType, params: Vec<JitType>) -> Result<Function, Exception> {
+    pub fn function(&self, abi: Abi, return_type: &JitType, params: Vec<JitType>) -> Result<Function, Exception> {
         let mut params_libjit: Vec<jit_type_t> = params.iter().map(|p| p.inner).collect();
 
         unsafe {
