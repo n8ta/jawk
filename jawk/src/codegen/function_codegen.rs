@@ -14,13 +14,13 @@ use crate::symbolizer::Symbol;
 use crate::typing::{TypedUserFunction, ITypedFunction};
 
 #[allow(dead_code)]
-pub struct FunctionCodegen<'a, RuntimeT: Runtime> {
+pub struct FunctionCodegen<'a> {
     /// Core Stuff
     function: Function,
     context: &'a Context,
     function_scope: FunctionScope<'a>,
     symbolizer: &'a mut Symbolizer,
-    runtime: &'a mut RuntimeT,
+    runtime: &'a mut dyn Runtime,
     function_map: &'a HashMap<Symbol, CallableFunction>,
 
     /// Function Specific Items
@@ -37,7 +37,7 @@ pub struct FunctionCodegen<'a, RuntimeT: Runtime> {
     var_arg_scratch: &'a Value,
 }
 
-fn fill_in<RuntimeT: Runtime>(mut body: String, runtime: &RuntimeT, scope: &FunctionScope) -> String {
+fn fill_in(mut body: String, runtime: &dyn Runtime, scope: &FunctionScope) -> String {
     let var_name_mapping = scope.debug_mapping();
     let runtime_mapping = runtime.pointer_to_name_mapping();
     for (from, to) in var_name_mapping.into_iter().chain(runtime_mapping.into_iter()) {
@@ -46,10 +46,10 @@ fn fill_in<RuntimeT: Runtime>(mut body: String, runtime: &RuntimeT, scope: &Func
     body
 }
 
-impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
+impl<'a> FunctionCodegen<'a> {
     pub fn build_function(mut function: Function,
                           ast_function: &TypedUserFunction,
-                          runtime: &'a mut RuntimeT,
+                          runtime: &'a mut dyn Runtime,
                           function_map: &'a HashMap<Symbol, CallableFunction>,
                           context: &'a Context,
                           globals: &'a Globals,
@@ -607,12 +607,12 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         input: &ValueT,
         input_type: ScalarType,
         is_ptr: bool,
-        emit_float_code: fn(&mut Function, &mut RuntimeT, &ValueT) -> Value,
-        emit_string_code: fn(&mut Function, &mut RuntimeT, &ValueT) -> Value,
+        emit_float_code: fn(&mut Function, &mut dyn Runtime, &ValueT) -> Value,
+        emit_string_code: fn(&mut Function, &mut dyn Runtime, &ValueT) -> Value,
     ) -> Value {
         match input_type {
-            ScalarType::String => return emit_string_code(&mut self.function, &mut self.runtime, input),
-            ScalarType::Float => return emit_float_code(&mut self.function, &mut self.runtime, input),
+            ScalarType::String => return emit_string_code(&mut self.function, self.runtime, input),
+            ScalarType::Float => return emit_float_code(&mut self.function, self.runtime, input),
             _ => {}
         }
         let mut temp_storage = if is_ptr { self.binop_scratch.pointer.clone() } else { self.binop_scratch.float.clone() };
@@ -622,11 +622,11 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
         let mut done_lbl = Label::new();
         let is_string = self.function.insn_eq(&input.tag, &string_tag);
         self.function.insn_branch_if(&is_string, &mut string_lbl);
-        let res = emit_float_code(&mut self.function, &mut self.runtime, input);
+        let res = emit_float_code(&mut self.function, self.runtime, input);
         self.function.insn_store(&mut temp_storage, &res);
         self.function.insn_branch(&mut done_lbl);
         self.function.insn_label(&mut string_lbl);
-        let res = emit_string_code(&mut self.function, &mut self.runtime, input);
+        let res = emit_string_code(&mut self.function, self.runtime, input);
         self.function.insn_store(&mut temp_storage, &res);
         self.function.insn_label(&mut done_lbl);
         self.function.insn_load(&temp_storage)
@@ -763,20 +763,20 @@ impl<'a, RuntimeT: Runtime> FunctionCodegen<'a, RuntimeT> {
     }
 }
 
-fn float_to_string<RuntimeT: Runtime>(func: &mut Function, runtime: &mut RuntimeT, value: &ValueT) -> Value {
+fn float_to_string(func: &mut Function, runtime: &mut dyn Runtime, value: &ValueT) -> Value {
     runtime.number_to_string(func, value.float.clone())
 }
 
-fn string_to_string<RuntimeT: Runtime>(_func: &mut Function, _runtime: &mut RuntimeT, value: &ValueT) -> Value {
+fn string_to_string(_func: &mut Function, _runtime: &mut dyn Runtime, value: &ValueT) -> Value {
     value.pointer.clone()
 }
 
-fn truthy_float<RuntimeT: Runtime>(function: &mut Function, _runtime: &mut RuntimeT, value: &ValueT) -> Value {
+fn truthy_float(function: &mut Function, _runtime: &mut dyn Runtime, value: &ValueT) -> Value {
     let zero_f = function.create_float64_constant(0.0);
     function.insn_ne(&value.float, &zero_f)
 }
 
-fn truthy_string<RuntimeT: Runtime>(function: &mut Function, _runtime: &mut RuntimeT, value: &ValueT) -> Value {
+fn truthy_string(function: &mut Function, _runtime: &mut dyn Runtime, value: &ValueT) -> Value {
     let string_len_offset =
         std::mem::size_of::<usize>() + std::mem::size_of::<*const u8>();
     let string_len = function.insn_load_relative(

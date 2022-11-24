@@ -21,7 +21,7 @@ pub enum ErrorCode {
 }
 
 pub trait Runtime {
-    fn new(context: &Context, files: Vec<String>) -> Self;
+    fn new(context: &Context, files: Vec<String>) -> Self where Self: Sized;
     fn call_next_line(&mut self, func: &mut Function) -> Value;
     fn column(&mut self, func: &mut Function, tag: Value, float: Value, ptr: Value) -> Value;
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType);
