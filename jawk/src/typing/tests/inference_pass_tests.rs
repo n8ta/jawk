@@ -14,8 +14,7 @@ mod inference_tests {
     fn function_pass_only_prog(prog: &str) -> (TypedProgram, Symbolizer) {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        let prog = function_pass(parse(lex(prog,
-                                                &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
+        let prog = function_pass(parse(lex(prog, &mut symbolizer).unwrap(), &mut symbolizer).unwrap()).unwrap();
         (prog, symbolizer)
     }
 

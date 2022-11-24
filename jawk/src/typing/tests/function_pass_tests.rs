@@ -5,7 +5,7 @@ mod tests {
     fn test_exception(program: &str, error_includes_msg: &str) {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        let ast_result = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer));
+        let ast_result = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer).unwrap());
         if let Err(err) = ast_result {
             println!("Error msg: `{}\nShould include: `{}`", err.msg, error_includes_msg);
             assert!(err.msg.contains(error_includes_msg));
@@ -31,7 +31,7 @@ mod tests {
     fn test_it(program: &str, expected: &str) {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        let ast = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
+        let ast = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer).unwrap()).unwrap();
         println!("prog: {}", ast);
         let result_clean = strip(&format!("{}", ast));
         let expected_clean = strip(expected);
@@ -46,7 +46,7 @@ mod tests {
     fn test_it_funcs(program: &str, expected: &str) {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        let ast = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
+        let ast = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer).unwrap()).unwrap();
         let result_clean = strip(&format!("{}", ast));
         let expected_clean = strip(expected);
         assert_eq!(result_clean, expected_clean);
@@ -212,7 +212,7 @@ mod tests {
     fn test_fails() {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        let res = analyze(parse(lex("BEGIN { a = 0; a[0] = 1; }", &mut symbolizer).unwrap(), &mut symbolizer));
+        let res = analyze(parse(lex("BEGIN { a = 0; a[0] = 1; }", &mut symbolizer).unwrap(), &mut symbolizer).unwrap());
         assert!(res.is_err());
     }
 
@@ -220,7 +220,7 @@ mod tests {
     fn test_fails_2() {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        let ast = analyze(parse(lex("BEGIN { a[0] = 1; a = 0;  }", &mut symbolizer).unwrap(), &mut symbolizer));
+        let ast = analyze(parse(lex("BEGIN { a[0] = 1; a = 0;  }", &mut symbolizer).unwrap(), &mut symbolizer).unwrap());
         assert!(ast.is_err());
     }
 
@@ -228,7 +228,7 @@ mod tests {
     fn test_fails_3() {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        let ast = analyze(parse(lex("BEGIN { if(x) { a[0] = 1; } a = 0;  }", &mut symbolizer).unwrap(), &mut symbolizer));
+        let ast = analyze(parse(lex("BEGIN { if(x) { a[0] = 1; } a = 0;  }", &mut symbolizer).unwrap(), &mut symbolizer).unwrap());
         assert!(ast.is_err());
     }
 

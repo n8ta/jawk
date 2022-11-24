@@ -25,7 +25,7 @@ pub enum BuiltinFunc {
 }
 
 impl BuiltinFunc {
-    fn get(value: &str) -> Option<BuiltinFunc> {
+    pub fn get(value: &str) -> Option<BuiltinFunc> {
         let res = match value {
             "atan2" => BuiltinFunc::Atan2,
             "close" => BuiltinFunc::Close,

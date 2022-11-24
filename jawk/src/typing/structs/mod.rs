@@ -12,3 +12,4 @@ pub use function_map::FunctionMap;
 pub use call::{Call, CallArg};
 pub use ityped_function::ITypedFunction;
 pub use typed_program::TypedProgram;
+pub use builtin_func::BuiltinFunc;

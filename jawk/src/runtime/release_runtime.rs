@@ -12,7 +12,6 @@ use lru_cache::LruCache;
 use crate::parser::ScalarType;
 use crate::runtime::arrays::{Arrays};
 
-use lexical_core::write;
 use crate::runtime::float_parser::FloatParser;
 
 pub extern "C" fn print_string(data: *mut c_void, value: *mut String) {

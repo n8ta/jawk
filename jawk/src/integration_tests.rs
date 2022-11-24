@@ -97,7 +97,7 @@ mod integration_tests {
     fn test_it<S: AsRef<str>>(test_name: &str, prog: &str, file: S, oracle_output: &str) {
         println!("Program:\n{}", prog);
         let mut symbolizer = Symbolizer::new();
-        let program = analyze(parse(lex(&prog, &mut symbolizer).unwrap(), &mut symbolizer)).unwrap();
+        let program = analyze(parse(lex(&prog, &mut symbolizer).unwrap(), &mut symbolizer).unwrap()).unwrap();
         println!("Ast:\n{}", &program);
 
         let temp_dir = tempdir().unwrap();
