@@ -1,3 +1,4 @@
+use std::cell::Ref;
 use std::os::raw::c_void;
 use gnu_libjit::{Function, Value};
 use hashbrown::{HashMap};
@@ -23,7 +24,7 @@ impl<'a> FunctionScope<'a> {
     pub fn args(&self) -> &HashMap<Symbol, ValueT> {
         &self.pure_local_scalar
     }
-    pub fn new(globals: &'a Globals, function: &mut Function, args: &[Arg]) -> Self {
+    pub fn new(globals: &'a Globals, function: &mut Function, args: Ref<'_, Vec<Arg>>) -> Self {
         let mut function_scope = Self {
             globals,
             local_globals: HashMap::with_capacity(1),
@@ -31,7 +32,7 @@ impl<'a> FunctionScope<'a> {
             pure_local_array: HashMap::with_capacity(1),
         };
         let mut idx: i32 = 0;
-        for arg in args {
+        for arg in args.iter() {
             match arg.typ {
                 ArgT::Scalar => {
                     let value = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr());

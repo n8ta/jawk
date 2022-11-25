@@ -3,38 +3,12 @@ use hashbrown::HashSet;
 use crate::{PrintableError};
 use crate::parser::{ArgT};
 use crate::symbolizer::Symbol;
-use crate::typing::{CallInfo, CallLink, ITypedFunction, TypedProgram};
+use crate::typing::{CallLink, ITypedFunction, TypedProgram};
 use crate::typing::structs::CallArg;
 
-fn get_type(program: &TypedProgram, func: &Rc<dyn ITypedFunction>, name: &Symbol) -> ArgT {
-    if let Some((_idx, typ)) = func.get_arg_idx_and_type(name) {
-        return typ;
-    }
-    if program.global_analysis.global_scalars.contains_key(name) {
-        return ArgT::Scalar;
-    }
-    if program.global_analysis.global_arrays.contains_key(name) {
-        return ArgT::Array;
-    }
-    ArgT::Unknown
-}
-
-fn get_types(program: &TypedProgram, link: &CallLink) -> CallInfo {
-    let types = link.call.args.iter().map(
-        |arg|
-            match arg {
-                CallArg::Variable(name) => {
-                    get_type(&program, &link.source, name)
-                }
-                CallArg::Scalar => {
-                    ArgT::Scalar
-                }
-            });
-    types.collect()
-}
-
 fn propogate(program: &mut TypedProgram, link: &CallLink) -> Result<(HashSet<Symbol>, HashSet<Symbol>), PrintableError> {
-    let caller_arg_types = get_types(program, &link);
+
+    let caller_arg_types = link.source.get_call_types(&program.global_analysis, &link);
 
     let dest = link.call.target.clone();
     let src = link.source.clone();

@@ -80,7 +80,7 @@ impl<'a> FunctionCodegen<'a> {
         let string_tag = function.create_sbyte_constant(STRING_TAG as c_char);
         let c = CodegenConsts::new(zero_ptr, zero_f, float_tag, string_tag, sentinel_float);
 
-        let function_scope = FunctionScope::new(globals, &mut function, &ast_function.args());
+        let function_scope = FunctionScope::new(globals, &mut function, ast_function.args());
         let mut func_gen = Self {
             function,
             context,
@@ -255,7 +255,8 @@ impl<'a> FunctionCodegen<'a> {
             Expr::Call { target: target_name, args } => {
                 let target = self.function_map.get(target_name).expect("function to exist");
                 let mut call_args = Vec::with_capacity(args.len());
-                for (idx, (ast_arg, target_arg)) in args.iter().zip(&target.args).enumerate() {
+                let target_args = target.args();
+                for (idx, (ast_arg, target_arg)) in args.iter().zip(target_args.iter()).enumerate() {
                     match target_arg.typ {
                         ArgT::Scalar => {
                             let compiled = self.compile_expr(ast_arg, false)?;
@@ -280,7 +281,7 @@ impl<'a> FunctionCodegen<'a> {
                     }
                 }
                 self.function_scope.flush(&mut self.function);
-                self.function.insn_call(&target.function, call_args);
+                self.function.insn_call(&target.jit_function(), call_args);
                 let ret_value = self.function_scope.get_returned_value(&mut self.function);
                 if side_effect_only {
                     self.drop_if_str(ret_value.clone(), ScalarType::Variable);

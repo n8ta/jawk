@@ -21,6 +21,12 @@ impl FunctionMap {
             Some(boxed) => Some(boxed.clone()),
         }
     }
+    pub fn get_user_function<'a>(&self, name: &Symbol) -> Option<Rc<TypedUserFunction>> {
+        match  self.functions.get(name) {
+            None => None,
+            Some(boxed) => Some(boxed.clone()),
+        }
+    }
     pub fn user_functions(&self) -> &HashMap<Symbol, Rc<TypedUserFunction>> {
         &self.functions
     }

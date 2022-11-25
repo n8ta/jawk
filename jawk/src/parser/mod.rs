@@ -409,7 +409,7 @@ impl<'a> Parser<'a> {
                 // =
                 return Ok(TypedExpr::new(Expr::ScalarAssign(var, Box::new(self.assignment()?))));
             } else if self.matches(flags!(TokenType::InplaceAssign)) {
-                // ?=
+                // += -= *= ...
                 let math_op = if let Token::InplaceEq(math_op) = self.previous().unwrap() { math_op } else { unreachable!() };
                 let expr = Expr::MathOp(
                     Box::new(Expr::Variable(var.clone()).into()),

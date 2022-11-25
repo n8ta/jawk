@@ -7,5 +7,3 @@ pub struct CallLink {
     pub source: Rc<dyn ITypedFunction>,
     pub call: Call,
 }
-
-pub type CallInfo = Vec<ArgT>;

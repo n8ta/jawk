@@ -6,7 +6,7 @@ use hashbrown::HashSet;
 use crate::parser::{Arg, ArgT, Function, ScalarType};
 use crate::{AnalysisResults, PrintableError};
 use crate::symbolizer::Symbol;
-use crate::typing::CallLink;
+use crate::typing::{CallLink, TypedProgram};
 use crate::typing::structs::{Call, CallArg};
 use crate::typing::structs::ityped_function::ITypedFunction;
 
@@ -62,13 +62,16 @@ impl ITypedFunction for TypedUserFunction {
         self.name.clone()
     }
 
-    fn get_arg_idx_and_type(&self, name: &Symbol) -> Option<(usize, ArgT)> {
-        let args = self.args.borrow();
-        if let Some((idx, arg)) = args.iter().enumerate().find(|(_idx, a)| a.name == *name) {
-            Some((idx, arg.typ.clone()))
-        } else {
-            None
-        }
+    fn get_call_types(&self, global_analysis: &AnalysisResults, link: &CallLink) -> Vec<ArgT> {
+        link.call.args.iter().map(|arg|
+            match arg {
+                CallArg::Variable(name) => {
+                    TypedUserFunction::get_type(global_analysis, &self, name)
+                }
+                CallArg::Scalar => {
+                    ArgT::Scalar
+                }
+            }).collect()
     }
 
     fn reverse_call(&self, link: &CallLink, args: &[Arg], analysis: &mut AnalysisResults) -> Result<HashSet<Symbol>, PrintableError> {
@@ -140,6 +143,29 @@ impl TypedUserFunction {
             globals_used: RefCell::new(HashSet::new()),
             args: RefCell::new(args),
             name,
+        }
+    }
+
+    fn get_type(global_analysis: &AnalysisResults, func: &TypedUserFunction, name: &Symbol) -> ArgT {
+        if let Some((_idx, typ)) = func.get_arg_idx_and_type(name) {
+            return typ;
+        }
+        if global_analysis.global_scalars.contains_key(name) {
+            return ArgT::Scalar;
+        }
+        if global_analysis.global_arrays.contains_key(name) {
+            return ArgT::Array;
+        }
+        ArgT::Unknown
+    }
+
+
+    pub fn get_arg_idx_and_type(&self, name: &Symbol) -> Option<(usize, ArgT)> {
+        let args = self.args.borrow();
+        if let Some((idx, arg)) = args.iter().enumerate().find(|(_idx, a)| a.name == *name) {
+            Some((idx, arg.typ.clone()))
+        } else {
+            None
         }
     }
 

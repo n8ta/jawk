@@ -92,12 +92,11 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
 
         let main_sym = symbolizer.get("main function");
         let mut function_map = HashMap::with_capacity(1);
-        let args = prog.functions.get(&main_sym).unwrap().args().clone();
+        let main_function_typed = prog.functions.get_user_function(&main_sym).unwrap();
         function_map.insert(main_sym.clone(),
-                            CallableFunction {
-                                function: main_function.clone(),
-                                args,
-                            });
+                            CallableFunction::main(
+                                main_function.clone(),
+                                main_function_typed));
 
         let mut codegen = CodeGen {
             main: main_function,
@@ -128,14 +127,14 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
         // functions call any other function regardless of order they are compiled in
         for (name, function) in functions.user_functions().iter() {
             if *name == main_sym { continue; };
-            let callable = CallableFunction::new(&self.context, function.args());
+            let callable = CallableFunction::new(&self.context, function.clone());
             self.function_map.insert(name.clone(), callable);
         }
 
         // Compile bodies of each function (including main)
         for (name, parser_func) in functions.user_functions().iter() {
-            let jit_func = self.function_map.get(name).expect("func to exist");
-            FunctionCodegen::build_function(jit_func.function.clone(),
+            let callable_function = self.function_map.get(name).expect("func to exist");
+            FunctionCodegen::build_function(callable_function.jit_function().clone(),
                                             parser_func,
                                             self.runtime,
                                             &self.function_map,
