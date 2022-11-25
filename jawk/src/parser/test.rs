@@ -91,7 +91,6 @@ mod parser_tests {
 
     #[test]
     fn test_ast_oop_2() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let left = Box::new(num!(2.0));
         let right = Box::new(texpr!(Expr::MathOp(
@@ -108,7 +107,6 @@ mod parser_tests {
 
     #[test]
     fn test_ast_assign() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let stmt = Stmt::Expr(texpr!(Expr::ScalarAssign(symbolizer.get("abc"), bnum!(2.0))));
         assert_eq!(
@@ -119,7 +117,6 @@ mod parser_tests {
 
     #[test]
     fn test_mathop_exponent() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
 
         assert_eq!(
@@ -139,7 +136,6 @@ mod parser_tests {
 
     #[test]
     fn test_mathop_exponent_2() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let right = Box::new(num!(3.0));
         let left = Box::new(texpr!(Expr::MathOp(
@@ -157,7 +153,6 @@ mod parser_tests {
 
     #[test]
     fn test_unary_op() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let initial = Box::new(num!(1.0));
         let first = Box::new(texpr!(Expr::MathOp(
@@ -190,7 +185,6 @@ mod parser_tests {
 
     #[test]
     fn test_unary_op2() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let initial = Box::new(num!(1.0));
         let first = Box::new(texpr!(Expr::BinOp(
@@ -222,7 +216,6 @@ mod parser_tests {
 
     #[test]
     fn test_if_else() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let str = "{ if (1) { print 2; } else { print 3; }}";
         let actual = parse_unwrap(lex(str, &mut symbolizer).unwrap(), &mut symbolizer);
@@ -239,7 +232,6 @@ mod parser_tests {
 
     #[test]
     fn test_if_only() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let str = "{if (1) { print 2; }}";
         assert_eq!(
@@ -250,7 +242,6 @@ mod parser_tests {
 
     #[test]
     fn test_print() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let str = "{print 1;}";
         assert_eq!(
@@ -261,7 +252,6 @@ mod parser_tests {
 
     #[test]
     fn test_group() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let str = "{{print 1; print 2;}}";
         assert_eq!(
@@ -276,7 +266,6 @@ mod parser_tests {
 
     #[test]
     fn test_if_else_continues() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let str = "{if (1) { print 2; } else { print 3; } 4.0;}";
         let actual = parse_unwrap(lex(str, &mut symbolizer).unwrap(), &mut symbolizer);
@@ -296,7 +285,6 @@ mod parser_tests {
 
     #[test]
     fn test_paser_begin_end() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let a = symbolizer.get("a");
         let str =
@@ -313,7 +301,6 @@ mod parser_tests {
 
     #[test]
     fn test_pattern_only() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let str = "test";
         let actual = parse_unwrap(lex(str, &mut symbolizer).unwrap(), &mut symbolizer);
@@ -332,7 +319,6 @@ mod parser_tests {
 
     #[test]
     fn test_print_no_semicolon() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let str = "{ print 1 }";
         let actual = parse_unwrap(lex(str, &mut symbolizer).unwrap(), &mut symbolizer);
@@ -348,7 +334,6 @@ mod parser_tests {
 
     #[test]
     fn test_column() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let str = "$0+2 { print a; }";
         let actual = parse_unwrap(lex(str, &mut symbolizer).unwrap(), &mut symbolizer);
@@ -363,7 +348,6 @@ mod parser_tests {
 
     #[test]
     fn test_nested_column() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let str = "$$0 { print a; }";
         let actual = parse_unwrap(lex(str, &mut symbolizer).unwrap(), &mut symbolizer);
@@ -378,7 +362,6 @@ mod parser_tests {
 
     #[test]
     fn test_while_l00p() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let str = "{ while (123) { print 1; } }";
         let actual = parse_unwrap(lex(str, &mut symbolizer).unwrap(), &mut symbolizer);
