@@ -6,7 +6,6 @@ use hashbrown::HashSet;
 use crate::parser::{Arg, ArgT, Function, ScalarType};
 use crate::{AnalysisResults, PrintableError};
 use crate::symbolizer::Symbol;
-use crate::typing::{CallLink, TypedProgram};
 use crate::typing::structs::{Call, CallArg};
 use crate::typing::structs::ityped_function::ITypedFunction;
 
@@ -62,11 +61,11 @@ impl ITypedFunction for TypedUserFunction {
         self.name.clone()
     }
 
-    fn get_call_types(&self, global_analysis: &AnalysisResults, link: &CallLink) -> Vec<ArgT> {
-        link.call.args.iter().map(|arg|
+    fn get_call_types(&self, global_analysis: &AnalysisResults, link: &Call) -> Vec<ArgT> {
+        link.args.iter().map(|arg|
             match arg {
                 CallArg::Variable(name) => {
-                    TypedUserFunction::get_type(global_analysis, &self, name)
+                    TypedUserFunction::get_type(global_analysis, &self, &name)
                 }
                 CallArg::Scalar => {
                     ArgT::Scalar
@@ -74,21 +73,21 @@ impl ITypedFunction for TypedUserFunction {
             }).collect()
     }
 
-    fn reverse_call(&self, link: &CallLink, args: &[Arg], analysis: &mut AnalysisResults) -> Result<HashSet<Symbol>, PrintableError> {
+    fn reverse_call(&self, link: &Call, args: &[Arg], analysis: &mut AnalysisResults) -> Result<HashSet<Symbol>, PrintableError> {
         // Used in this case:
         //      function knows_type(arr) { arr[0[] = 1 }
         //      BEGIN { knows_type(a) }
         // reverse_call is called on main_function with call_arg: vec![CallArg::Variable(a)], args: &[ArgT::Array]
         // main_function can then mark the global a as an array (or scalar depending)
         let mut updated = HashSet::new();
-        for (call_arg, function_arg) in link.call.args.iter().zip(args.iter()) {
+        for (call_arg, function_arg) in link.args.iter().zip(args.iter()) {
             if let CallArg::Variable(name) = call_arg {
                 let updated_sym = match function_arg.typ {
                     ArgT::Scalar => {
-                        self.use_as_scalar(name, analysis)?
+                        self.use_as_scalar(&name, analysis)?
                     }
                     ArgT::Array => {
-                        self.use_as_array(name, analysis)?
+                        self.use_as_array(&name, analysis)?
                     }
                     ArgT::Unknown => None
                 };
@@ -122,8 +121,8 @@ impl ITypedFunction for TypedUserFunction {
                     updated_in_dest.insert(func_arg.name.clone());
                 }
                 (ArgT::Scalar, ArgT::Scalar) | (ArgT::Array, ArgT::Array) => {}
-                (ArgT::Scalar, ArgT::Unknown) => {} // TODO back prop
-                (ArgT::Array, ArgT::Unknown) => {} // TODO back prop
+                (ArgT::Scalar, ArgT::Unknown) => {} // forward prop handled by receiver
+                (ArgT::Array, ArgT::Unknown) => {}  // forward prop handled by receiver
                 (ArgT::Unknown, ArgT::Unknown) => {} // No-op
             }
         }

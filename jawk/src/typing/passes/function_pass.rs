@@ -176,7 +176,7 @@ impl FunctionAnalysis {
                     None => return Err(PrintableError::new(format!("Function `{}` does not exist. Called from function `{}`", target, function.name()))),
                     Some(f) => f.clone(),
                 };
-                let call = Call::new(target_func.clone(), call_args.collect());
+                let call = Call::new(function.clone(), target_func.clone(), call_args.collect());
                 function.add_call(call);
                 target_func.add_caller(function.clone())
             }

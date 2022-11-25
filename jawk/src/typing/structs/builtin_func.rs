@@ -6,7 +6,7 @@ use hashbrown::HashSet;
 use crate::parser::{Arg, ArgT};
 use crate::PrintableError;
 use crate::symbolizer::Symbol;
-use crate::typing::{AnalysisResults, CallLink, ITypedFunction, TypedProgram, TypedUserFunction};
+use crate::typing::{AnalysisResults, ITypedFunction, TypedProgram, TypedUserFunction};
 use crate::typing::structs::Call;
 
 #[derive(Debug)]
@@ -109,11 +109,11 @@ impl ITypedFunction for BuiltinFunc {
         todo!()
     }
 
-    fn get_call_types(&self, global_analysis: &AnalysisResults, link: &CallLink) -> Vec<ArgT> {
+    fn get_call_types(&self, global_analysis: &AnalysisResults, call: &Call) -> Vec<ArgT> {
         todo!()
     }
 
-    fn reverse_call(&self, link: &CallLink, args: &[Arg], analysis: &mut AnalysisResults) -> Result<HashSet<Symbol>, PrintableError> {
+    fn reverse_call(&self, link: &Call, args: &[Arg], analysis: &mut AnalysisResults) -> Result<HashSet<Symbol>, PrintableError> {
         todo!()
     }
 

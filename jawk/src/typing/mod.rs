@@ -5,7 +5,7 @@ mod structs;
 mod tests;
 
 pub use crate::typing::types::{AnalysisResults};
-pub use structs::{ITypedFunction, FunctionMap, TypedUserFunction, TypedProgram, CallLink, BuiltinFunc};
+pub use structs::{ITypedFunction, FunctionMap, TypedUserFunction, TypedProgram, BuiltinFunc};
 
 use passes::{function_pass, inference_pass};
 use crate::parser::Program;
