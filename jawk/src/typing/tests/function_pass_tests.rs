@@ -2,23 +2,8 @@
 mod tests {
     use crate::{analyze, Symbolizer};
     use crate::printable_error::PrintableError;
+    use crate::typing::tests::tests::{gen_ast, test_exception};
     use crate::typing::TypedProgram;
-
-    fn gen_ast(program: &str) -> Result<TypedProgram, PrintableError> {
-        use crate::{lex, parse};
-        let mut symbolizer = Symbolizer::new();
-        analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer).unwrap())
-    }
-
-    fn test_exception(program: &str, error_includes_msg: &str) {
-        let ast_result = gen_ast(program);
-        if let Err(err) = ast_result {
-            println!("Error msg: `{}\nShould include: `{}`", err.msg, error_includes_msg);
-            assert!(err.msg.contains(error_includes_msg));
-        } else {
-            assert!(false, "type check should have failed with {}", error_includes_msg)
-        }
-    }
 
     fn strip(data: &str) -> String {
         let data: String = data.replace("\n", "")
@@ -272,15 +257,5 @@ mod tests {
     #[test]
     fn mixed_scalar_array() {
         test_exception("BEGIN { a[0] = 1; a = 5; }", "attempt to use")
-    }
-
-    #[test]
-    fn second_arg() {
-        test_exception("function ff(a,b) { } BEGIN { ff(1,2); arr[0] = 1; ff(3, arr) }", "attempt to use")
-    }
-
-    #[test]
-    fn second_arg_forward_inference() {
-        test_exception("function fff(a,b) { } function ff(a,b) { fff(a,b) } BEGIN { ff(1,2); arr[0] = 1; fff(3, arr) }", "attempt to use")
     }
 }

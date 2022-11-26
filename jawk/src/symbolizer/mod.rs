@@ -1,4 +1,5 @@
-use std::fmt::{Display, Formatter};
+use std::cell::UnsafeCell;
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::{Weak, Rc};
 use hashbrown::HashSet;
@@ -43,7 +44,22 @@ impl Hash for WeaklyHeldStr {
     }
 }
 
+#[derive(Clone)]
 pub struct Symbolizer {
+    cell: Rc<UnsafeCell<SymbolizerInner>>
+}
+impl Debug for Symbolizer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "symbolizer")
+    }
+}
+impl PartialEq for Symbolizer {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+struct SymbolizerInner {
     // Full list of known symbols weakly held to allow large string to be freed
     known: HashSet<WeaklyHeldStr>,
     // The LruCache is quite a bit faster for lookups so store the last 32 symbols
@@ -86,35 +102,40 @@ impl Display for Symbol {
 impl Symbolizer {
     pub fn new() -> Self {
         Symbolizer {
-            last: LruCache::new(32),
-            known: HashSet::with_capacity(8),
+            cell: Rc::new(UnsafeCell::new(SymbolizerInner {
+                last: LruCache::new(32),
+                known: HashSet::with_capacity(8),
+            }))
         }
     }
     fn get_internal(&mut self, sym: String) -> Symbol {
+        let cell = unsafe { &mut *self.cell.get() as &mut SymbolizerInner };
         let sym = Rc::new(sym);
         let s: Symbol = Symbol { sym: sym.clone() };
         let weakly_held = WeaklyHeldStr { w: Rc::downgrade(&sym) };
-        if let Some(existing) = self.known.get(&weakly_held) {
+        if let Some(existing) = cell.known.get(&weakly_held) {
             let upgraded = existing.clone().upgrade();
             if let Some(existing_symbol) = upgraded {
                 return existing_symbol.clone();
             }
         }
-        self.last.insert(sym.to_string(), s.clone());
-        self.known.insert(weakly_held);
+        cell.last.insert(sym.to_string(), s.clone());
+        cell.known.insert(weakly_held);
         s
     }
     pub fn get_from_string(&mut self, str: String) -> Symbol {
         // This method exists to avoid the extra str -> String
         // allocation when the caller has already allocated a String
         // and we can re-use it
-        if let Some(cached) = self.last.get_mut(&str) {
+        let cell = unsafe { &mut *self.cell.get() as &mut SymbolizerInner };
+        if let Some(cached) = cell.last.get_mut(&str) {
             return cached.clone();
         }
         self.get_internal(str) // no copy of string here!
     }
     pub fn get(&mut self, str: &str) -> Symbol {
-        if let Some(cached) = self.last.get_mut(str) {
+        let cell = unsafe { &mut *self.cell.get() as &mut SymbolizerInner };
+        if let Some(cached) = cell.last.get_mut(str) {
             return cached.clone();
         }
         self.get_internal(str.to_string()) // copies str to String

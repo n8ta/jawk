@@ -14,7 +14,7 @@ impl Display for TypedProgram {
         let mut sorted: Vec<Symbol> = self.functions.user_functions().iter().map(|(sym, _)| sym.clone()).collect();
         sorted.sort();
         for func_name in &sorted {
-            let func = self.functions.get(func_name).unwrap();
+            let func = self.functions.get_user_function(func_name).unwrap();
             write!(f, "{}\n", func)?;
         }
         Ok(())

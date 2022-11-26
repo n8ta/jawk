@@ -29,7 +29,7 @@ pub fn function_pass(prog: Program) -> Result<TypedProgram, PrintableError> {
         global_arrays: SymbolMapping::new(),
         func_names,
         str_consts: Default::default(),
-        functions: FunctionMap::new(functions),
+        functions: FunctionMap::new(functions, &prog.symbolizer),
     };
     analysis.analyze_program()
 }

@@ -117,16 +117,6 @@ impl Into<TypedExpr> for Expr {
     }
 }
 
-#[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
-pub enum NativeFunc {
-    Cos,
-    Sin,
-    Exp,
-    Log,
-    Sqrt,
-    Int
-}
-
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum Expr {
     ScalarAssign(Symbol, Box<TypedExpr>),

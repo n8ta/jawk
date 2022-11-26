@@ -39,7 +39,7 @@ mod parser_tests {
 
     macro_rules! sprogram {
     ($body:expr, $symbolizer:expr) => {
-        Program::new($symbolizer.get("main function"),vec![], vec![], vec![PatternAction::new_action_only($body)], vec![])
+        Program::new($symbolizer.get("main function"),vec![], vec![], vec![PatternAction::new_action_only($body)], vec![], $symbolizer.clone())
     };}
 
     macro_rules! actual {
@@ -67,7 +67,7 @@ mod parser_tests {
                         bnum!(1.0),
                         MathOp::Plus,
                         bnum!(2.0)
-                    )))], vec![]);
+                    )))], vec![], symbolizer.clone());
         assert_eq!(
             parse_it("{1+2}", &mut symbolizer),
             prog
@@ -80,7 +80,7 @@ mod parser_tests {
         let mut symbolizer = Symbolizer::new();
         let left = bnum!(1.0);
         let right = Box::new(mathop!(bnum!(3.0), MathOp::Star, bnum!(2.0)));
-        let expected = Program::new_action_only(symbolizer.get("main function"), Stmt::Expr(mathop!(left, MathOp::Plus, right)));
+        let expected = Program::new_action_only(symbolizer.get("main function"), Stmt::Expr(mathop!(left, MathOp::Plus, right)), symbolizer.clone());
         let actual = parse_it("{1 + 3 * 2;}", &mut symbolizer);
         assert_eq!(
             actual,
@@ -100,7 +100,7 @@ mod parser_tests {
         let mult = Stmt::Expr(texpr!(Expr::MathOp(right, MathOp::Plus, left)));
         assert_eq!(
             parse_it("{1 * 3 + 2;}", &mut symbolizer),
-            Program::new_action_only(symbolizer.get("main function"), mult)
+            Program::new_action_only(symbolizer.get("main function"), mult, symbolizer.clone())
         );
     }
 
@@ -110,7 +110,7 @@ mod parser_tests {
         let stmt = Stmt::Expr(texpr!(Expr::ScalarAssign(symbolizer.get("abc"), bnum!(2.0))));
         assert_eq!(
             parse_unwrap(lex("{abc = 2.0; }", &mut symbolizer).unwrap(), &mut symbolizer),
-            Program::new_action_only(symbolizer.get("main function"), stmt)
+            Program::new_action_only(symbolizer.get("main function"), stmt, symbolizer.clone())
         );
     }
 
@@ -129,6 +129,7 @@ mod parser_tests {
                 MathOp::Exponent,
                 bnum!(2.0)
             )))], vec![],
+                symbolizer.clone(),
             )
         );
     }
@@ -146,7 +147,7 @@ mod parser_tests {
 
         assert_eq!(
             parse_unwrap(lex("{2 ^ 2 * 3;}", &mut symbolizer).unwrap(), &mut symbolizer),
-            Program::new_action_only(symbolizer.get("main function"), expo)
+            Program::new_action_only(symbolizer.get("main function"), expo, symbolizer.clone())
         );
     }
 
@@ -178,7 +179,7 @@ mod parser_tests {
 
         assert_eq!(
             parse_unwrap(lex("{-+-+1;}", &mut symbolizer).unwrap(), &mut symbolizer),
-            Program::new_action_only(symbolizer.get("main function"), fourth)
+            Program::new_action_only(symbolizer.get("main function"), fourth, symbolizer.clone())
         );
     }
 
@@ -209,7 +210,7 @@ mod parser_tests {
     )));
 
         let expected = parse_unwrap(lex("{-!+!1;}", &mut symbolizer).unwrap(), &mut symbolizer);
-        let actual = Program::new_action_only(symbolizer.get("main function"), fourth);
+        let actual = Program::new_action_only(symbolizer.get("main function"), fourth, symbolizer.clone());
         assert_eq!(actual, expected);
     }
 
@@ -222,10 +223,8 @@ mod parser_tests {
             actual,
             Program::new_action_only(
                 symbolizer.get("main function"), Stmt::If(
-                    num!(1.0),
-                    Box::new(Stmt::Print(num!(2.0))),
-                    Some(Box::new(Stmt::Print(num!(3.0)))),
-                ))
+                    num!(1.0), Box::new(Stmt::Print(num!(2.0))), Some(Box::new(Stmt::Print(num!(3.0))))),
+                symbolizer.clone())
         );
     }
 
@@ -235,7 +234,7 @@ mod parser_tests {
         let str = "{if (1) { print 2; }}";
         assert_eq!(
             parse_unwrap(lex(str, &mut symbolizer).unwrap(), &mut symbolizer),
-            Program::new_action_only(symbolizer.get("main function"), Stmt::If(num!(1.0), Box::new(Stmt::Print(num!(2.0))), None))
+            Program::new_action_only(symbolizer.get("main function"), Stmt::If(num!(1.0), Box::new(Stmt::Print(num!(2.0))), None), symbolizer.clone())
         );
     }
 
@@ -245,7 +244,7 @@ mod parser_tests {
         let str = "{print 1;}";
         assert_eq!(
             parse_unwrap(lex(str, &mut symbolizer).unwrap(), &mut symbolizer),
-            Program::new_action_only(symbolizer.get("main function"), Stmt::Print(num!(1.0)))
+            Program::new_action_only(symbolizer.get("main function"), Stmt::Print(num!(1.0)), symbolizer.clone())
         );
     }
 
@@ -259,7 +258,8 @@ mod parser_tests {
                 symbolizer.get("main function"), Stmt::Group(vec![
                     Stmt::Print(num!(1.0)),
                     Stmt::Print(num!(2.0)),
-                ]))
+                ]),
+                symbolizer.clone())
         );
     }
 
@@ -278,7 +278,8 @@ mod parser_tests {
                         Some(Box::new(Stmt::Print(num!(3.0)))),
                     ),
                     Stmt::Expr(num!(4.0)),
-                ]))
+                ]),
+                symbolizer.clone())
         );
     }
 
@@ -295,7 +296,7 @@ mod parser_tests {
             Some(texpr!(Expr::Variable(a))),
             Stmt::Print(num!(5.0)),
         );
-        assert_eq!(actual, Program::new(symbolizer.get("main function"), begins, ends, vec![generic], vec![]));
+        assert_eq!(actual, Program::new(symbolizer.get("main function"), begins, ends, vec![generic], vec![], symbolizer.clone()));
     }
 
     #[test]
@@ -312,6 +313,7 @@ mod parser_tests {
                 vec![PatternAction::new_pattern_only(texpr!(Expr::Variable(
                 symbolizer.get("test")
             )))], vec![],
+                symbolizer.clone(),
             )
         );
     }
@@ -327,7 +329,8 @@ mod parser_tests {
                 symbolizer.get("main function"),
                 vec![],
                 vec![],
-                vec![PatternAction::new_action_only(Stmt::Print(num!(1.0)))], vec![])
+                vec![PatternAction::new_action_only(Stmt::Print(num!(1.0)))], vec![],
+                symbolizer.clone())
         );
     }
 
@@ -342,7 +345,7 @@ mod parser_tests {
         let binop = texpr!(Expr::MathOp(btexpr!(col), MathOp::Plus, bnum!(2.0)));
 
         let pa = PatternAction::new(Some(binop), body);
-        assert_eq!(actual, Program::new(symbolizer.get("main function"), vec![], vec![], vec![pa], vec![]));
+        assert_eq!(actual, Program::new(symbolizer.get("main function"), vec![], vec![], vec![pa], vec![], symbolizer.clone()));
     }
 
     #[test]
@@ -356,7 +359,7 @@ mod parser_tests {
         let col = Expr::Column(btexpr!(col));
 
         let pa = PatternAction::new(Some(texpr!(col)), body);
-        assert_eq!(actual, Program::new(symbolizer.get("main function"), vec![], vec![], vec![pa], vec![]));
+        assert_eq!(actual, Program::new(symbolizer.get("main function"), vec![], vec![], vec![pa], vec![], symbolizer.clone()));
     }
 
     #[test]
@@ -367,7 +370,7 @@ mod parser_tests {
         let body = Stmt::While(num!(123.0), Box::new(Stmt::Print(num!(1.0))));
         assert_eq!(
             actual,
-            Program::new(symbolizer.get("main function"), vec![], vec![], vec![PatternAction::new_action_only(body)], vec![])
+            Program::new(symbolizer.get("main function"), vec![], vec![], vec![PatternAction::new_action_only(body)], vec![], symbolizer.clone())
         );
     }
 
@@ -707,7 +710,7 @@ mod parser_tests {
         let body = Stmt::Print(Expr::NumberF64(1.0).into());
         let function = Function::new(symbolizer.get("abc"), vec![a, b, c], body);
         let begin = Stmt::Print(Expr::NumberF64(1.0).into());
-        assert_eq!(actual, Program::new(symbolizer.get("main function"), vec![begin], vec![], vec![], vec![function]))
+        assert_eq!(actual, Program::new(symbolizer.get("main function"), vec![begin], vec![], vec![], vec![function], symbolizer.clone()))
     }
 
     #[test]
@@ -719,6 +722,6 @@ mod parser_tests {
             Expr::String(symbolizer.get("2")).into(),
         ];
         let begin = Stmt::Expr(Expr::Call { target: a, args }.into());
-        assert_eq!(actual, Program::new(symbolizer.get("main function"), vec![begin], vec![], vec![], vec![]))
+        assert_eq!(actual, Program::new(symbolizer.get("main function"), vec![begin], vec![], vec![], vec![], symbolizer.clone()))
     }
 }

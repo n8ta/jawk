@@ -1,23 +1,17 @@
-use std::borrow::Borrow;
 use std::cell::{Ref, RefCell};
-use std::fmt::{Display, Formatter, write};
+use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use hashbrown::HashSet;
 use crate::parser::{Arg, ArgT};
 use crate::PrintableError;
 use crate::symbolizer::Symbol;
 use crate::typing::{AnalysisResults, BuiltinFunc, ITypedFunction, TypedUserFunction};
+use crate::typing::builtin_funcs::builtin_factory::BuiltinShared;
+use crate::typing::reconcile::reconcile;
 use crate::typing::structs::Call;
 
-
 #[derive(Debug)]
-struct BuiltinShared {
-    callers: RefCell<HashSet<Rc<TypedUserFunction>>>,
-    calls: RefCell<Vec<Call>>,
-}
-
-#[derive(Debug)]
-struct TypedBuiltin {
+pub struct TypedBuiltin {
     args: RefCell<Vec<Arg>>,
     builtin: BuiltinFunc,
     arity: usize,
@@ -57,7 +51,7 @@ impl ITypedFunction for TypedBuiltin {
         self.arity
     }
 
-    fn add_caller(&self, caller: Rc<TypedUserFunction>) {}
+    fn add_caller(&self, _caller: Rc<TypedUserFunction>) {}
 
     fn calls(&self) -> Ref<'_, Vec<Call>> {
         self.shared.calls.borrow()
@@ -75,14 +69,17 @@ impl ITypedFunction for TypedBuiltin {
         self.args.borrow().iter().map(|arg| arg.typ).collect()
     }
 
-    fn reverse_call(&self, link: &Call, args: &[Arg], _analysis: &mut AnalysisResults) -> Result<HashSet<Symbol>, PrintableError> {
+    fn reverse_call(&self, _link: &Call, _args: &[Arg], _analysis: &mut AnalysisResults) -> Result<HashSet<Symbol>, PrintableError> {
         Ok(HashSet::new())
     }
 
     fn receive_call(&self, call: &Vec<ArgT>) -> Result<HashSet<Symbol>, PrintableError> {
-        for arg in call {
-
-        }
-        todo!()
+        let mut builtin_args = self.args.borrow_mut();
+        reconcile(call.as_slice(),
+                  builtin_args.as_mut_slice(),
+                  self.name.clone(),
+                  &mut |_idx| {},
+        )?;
+        Ok(HashSet::new())
     }
 }

@@ -1,7 +1,13 @@
 use std::fmt::{Display, Formatter};
+use crate::parser::{Arg, ArgT};
 use crate::printable_error::PrintableError;
+use crate::Symbolizer;
+use crate::symbolizer::Symbol;
 
-#[derive(Debug)]
+
+pub const NUM_BUILTIN_VARIANTS: usize = 21;
+
+#[derive(Debug, Clone, Copy)]
 pub enum BuiltinFunc {
     Atan2,
     Close,
@@ -23,10 +29,85 @@ pub enum BuiltinFunc {
     Substr,
     System,
     Tolower,
-    Toupper,
+    Toupper, // Must stay as last (see builtin_factory.rs)
 }
 
 impl BuiltinFunc {
+    pub fn args(&self, s: &mut Symbolizer) -> Vec<Arg> {
+        match self {
+            BuiltinFunc::Atan2 => todo!(),
+            BuiltinFunc::Close => todo!(),
+            BuiltinFunc::Cos => todo!(),
+            BuiltinFunc::Exp => todo!(),
+            BuiltinFunc::Gsub => todo!(),
+            BuiltinFunc::Index => todo!(),
+            BuiltinFunc::Int => vec![Arg::new(s.get("int-0"), ArgT::Scalar)],
+            BuiltinFunc::Length => todo!(),
+            BuiltinFunc::Log => todo!(),
+            BuiltinFunc::Matches => todo!(),
+            BuiltinFunc::Rand => todo!(),
+            BuiltinFunc::Sin => todo!(),
+            BuiltinFunc::Split => todo!(),
+            BuiltinFunc::Sprintf => todo!(),
+            BuiltinFunc::Sqrt => todo!(),
+            BuiltinFunc::Srand => todo!(),
+            BuiltinFunc::Sub => todo!(),
+            BuiltinFunc::Substr => todo!(),
+            BuiltinFunc::System => todo!(),
+            BuiltinFunc::Tolower => todo!(),
+            BuiltinFunc::Toupper => todo!(),
+        }
+    }
+    pub fn names_as_symbols(symbolizer: &mut Symbolizer) -> [Symbol; NUM_BUILTIN_VARIANTS] {
+        [
+            symbolizer.get("Atan2"),
+            symbolizer.get("Close"),
+            symbolizer.get("Cos"),
+            symbolizer.get("Exp"),
+            symbolizer.get("Gsub"),
+            symbolizer.get("Index"),
+            symbolizer.get("Int"),
+            symbolizer.get("Length"),
+            symbolizer.get("Log"),
+            symbolizer.get("Matches"),
+            symbolizer.get("Rand"),
+            symbolizer.get("Sin"),
+            symbolizer.get("Split"),
+            symbolizer.get("Sprintf"),
+            symbolizer.get("Sqrt"),
+            symbolizer.get("Srand"),
+            symbolizer.get("Sub"),
+            symbolizer.get("Substr"),
+            symbolizer.get("System"),
+            symbolizer.get("Tolower"),
+            symbolizer.get("Toupper")
+        ]
+    }
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            BuiltinFunc::Atan2 => "Atan2",
+            BuiltinFunc::Close => "Close",
+            BuiltinFunc::Cos => "Cos",
+            BuiltinFunc::Exp => "Exp",
+            BuiltinFunc::Gsub => "Gsub",
+            BuiltinFunc::Index => "Index",
+            BuiltinFunc::Int => "Int",
+            BuiltinFunc::Length => "Length",
+            BuiltinFunc::Log => "Log",
+            BuiltinFunc::Matches => "Matches",
+            BuiltinFunc::Rand => "Rand",
+            BuiltinFunc::Sin => "Sin",
+            BuiltinFunc::Split => "Split",
+            BuiltinFunc::Sprintf => "Sprintf",
+            BuiltinFunc::Sqrt => "Sqrt",
+            BuiltinFunc::Srand => "Srand",
+            BuiltinFunc::Sub => "Sub",
+            BuiltinFunc::Substr => "Substr",
+            BuiltinFunc::System => "System",
+            BuiltinFunc::Tolower => "Tolower",
+            BuiltinFunc::Toupper => "Toupper",
+        }
+    }
     pub fn get(value: &str) -> Option<BuiltinFunc> {
         let res = match value {
             "atan2" => BuiltinFunc::Atan2,
@@ -54,14 +135,11 @@ impl BuiltinFunc {
         };
         Some(res)
     }
-    pub fn is_builtin(str: &str) -> bool {
-        BuiltinFunc::get(str).is_some()
-    }
 }
 
 impl Display for BuiltinFunc {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{}", self.to_str())
     }
 }
 

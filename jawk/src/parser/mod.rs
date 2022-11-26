@@ -27,17 +27,18 @@ enum PAType {
 pub struct Program {
     pub functions: HashMap<Symbol, Function>,
     pub global_analysis: AnalysisResults,
+    pub symbolizer: Symbolizer,
 }
 
 impl Program {
     #[cfg(test)]
-    fn new_action_only(name: Symbol, action: Stmt) -> Program {
+    fn new_action_only(name: Symbol, action: Stmt, symbolizer: Symbolizer) -> Program {
         let body = transform(vec![], vec![], vec![PatternAction::new_action_only(action)]);
         let mut functions = HashMap::new();
         functions.insert(name.clone(), Function::new(name, vec![], body));
-        Program { functions, global_analysis: AnalysisResults::new() }
+        Program { functions, global_analysis: AnalysisResults::new(), symbolizer }
     }
-    pub fn new(name: Symbol, begins: Vec<Stmt>, ends: Vec<Stmt>, pas: Vec<PatternAction>, parsed_functions: Vec<Function>) -> Program {
+    pub fn new(name: Symbol, begins: Vec<Stmt>, ends: Vec<Stmt>, pas: Vec<PatternAction>, parsed_functions: Vec<Function>, symbolizer: Symbolizer) -> Program {
         let body = transform(begins, ends, pas);
         let main = Function::new(name.clone(), vec![], body);
         let mut functions = HashMap::new();
@@ -45,7 +46,7 @@ impl Program {
         for func in parsed_functions {
             functions.insert(func.name.clone(), func);
         }
-        Program { functions, global_analysis: AnalysisResults::new() }
+        Program { functions, global_analysis: AnalysisResults::new(), symbolizer }
     }
 }
 
@@ -142,7 +143,7 @@ impl<'a> Parser<'a> {
                 };
             }
         }
-        Ok(Program::new(self.symbolizer.get("main function"), begins, ends, pattern_actions, functions))
+        Ok(Program::new(self.symbolizer.get("main function"), begins, ends, pattern_actions, functions, self.symbolizer.clone()))
     }
 
     fn ident_consume(&mut self, error_msg: &str) -> Result<Symbol, PrintableError> {

@@ -5,6 +5,7 @@ mod inference_tests {
     use crate::typing::{function_pass, inference_pass};
     use crate::typing::{ITypedFunction, TypedProgram};
     use crate::typing::structs::{Call, CallArg};
+    use crate::typing::tests::tests::test_exception;
 
     fn fully_typed_prog(prog: &str) -> (TypedProgram, Symbolizer) {
         let res = function_pass_only_prog(prog);
@@ -25,7 +26,7 @@ mod inference_tests {
         function helper1(arg1) { 1; }\
         BEGIN { helper1(a) }");
         let helper1 = symbolizer.get("helper1");
-        let func = prog.functions.get(&helper1).unwrap();
+        let func = prog.functions.get_user_function(&helper1).unwrap();
         let callers = func.callers();
         assert_eq!(callers.len(), 1)
     }
@@ -33,8 +34,8 @@ mod inference_tests {
     #[test]
     fn test_calls_forward_inference() {
         let (prog, mut sym) = function_pass_only_prog("function helper(arg) { return 1 } BEGIN { a[0] = 1; helper(a) }");
-        let main = prog.functions.get(&sym.get("main function")).unwrap();
-        let helper = prog.functions.get(&sym.get("helper")).unwrap();
+        let main = prog.functions.get_user_function(&sym.get("main function")).unwrap();
+        let helper = prog.functions.get_user_function(&sym.get("helper")).unwrap();
         assert_eq!(main.calls().len(), 1);
         assert_eq!(main.calls().clone(), vec![Call::new(main.clone(),helper, vec![CallArg::new(sym.get("a"))])]);
     }
@@ -55,8 +56,8 @@ mod inference_tests {
         let (prog, mut symbolizer) = fully_typed_prog("function helper(arg) { return 1 } BEGIN { a[0] = 1; helper(a) }");
         let helper = symbolizer.get("helper");
         assert_eq!(prog.functions.len(), 2);
-        assert_eq!(prog.functions.get(&helper).unwrap().args().len(), 1);
-        assert_eq!(prog.functions.get(&helper).unwrap().args()[0].typ, ArgT::Array);
+        assert_eq!(prog.functions.get_user_function(&helper).unwrap().args().len(), 1);
+        assert_eq!(prog.functions.get_user_function(&helper).unwrap().args()[0].typ, ArgT::Array);
     }
 
     #[test]
@@ -66,8 +67,8 @@ mod inference_tests {
     BEGIN { a[0] = 1; helper1(5, a);  }
     ");
         let helper1 = symbolizer.get("helper1");
-        assert_eq!(prog.functions.get(&helper1).unwrap().args()[0].typ, ArgT::Scalar);
-        assert_eq!(prog.functions.get(&helper1).unwrap().args()[1].typ, ArgT::Array);
+        assert_eq!(prog.functions.get_user_function(&helper1).unwrap().args()[0].typ, ArgT::Scalar);
+        assert_eq!(prog.functions.get_user_function(&helper1).unwrap().args()[1].typ, ArgT::Array);
     }
 
     #[test]
@@ -86,15 +87,15 @@ mod inference_tests {
         let (prog, mut symbolizer) = fully_typed_prog("function helper(arg) { helper(1); } BEGIN { a = 1; helper(a) }");
         let helper = symbolizer.get("helper");
         assert_eq!(prog.functions.len(), 2);
-        assert_eq!(prog.functions.get(&helper).unwrap().args().len(), 1);
-        assert_eq!(prog.functions.get(&helper).unwrap().args()[0].typ, ArgT::Scalar);
+        assert_eq!(prog.functions.get_user_function(&helper).unwrap().args().len(), 1);
+        assert_eq!(prog.functions.get_user_function(&helper).unwrap().args()[0].typ, ArgT::Scalar);
     }
 
     #[test]
     fn test_calls_rev_inference() {
         let (prog, mut sym) = function_pass_only_prog("function helper(arg) { arg[0] = 1 } BEGIN { helper(a) }");
-        let main = prog.functions.get(&sym.get("main function")).unwrap();
-        let helper = prog.functions.get(&sym.get("helper")).unwrap();
+        let main = prog.functions.get_user_function(&sym.get("main function")).unwrap();
+        let helper = prog.functions.get_user_function(&sym.get("helper")).unwrap();
         assert_eq!(main.calls().clone(), vec![Call::new(main.clone(), helper.clone(), vec![CallArg::new(sym.get("a"))])]);
         assert_eq!(helper.args()[0].typ, ArgT::Array);
     }
@@ -114,8 +115,8 @@ mod inference_tests {
         let a = symbolizer.get("a");
         let helper = symbolizer.get("helper");
         assert_eq!(prog.functions.len(), 2);
-        assert_eq!(prog.functions.get(&helper).unwrap().args().len(), 1);
-        assert_eq!(prog.functions.get(&helper).unwrap().args()[0].typ, ArgT::Array);
+        assert_eq!(prog.functions.get_user_function(&helper).unwrap().args().len(), 1);
+        assert_eq!(prog.functions.get_user_function(&helper).unwrap().args()[0].typ, ArgT::Array);
         assert!(prog.global_analysis.global_arrays.contains_key(&a));
         assert!(!prog.global_analysis.global_scalars.contains_key(&a));
     }
@@ -127,9 +128,9 @@ mod inference_tests {
         function helper1(arg1) { return helper2(arg1) }\
         function helper2(arg2) { return 1; }\
         BEGIN { a[0] = 1; helper1(a) }");
-        let main = prog.functions.get(&sym.get("main function")).unwrap();
-        let helper1 = prog.functions.get(&sym.get("helper1")).unwrap();
-        let helper2 = prog.functions.get(&sym.get("helper2")).unwrap();
+        let main = prog.functions.get_user_function(&sym.get("main function")).unwrap();
+        let helper1 = prog.functions.get_user_function(&sym.get("helper1")).unwrap();
+        let helper2 = prog.functions.get_user_function(&sym.get("helper2")).unwrap();
         assert_eq!(main.calls().clone(), vec![Call::new(main.clone(), helper1.clone(), vec![CallArg::new(sym.get("a"))])]);
         assert_eq!(helper1.calls().clone(), vec![Call::new(helper1.clone(), helper2.clone(), vec![CallArg::new(sym.get("arg1"))])]);
         assert_eq!(helper2.args()[0].name, sym.get("arg2"));
@@ -239,5 +240,20 @@ mod inference_tests {
 
         assert!(!prog.global_analysis.global_arrays.contains_key(&a));
         assert!(prog.global_analysis.global_scalars.contains_key(&a));
+    }
+
+    #[test]
+    fn second_arg() {
+        test_exception("function ff(a,b) { } BEGIN { ff(1,2); arr[0] = 1; ff(3, arr) }", "attempt to use")
+    }
+
+    #[test]
+    fn second_arg_forward_inference() {
+        test_exception("function fff(a,b) { } function ff(a,b) { fff(a,b) } BEGIN { ff(1,2); arr[0] = 1; fff(3, arr) }", "attempt to use")
+    }
+
+    #[test]
+    fn test_native_func() {
+        test_exception("BEGIN { arr[0] = 1; int(arr) }", "");
     }
 }

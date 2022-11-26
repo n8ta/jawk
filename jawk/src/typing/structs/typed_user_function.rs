@@ -6,7 +6,7 @@ use hashbrown::HashSet;
 use crate::parser::{Arg, ArgT, Function, ScalarType};
 use crate::{AnalysisResults, PrintableError};
 use crate::symbolizer::Symbol;
-use crate::typing::structs::{Call, call, CallArg};
+use crate::typing::structs::{Call, CallArg};
 use crate::typing::ityped_function::ITypedFunction;
 use crate::typing::reconcile::reconcile;
 
@@ -107,33 +107,11 @@ impl ITypedFunction for TypedUserFunction {
         // then arg_unknown can update its arg a to be a scalar.
         let mut function_args = self.args.borrow_mut();
         let mut updated_in_dest = HashSet::new();
-        // if call.len() != function_args.len() {
-        //     return Err(PrintableError::new(format!("fatal: call to `{}` with {} args but accepts {} args", self.name(), call.len(), self.arity())));
-        // }
-
         reconcile(call.as_slice(),
                   &mut *function_args,
                   self.name.clone(),
                   &mut |sym| { updated_in_dest.insert(sym); })?;
         Ok(updated_in_dest)
-        // for (func_arg, call_arg) in args.iter_mut().zip(call.iter()) {
-        //     match (func_arg.typ, call_arg) {
-        //         // Mismatch
-        //         (ArgT::Scalar, ArgT::Array) => return Err(PrintableError::new(format!("fatal: attempt to use array `{}` in a scalar context", func_arg.name))),
-        //         (ArgT::Array, ArgT::Scalar) => return Err(PrintableError::new(format!("fatal: attempt to use scalar `{}` in a array context", func_arg.name))),
-        //         // Function doesn't known arg type so just accept caller type
-        //         (ArgT::Unknown, ArgT::Scalar)
-        //         | (ArgT::Unknown, ArgT::Array) => {
-        //             func_arg.typ = call_arg.clone();
-        //             updated_in_dest.insert(func_arg.name.clone());
-        //         }
-        //         (ArgT::Scalar, ArgT::Scalar) | (ArgT::Array, ArgT::Array) => {}
-        //         (ArgT::Scalar, ArgT::Unknown) => {} // forward prop handled by receiver
-        //         (ArgT::Array, ArgT::Unknown) => {}  // forward prop handled by receiver
-        //         (ArgT::Unknown, ArgT::Unknown) => {} // No-op
-        //     }
-        // }
-        // Ok(updated_in_dest)
     }
 }
 

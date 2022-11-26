@@ -1,4 +1,5 @@
 #[cfg(test)]
+#[allow(dead_code)]
 mod integration_tests {
     use std::fs;
     use std::io::Write;
