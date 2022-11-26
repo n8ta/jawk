@@ -5,7 +5,6 @@ use hashbrown::HashSet;
 use crate::{AnalysisResults, PrintableError};
 use crate::parser::{Arg, ArgT};
 use crate::symbolizer::Symbol;
-use crate::typing::{TypedProgram};
 use crate::typing::TypedUserFunction;
 use crate::typing::structs::{Call};
 

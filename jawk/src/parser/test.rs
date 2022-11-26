@@ -77,7 +77,6 @@ mod parser_tests {
 
     #[test]
     fn test_ast_oop() {
-        use crate::lexer::lex;
         let mut symbolizer = Symbolizer::new();
         let left = bnum!(1.0);
         let right = Box::new(mathop!(bnum!(3.0), MathOp::Star, bnum!(2.0)));

@@ -161,10 +161,10 @@ mod inference_tests {
         let a = symbolizer.get("a");
         assert_eq!(prog.functions.len(), 3);
 
-        let helper1 = prog.functions.iter().find(|f| *f.0 == helper1).unwrap().1;
+        let helper1 = prog.functions.user_functions_iter().find(|f| *f.0 == helper1).unwrap().1;
         assert_eq!(helper1.args()[0].typ, ArgT::Array);
 
-        let helper2 = prog.functions.iter().find(|f| *f.0 == helper2).unwrap().1;
+        let helper2 = prog.functions.user_functions_iter().find(|f| *f.0 == helper2).unwrap().1;
         assert_eq!(helper2.args()[0].typ, ArgT::Array);
 
         assert!(prog.global_analysis.global_arrays.contains_key(&a));
@@ -196,10 +196,10 @@ mod inference_tests {
 
         assert_eq!(prog.functions.len(), 3);
 
-        let helper1 = prog.functions.iter().find(|f| *f.0 == helper1).unwrap().1;
+        let helper1 = prog.functions.user_functions_iter().find(|f| *f.0 == helper1).unwrap().1;
         assert_eq!(helper1.args()[0].typ, ArgT::Array);
 
-        let helper2 = prog.functions.iter().find(|f| *f.0 == helper2).unwrap().1;
+        let helper2 = prog.functions.user_functions_iter().find(|f| *f.0 == helper2).unwrap().1;
         assert_eq!(helper2.args()[0].typ, ArgT::Array);
 
         assert!(prog.global_analysis.global_arrays.contains_key(&a));
@@ -231,10 +231,10 @@ mod inference_tests {
 
         assert_eq!(prog.functions.len(), 3);
 
-        let helper1 = prog.functions.iter().find(|f| *f.0 == helper1).unwrap().1;
+        let helper1 = prog.functions.user_functions_iter().find(|f| *f.0 == helper1).unwrap().1;
         assert_eq!(helper1.args()[0].typ, ArgT::Scalar);
 
-        let helper2 = prog.functions.iter().find(|f| *f.0 == helper2).unwrap().1;
+        let helper2 = prog.functions.user_functions_iter().find(|f| *f.0 == helper2).unwrap().1;
         assert_eq!(helper2.args()[0].typ, ArgT::Scalar);
 
         assert!(!prog.global_analysis.global_arrays.contains_key(&a));

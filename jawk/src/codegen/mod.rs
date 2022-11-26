@@ -16,7 +16,7 @@ use crate::codegen::callable_function::CallableFunction;
 use crate::codegen::function_codegen::{FunctionCodegen};
 use crate::codegen::globals::Globals;
 use crate::symbolizer::Symbol;
-use crate::typing::{FunctionMap, ITypedFunction, TypedProgram};
+use crate::typing::{FunctionMap, TypedProgram};
 
 /// ValueT is the jit values that make up a struct. It's not a tagged union
 /// just a struct with only one other field being valid to read at a time based on the tag field.

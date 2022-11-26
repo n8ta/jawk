@@ -1,13 +1,5 @@
-use std::cell::Ref;
-use std::fmt::{Display, Formatter, write};
-use std::process::Termination;
-use std::rc::Rc;
-use hashbrown::HashSet;
-use crate::parser::{Arg, ArgT};
-use crate::PrintableError;
-use crate::symbolizer::Symbol;
-use crate::typing::{AnalysisResults, ITypedFunction, TypedProgram, TypedUserFunction};
-use crate::typing::structs::Call;
+use std::fmt::{Display, Formatter};
+use crate::printable_error::PrintableError;
 
 #[derive(Debug)]
 pub enum BuiltinFunc {
@@ -81,43 +73,5 @@ impl TryFrom<&str> for BuiltinFunc {
             Some(r) => Ok(r),
             _ => Err(PrintableError::new(format!("{} is not a builtin function", value))),
         }
-    }
-}
-
-impl ITypedFunction for BuiltinFunc {
-    fn args(&self) -> Ref<'_, Vec<Arg>> {
-        todo!()
-    }
-
-    fn arity(&self) -> usize {
-        todo!()
-    }
-
-    fn add_caller(&self, caller: Rc<TypedUserFunction>) {
-        todo!()
-    }
-
-    fn calls(&self) -> Ref<'_, Vec<Call>> {
-        todo!()
-    }
-
-    fn callers(&self) -> Ref<'_, HashSet<Rc<TypedUserFunction>>> {
-        todo!()
-    }
-
-    fn name(&self) -> Symbol {
-        todo!()
-    }
-
-    fn get_call_types(&self, global_analysis: &AnalysisResults, call: &Call) -> Vec<ArgT> {
-        todo!()
-    }
-
-    fn reverse_call(&self, link: &Call, args: &[Arg], analysis: &mut AnalysisResults) -> Result<HashSet<Symbol>, PrintableError> {
-        todo!()
-    }
-
-    fn receive_call(&self, call: &Vec<ArgT>) -> Result<HashSet<Symbol>, PrintableError> {
-        todo!()
     }
 }

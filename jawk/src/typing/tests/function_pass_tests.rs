@@ -1,11 +1,17 @@
 #[cfg(test)]
 mod tests {
     use crate::{analyze, Symbolizer};
+    use crate::printable_error::PrintableError;
+    use crate::typing::TypedProgram;
 
-    fn test_exception(program: &str, error_includes_msg: &str) {
+    fn gen_ast(program: &str) -> Result<TypedProgram, PrintableError> {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        let ast_result = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer).unwrap());
+        analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer).unwrap())
+    }
+
+    fn test_exception(program: &str, error_includes_msg: &str) {
+        let ast_result = gen_ast(program);
         if let Err(err) = ast_result {
             println!("Error msg: `{}\nShould include: `{}`", err.msg, error_includes_msg);
             assert!(err.msg.contains(error_includes_msg));
@@ -29,9 +35,7 @@ mod tests {
 
     #[cfg(test)]
     fn test_it(program: &str, expected: &str) {
-        use crate::{lex, parse};
-        let mut symbolizer = Symbolizer::new();
-        let ast = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer).unwrap()).unwrap();
+        let ast = gen_ast(program).unwrap();
         println!("prog: {}", ast);
         let result_clean = strip(&format!("{}", ast));
         let expected_clean = strip(expected);
@@ -44,9 +48,7 @@ mod tests {
 
     #[cfg(test)]
     fn test_it_funcs(program: &str, expected: &str) {
-        use crate::{lex, parse};
-        let mut symbolizer = Symbolizer::new();
-        let ast = analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer).unwrap()).unwrap();
+        let ast = gen_ast(program).unwrap();
         let result_clean = strip(&format!("{}", ast));
         let expected_clean = strip(expected);
         assert_eq!(result_clean, expected_clean);
@@ -270,5 +272,15 @@ mod tests {
     #[test]
     fn mixed_scalar_array() {
         test_exception("BEGIN { a[0] = 1; a = 5; }", "attempt to use")
+    }
+
+    #[test]
+    fn second_arg() {
+        test_exception("function ff(a,b) { } BEGIN { ff(1,2); arr[0] = 1; ff(3, arr) }", "attempt to use")
+    }
+
+    #[test]
+    fn second_arg_forward_inference() {
+        test_exception("function fff(a,b) { } function ff(a,b) { fff(a,b) } BEGIN { ff(1,2); arr[0] = 1; fff(3, arr) }", "attempt to use")
     }
 }

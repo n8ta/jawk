@@ -6,7 +6,7 @@ use crate::global_scalars::SymbolMapping;
 use crate::symbolizer::Symbol;
 use crate::typing::{ITypedFunction, TypedProgram};
 use crate::typing::structs::{TypedUserFunction, FunctionMap, CallArg, Call};
-use crate::typing::types::{AnalysisResults, MapT};
+use crate::typing::analysis_results::{AnalysisResults, MapT};
 
 pub struct FunctionAnalysis {
     global_scalars: MapT,

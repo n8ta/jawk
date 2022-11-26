@@ -2,7 +2,7 @@ use std::rc::Rc;
 use hashbrown::hash_map::Iter;
 use hashbrown::HashMap;
 use crate::symbolizer::Symbol;
-use crate::typing::structs::ityped_function::ITypedFunction;
+use crate::typing::ityped_function::ITypedFunction;
 use crate::typing::TypedUserFunction;
 
 pub struct FunctionMap {
@@ -33,7 +33,7 @@ impl FunctionMap {
     pub fn len(&self) -> usize {
         self.functions.len()
     }
-    pub fn iter(&self) -> Iter<'_, Symbol, Rc<TypedUserFunction>> {
+    pub fn user_functions_iter(&self) -> Iter<'_, Symbol, Rc<TypedUserFunction>> {
         self.user_functions().iter()
     }
 }

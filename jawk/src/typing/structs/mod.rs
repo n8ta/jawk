@@ -1,13 +1,10 @@
 mod function_map;
 mod typed_user_function;
-mod builtin_func;
-mod ityped_function;
 mod call;
 mod typed_program;
 
 pub use typed_user_function::TypedUserFunction;
 pub use function_map::FunctionMap;
 pub use call::{Call, CallArg};
-pub use ityped_function::ITypedFunction;
+pub use crate::typing::ityped_function::ITypedFunction;
 pub use typed_program::TypedProgram;
-pub use builtin_func::BuiltinFunc;
