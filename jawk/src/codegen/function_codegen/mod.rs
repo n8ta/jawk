@@ -13,6 +13,8 @@ use gnu_libjit::{Context, Function, Label, Value};
 use hashbrown::HashMap;
 use std::os::raw::{c_char, c_int, c_long, c_void};
 
+mod builtin_codegen;
+
 #[allow(dead_code)]
 pub struct FunctionCodegen<'a> {
     /// Core Stuff
@@ -297,39 +299,6 @@ impl<'a> FunctionCodegen<'a> {
         Ok(())
     }
 
-    fn call_builtin(&mut self, builtin: BuiltinFunc, arg: &Vec<TypedExpr>) -> Result<ValueT, PrintableError> {
-        match builtin {
-            BuiltinFunc::Atan2 => todo!(),
-            BuiltinFunc::Close => todo!(),
-            BuiltinFunc::Cos => todo!(),
-            BuiltinFunc::Exp => todo!(),
-            BuiltinFunc::Gsub => todo!(),
-            BuiltinFunc::Index => todo!(),
-            BuiltinFunc::Int => {
-                // TODO: Properly handle extra arguments
-                let compiled = self.compile_expr(&arg[0], false)?;
-                let float = self.val_to_float(&compiled, arg[0].typ);
-                let floored = self.function.insn_trunc(&float);
-                self.drop_if_str(compiled, arg[0].typ);
-                Ok(ValueT::new(self.float_tag(), floored, self.zero_ptr()))
-            }
-            BuiltinFunc::Length => todo!(),
-            BuiltinFunc::Log => todo!(),
-            BuiltinFunc::Matches => todo!(),
-            BuiltinFunc::Rand => todo!(),
-            BuiltinFunc::Sin => todo!(),
-            BuiltinFunc::Split => todo!(),
-            BuiltinFunc::Sprintf => todo!(),
-            BuiltinFunc::Sqrt => todo!(),
-            BuiltinFunc::Srand => todo!(),
-            BuiltinFunc::Sub => todo!(),
-            BuiltinFunc::Substr => todo!(),
-            BuiltinFunc::System => todo!(),
-            BuiltinFunc::Tolower => todo!(),
-            BuiltinFunc::Toupper => todo!(),
-        }
-    }
-
     fn compile_expr(
         &mut self,
         expr: &TypedExpr,
@@ -341,7 +310,7 @@ impl<'a> FunctionCodegen<'a> {
                 args,
             } => {
                 if let Some(builtin) = BuiltinFunc::get(target_name.to_str()) {
-                    return self.call_builtin(builtin, args);
+                    return self.compile_builtin(&builtin, args)
                 }
                 let target = self
                     .function_map
@@ -737,20 +706,20 @@ impl<'a> FunctionCodegen<'a> {
         })
     }
 
-    pub fn float_tag(&self) -> Value {
+    fn float_tag(&self) -> Value {
         self.c.float_tag.clone()
     }
-    pub fn string_tag(&self) -> Value {
+    fn string_tag(&self) -> Value {
         self.c.string_tag.clone()
     }
-    pub fn zero_f(&self) -> Value {
+    fn zero_f(&self) -> Value {
         self.c.zero_f.clone()
     }
-    pub fn zero_ptr(&self) -> Value {
+    fn zero_ptr(&self) -> Value {
         self.c.zero_ptr.clone()
     }
 
-    pub fn cases(
+    fn cases(
         &mut self,
         input: &ValueT,
         input_type: ScalarType,
@@ -784,7 +753,7 @@ impl<'a> FunctionCodegen<'a> {
         self.function.insn_load(&temp_storage)
     }
 
-    pub fn val_to_float(&mut self, value: &ValueT, typ: ScalarType) -> Value {
+    fn val_to_float(&mut self, value: &ValueT, typ: ScalarType) -> Value {
         if typ == ScalarType::Float {
             return value.float.clone();
         }
@@ -805,7 +774,7 @@ impl<'a> FunctionCodegen<'a> {
         self.function.insn_load(&self.binop_scratch.float)
     }
 
-    pub fn val_to_string(&mut self, value: &ValueT, typ: ScalarType) -> Value {
+    fn val_to_string(&mut self, value: &ValueT, typ: ScalarType) -> Value {
         if typ == ScalarType::String {
             return value.pointer.clone();
         }
@@ -813,11 +782,11 @@ impl<'a> FunctionCodegen<'a> {
     }
 
     // Free the value if it's a string
-    pub fn drop_if_str(&mut self, value: ValueT, typ: ScalarType) {
+    fn drop_if_str(&mut self, value: ValueT, typ: ScalarType) {
         self.runtime.free_if_string(&mut self.function, value, typ);
     }
 
-    pub fn drop(&mut self, value: &Value) {
+    fn drop(&mut self, value: &Value) {
         self.drop_if_str(
             ValueT::new(self.string_tag(), self.zero_f(), value.clone()),
             ScalarType::String,
@@ -825,11 +794,11 @@ impl<'a> FunctionCodegen<'a> {
     }
 
     // Take a value and return an int 0 or 1
-    pub fn truthy_ret_integer(&mut self, value: &ValueT, typ: ScalarType) -> Value {
+    fn truthy_ret_integer(&mut self, value: &ValueT, typ: ScalarType) -> Value {
         self.cases(value, typ, false, truthy_float, truthy_string)
     }
 
-    pub fn no_op_value(&self) -> ValueT {
+    fn no_op_value(&self) -> ValueT {
         ValueT::new(self.float_tag(), self.zero_f(), self.zero_ptr())
     }
 
@@ -837,7 +806,7 @@ impl<'a> FunctionCodegen<'a> {
         self.runtime.copy_if_string(&mut self.function, value, typ)
     }
 
-    pub fn float_binop(&mut self, a: &Value, b: &Value, op: BinOp) -> Value {
+    fn float_binop(&mut self, a: &Value, b: &Value, op: BinOp) -> Value {
         let bool = match op {
             BinOp::Greater => self.function.insn_gt(a, b),
             BinOp::GreaterEq => self.function.insn_ge(a, b),
@@ -865,7 +834,7 @@ impl<'a> FunctionCodegen<'a> {
         self.function.insn_load(&self.binop_scratch.float)
     }
 
-    pub fn compile_expressions_to_str(
+    fn compile_expressions_to_str(
         &mut self,
         expressions: &Vec<TypedExpr>,
     ) -> Result<Vec<Value>, PrintableError> {
@@ -879,7 +848,7 @@ impl<'a> FunctionCodegen<'a> {
     }
 
     // Call runtime and combine values. All values MUST be strings.
-    pub fn concat_values(&mut self, compiled: &Vec<Value>) -> ValueT {
+    fn concat_values(&mut self, compiled: &Vec<Value>) -> ValueT {
         let mut result = self.runtime.concat(
             &mut self.function,
             compiled.get(0).unwrap().clone(),
@@ -894,7 +863,7 @@ impl<'a> FunctionCodegen<'a> {
     }
 
     // Concat indices all values MUST be strings
-    pub fn concat_indices(&mut self, compiled: &Vec<Value>) -> Value {
+    fn concat_indices(&mut self, compiled: &Vec<Value>) -> Value {
         if compiled.len() == 1 {
             return compiled[0].clone();
         }
@@ -911,7 +880,7 @@ impl<'a> FunctionCodegen<'a> {
         result
     }
 
-    pub fn store(&mut self, ptr: &mut ValuePtrT, value: &ValueT) {
+    fn store(&mut self, ptr: &mut ValuePtrT, value: &ValueT) {
         self.function.insn_store(&ptr.tag, &value.tag);
         self.function.insn_store(&ptr.float, &value.float);
         self.function.insn_store(&ptr.pointer, &value.pointer);

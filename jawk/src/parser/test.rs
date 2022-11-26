@@ -1,3 +1,4 @@
+#[cfg(test)]
 mod parser_tests {
     use crate::lexer::Token;
     use crate::lexer::{BinOp, LogicalOp, MathOp};

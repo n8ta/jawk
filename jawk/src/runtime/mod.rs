@@ -20,11 +20,59 @@ pub enum ErrorCode {
     Error2,
 }
 
+
+#[macro_export]
+macro_rules! runtime_fn_no_args {
+    ($fn_name:ident, $native_fn_ptr: expr, $jit_ret_type:expr) => {
+        fn $fn_name(&mut self, func: &mut Function) -> Value {
+            let data_ptr = self.data_ptr(func);
+            func.insn_call_native(
+                $native_fn_ptr as *mut c_void,
+                vec![data_ptr],
+                $jit_ret_type,
+                Abi::Cdecl,
+            )
+        }
+    }
+}
+#[macro_export]
+macro_rules! runtime_fn {
+    ($fn_name:ident, $native_fn_ptr: expr, $jit_ret_type:expr, $($v:ident: $t:ty),*) => {
+        fn $fn_name(&mut self, func: &mut Function, $($v: $t),*) -> Value {
+            let data_ptr = self.data_ptr(func);
+            func.insn_call_native(
+                $native_fn_ptr as *mut c_void,
+                vec![data_ptr, $($v),*],
+                $jit_ret_type,
+                Abi::Cdecl,
+            )
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! runtime_fn_no_ret {
+    ($fn_name:ident, $native_fn_ptr: expr, $jit_ret_type:expr, $($v:ident: $t:ty),*) => {
+        fn $fn_name(&mut self, func: &mut Function, $($v: $t),*) {
+            let data_ptr = self.data_ptr(func);
+            func.insn_call_native(
+                $native_fn_ptr as *mut c_void,
+                vec![data_ptr, $($v),*],
+                $jit_ret_type,
+                Abi::Cdecl,
+            );
+        }
+    }
+}
+
+
 pub trait Runtime {
     fn new(context: &Context, files: Vec<String>) -> Self
     where
         Self: Sized;
     fn call_next_line(&mut self, func: &mut Function) -> Value;
+    // fn to_lower(&mut self, func: &mut Function, ptr: Value) -> Value;
+    // fn to_upper(&mut self, func: &mut Function, ptr: Value) -> Value;
     fn column(&mut self, func: &mut Function, tag: Value, float: Value, ptr: Value) -> Value;
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType);
     fn string_to_number(&mut self, func: &mut Function, ptr: Value) -> Value;

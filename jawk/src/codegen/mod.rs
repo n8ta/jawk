@@ -2,10 +2,10 @@ pub use value::{ValuePtrT, ValueT};
 
 mod callable_function;
 mod codegen_consts;
-mod function_codegen;
 mod function_scope;
 mod globals;
 mod value;
+mod function_codegen;
 
 use crate::codegen::callable_function::CallableFunction;
 use crate::codegen::function_codegen::FunctionCodegen;

@@ -13,6 +13,7 @@ use std::io::{BufWriter, StdoutLock, Write};
 use std::rc::Rc;
 
 use crate::runtime::float_parser::{FloatParser, string_to_float};
+use crate::{runtime_fn, runtime_fn_no_args, runtime_fn_no_ret};
 
 pub extern "C" fn print_string(data: *mut c_void, value: *mut String) {
     let data = cast_to_runtime_data(data);
@@ -350,98 +351,8 @@ impl Runtime for ReleaseRuntime {
         unsafe { (*self.runtime_data).arrays.allocate(count) }
     }
 
-    fn call_next_line(&mut self, func: &mut Function) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            next_line as *mut c_void,
-            &[data_ptr],
-            Some(Context::float64_type()),
-            Abi::Cdecl,
-        )
-    }
-
-    fn column(&mut self, func: &mut Function, tag: Value, float: Value, pointer: Value) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            column as *mut c_void,
-            &[data_ptr, tag, float, pointer],
-            Some(Context::void_ptr_type()),
-            Abi::Cdecl,
-        )
-    }
-
-    fn string_to_number(&mut self, func: &mut Function, ptr: Value) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            string_to_number as *mut c_void,
-            &[data_ptr, ptr],
-            Some(Context::float64_type()),
-            Abi::Cdecl,
-        )
-    }
-
-    fn number_to_string(&mut self, func: &mut Function, number: Value) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            number_to_string as *mut c_void,
-            &[data_ptr, number],
-            Some(Context::void_ptr_type()),
-            Abi::Cdecl,
-        )
-    }
-
-    fn print_string(&mut self, func: &mut Function, ptr: Value) {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            print_string as *mut c_void,
-            &[data_ptr, ptr],
-            None,
-            Abi::Cdecl,
-        );
-    }
-
-    fn print_float(&mut self, func: &mut Function, number: Value) {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            print_float as *mut c_void,
-            &[data_ptr, number],
-            None,
-            Abi::Cdecl,
-        );
-    }
-
-    fn concat(&mut self, func: &mut Function, ptr1: Value, ptr2: Value) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            concat as *mut c_void,
-            &[data_ptr, ptr1, ptr2],
-            Some(Context::void_ptr_type()),
-            Abi::Cdecl,
-        )
-    }
-
-    fn concat_array_indices(&mut self, func: &mut Function, ptr1: Value, ptr2: Value) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            concat_array_indices as *mut c_void,
-            &[data_ptr, ptr1, ptr2],
-            Some(Context::void_ptr_type()),
-            Abi::Cdecl,
-        )
-    }
-
     fn init_empty_string(&mut self) -> *const String {
         empty_string(self.runtime_data as *mut c_void)
-    }
-
-    fn empty_string(&mut self, func: &mut Function) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            empty_string as *mut c_void,
-            &[data_ptr],
-            Some(Context::void_ptr_type()),
-            Abi::Cdecl,
-        )
     }
 
     fn binop(&mut self, func: &mut Function, ptr1: Value, ptr2: Value, binop_val: BinOp) -> Value {
@@ -449,7 +360,7 @@ impl Runtime for ReleaseRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             binop as *mut c_void,
-            &[data_ptr, ptr1, ptr2, binop_val],
+            vec![data_ptr, ptr1, ptr2, binop_val],
             Some(Context::float64_type()),
             Abi::Cdecl,
         )
@@ -460,91 +371,34 @@ impl Runtime for ReleaseRuntime {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             print_error as *mut c_void,
-            &[data_ptr, binop],
+            vec![data_ptr, binop],
             None,
             Abi::Cdecl,
         );
-    }
-
-    fn array_access(
-        &mut self,
-        func: &mut Function,
-        array: Value,
-        key_tag: Value,
-        key_num: Value,
-        key_ptr: Value,
-        out_tag_ptr: Value,
-        out_float_ptr: Value,
-        out_ptr_ptr: Value,
-    ) {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            array_access as *mut c_void,
-            &[
-                data_ptr,
-                array,
-                key_tag,
-                key_num,
-                key_ptr,
-                out_tag_ptr,
-                out_float_ptr,
-                out_ptr_ptr,
-            ],
-            None,
-            Abi::Cdecl,
-        );
-    }
-
-    fn array_assign(
-        &mut self,
-        func: &mut Function,
-        array: Value,
-        key_tag: Value,
-        key_num: Value,
-        key_ptr: Value,
-        tag: Value,
-        float: Value,
-        ptr: Value,
-    ) {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            array_assign as *mut c_void,
-            &[data_ptr, array, key_tag, key_num, key_ptr, tag, float, ptr],
-            None,
-            Abi::Cdecl,
-        );
-    }
-
-    fn in_array(
-        &mut self,
-        func: &mut Function,
-        array: Value,
-        key_tag: Value,
-        key_num: Value,
-        key_ptr: Value,
-    ) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            in_array as *mut c_void,
-            &[data_ptr, array, key_tag, key_num, key_ptr],
-            Some(Context::float64_type()),
-            Abi::Cdecl,
-        )
     }
 
     fn printf(&mut self, func: &mut Function, fstring: Value, nargs: Value, args: Value) {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             printf as *mut c_void,
-            &[data_ptr, fstring, nargs, args],
+            vec![data_ptr, fstring, nargs, args],
             None,
             Abi::VarArg,
         );
     }
 
-    fn pointer_to_name_mapping(&self) -> HashMap<String, String> {
-        HashMap::new()
-    }
+    runtime_fn_no_args!(call_next_line, next_line, Some(Context::float64_type()));
+    runtime_fn!(column, column, Some(Context::void_ptr_type()), tag: Value, float: Value, pointer: Value);
+    runtime_fn!(string_to_number, string_to_number, Some(Context::float64_type()), arg0: Value);
+    runtime_fn!(number_to_string, number_to_string, Some(Context::void_ptr_type()), arg0: Value);
+    runtime_fn_no_ret!(print_string, print_string, None, arg0: Value);
+    runtime_fn_no_ret!(print_float, print_float, None, arg0: Value);
+    runtime_fn!(concat, concat, Some(Context::void_ptr_type()), arg0: Value, arg1: Value);
+    runtime_fn!(concat_array_indices, concat_array_indices, Some(Context::void_ptr_type()), arg0: Value, arg1: Value);
+    runtime_fn_no_args!(empty_string, empty_string, Some(Context::void_ptr_type()));
+    runtime_fn_no_ret!(array_access, array_access, None,array: Value,key_tag: Value,key_num: Value,key_ptr: Value,out_tag_ptr: Value,out_float_ptr: Value,out_ptr_ptr: Value);
+    runtime_fn_no_ret!(array_assign, array_assign, None,array: Value,key_tag: Value,key_num: Value,key_ptr: Value,tag: Value,float: Value,ptr: Value);
+    runtime_fn!(in_array, in_array, Some(Context::float64_type()),array: Value,key_tag: Value,key_num: Value,key_ptr: Value);
 
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) {
         let data_ptr = self.data_ptr(func);
@@ -568,7 +422,6 @@ impl Runtime for ReleaseRuntime {
             }
         };
     }
-
     fn copy_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) -> ValueT {
         let data_ptr = self.data_ptr(func);
         let ptr = match typ {
@@ -587,6 +440,10 @@ impl Runtime for ReleaseRuntime {
             ),
         };
         ValueT::new(value.tag, value.float, ptr)
+    }
+
+    fn pointer_to_name_mapping(&self) -> HashMap<String, String> {
+        HashMap::new()
     }
 }
 

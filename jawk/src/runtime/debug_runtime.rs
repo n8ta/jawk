@@ -11,6 +11,7 @@ use hashbrown::HashMap;
 use mawk_regex::Regex;
 use std::ffi::c_void;
 use std::rc::Rc;
+use crate::{runtime_fn, runtime_fn_no_args, runtime_fn_no_ret};
 
 pub const CANARY: &str = "this is the canary!";
 
@@ -438,33 +439,7 @@ impl DebugRuntime {
     }
 }
 
-impl Runtime for DebugRuntime {
-    fn new(_context: &Context, files: Vec<String>) -> DebugRuntime {
-        let data = Box::new(RuntimeData::new(files));
-        let runtime_data = (Box::leak(data) as *mut RuntimeData) as *mut c_void;
-        DebugRuntime { runtime_data }
-    }
-
-    fn call_next_line(&mut self, func: &mut Function) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            next_line as *mut c_void,
-            vec![data_ptr],
-            Some(Context::float64_type()),
-            Abi::Cdecl,
-        )
-    }
-
-    fn column(&mut self, func: &mut Function, tag: Value, float: Value, pointer: Value) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            column as *mut c_void,
-            vec![data_ptr, tag, float, pointer],
-            Some(Context::void_ptr_type()),
-            Abi::Cdecl,
-        )
-    }
-
+/*
     fn string_to_number(&mut self, func: &mut Function, ptr: Value) -> Value {
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
@@ -475,68 +450,18 @@ impl Runtime for DebugRuntime {
         )
     }
 
-    fn number_to_string(&mut self, func: &mut Function, number: Value) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            number_to_string as *mut c_void,
-            vec![data_ptr, number],
-            Some(Context::void_ptr_type()),
-            Abi::Cdecl,
-        )
-    }
+ */
 
-    fn print_string(&mut self, func: &mut Function, ptr: Value) {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            print_string as *mut c_void,
-            vec![data_ptr, ptr],
-            None,
-            Abi::Cdecl,
-        );
-    }
 
-    fn print_float(&mut self, func: &mut Function, number: Value) {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            print_float as *mut c_void,
-            vec![data_ptr, number],
-            None,
-            Abi::Cdecl,
-        );
-    }
-
-    fn concat(&mut self, func: &mut Function, ptr1: Value, ptr2: Value) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            concat as *mut c_void,
-            vec![data_ptr, ptr1, ptr2],
-            Some(Context::void_ptr_type()),
-            Abi::Cdecl,
-        )
-    }
-
-    fn concat_array_indices(&mut self, func: &mut Function, ptr1: Value, ptr2: Value) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            concat_array_indices as *mut c_void,
-            vec![data_ptr, ptr1, ptr2],
-            Some(Context::void_ptr_type()),
-            Abi::Cdecl,
-        )
+impl Runtime for DebugRuntime {
+    fn new(_context: &Context, files: Vec<String>) -> DebugRuntime {
+        let data = Box::new(RuntimeData::new(files));
+        let runtime_data = (Box::leak(data) as *mut RuntimeData) as *mut c_void;
+        DebugRuntime { runtime_data }
     }
 
     fn init_empty_string(&mut self) -> *const String {
         empty_string(self.runtime_data as *mut c_void)
-    }
-
-    fn empty_string(&mut self, func: &mut Function) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            empty_string as *mut c_void,
-            vec![data_ptr],
-            Some(Context::void_ptr_type()),
-            Abi::Cdecl,
-        )
     }
 
     fn binop(&mut self, func: &mut Function, ptr1: Value, ptr2: Value, binop_val: BinOp) -> Value {
@@ -561,76 +486,11 @@ impl Runtime for DebugRuntime {
         );
     }
 
-    fn array_access(
-        &mut self,
-        func: &mut Function,
-        array: Value,
-        key_tag: Value,
-        key_num: Value,
-        key_ptr: Value,
-        out_tag_ptr: Value,
-        out_float_ptr: Value,
-        out_ptr_ptr: Value,
-    ) {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            array_access as *mut c_void,
-            vec![
-                data_ptr,
-                array,
-                key_tag,
-                key_num,
-                key_ptr,
-                out_tag_ptr,
-                out_float_ptr,
-                out_ptr_ptr,
-            ],
-            None,
-            Abi::Cdecl,
-        );
-    }
-
-    fn array_assign(
-        &mut self,
-        func: &mut Function,
-        array: Value,
-        key_tag: Value,
-        key_num: Value,
-        key_ptr: Value,
-        tag: Value,
-        float: Value,
-        ptr: Value,
-    ) {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            array_assign as *mut c_void,
-            vec![data_ptr, array, key_tag, key_num, key_ptr, tag, float, ptr],
-            None,
-            Abi::Cdecl,
-        );
-    }
-
-    fn in_array(
-        &mut self,
-        func: &mut Function,
-        array: Value,
-        key_tag: Value,
-        key_num: Value,
-        key_ptr: Value,
-    ) -> Value {
-        let data_ptr = self.data_ptr(func);
-        func.insn_call_native(
-            in_array as *mut c_void,
-            vec![data_ptr, array, key_tag, key_num, key_ptr],
-            Some(Context::float64_type()),
-            Abi::Cdecl,
-        )
-    }
-
     fn allocate_arrays(&mut self, count: usize) {
         let data = cast_to_runtime_data(self.runtime_data);
         data.arrays.allocate(count);
     }
+
 
     fn printf(&mut self, func: &mut Function, fstring: Value, nargs: Value, args: Value) {
         let data_ptr = self.data_ptr(func);
@@ -641,6 +501,19 @@ impl Runtime for DebugRuntime {
             Abi::VarArg,
         );
     }
+
+    runtime_fn_no_args!(call_next_line, next_line, Some(Context::float64_type()));
+    runtime_fn!(column, column, Some(Context::void_ptr_type()), tag: Value, float: Value, pointer: Value);
+    runtime_fn!(string_to_number, string_to_number, Some(Context::float64_type()), arg0: Value);
+    runtime_fn!(number_to_string, number_to_string, Some(Context::void_ptr_type()), arg0: Value);
+    runtime_fn_no_ret!(print_string, print_string, None, arg0: Value);
+    runtime_fn_no_ret!(print_float, print_float, None, arg0: Value);
+    runtime_fn!(concat, concat, Some(Context::void_ptr_type()), arg0: Value, arg1: Value);
+    runtime_fn!(concat_array_indices, concat_array_indices, Some(Context::void_ptr_type()), arg0: Value, arg1: Value);
+    runtime_fn_no_args!(empty_string, empty_string, Some(Context::void_ptr_type()));
+    runtime_fn_no_ret!(array_access, array_access, None,array: Value,key_tag: Value,key_num: Value,key_ptr: Value,out_tag_ptr: Value,out_float_ptr: Value,out_ptr_ptr: Value);
+    runtime_fn_no_ret!(array_assign, array_assign, None,array: Value,key_tag: Value,key_num: Value,key_ptr: Value,tag: Value,float: Value,ptr: Value);
+    runtime_fn!(in_array, in_array, Some(Context::float64_type()),array: Value,key_tag: Value,key_num: Value,key_ptr: Value);
 
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) {
         let data_ptr = self.data_ptr(func);
