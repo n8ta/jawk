@@ -7,7 +7,7 @@ use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::parser::{ArgT, ScalarType, Stmt, TypedExpr};
 use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
-use crate::typing::{ITypedFunction, TypedUserFunction};
+use crate::typing::{BuiltinFunc, ITypedFunction, TypedUserFunction};
 use crate::{Expr, PrintableError, Symbolizer};
 use gnu_libjit::{Context, Function, Label, Value};
 use hashbrown::HashMap;
@@ -290,6 +290,39 @@ impl<'a> FunctionCodegen<'a> {
         Ok(())
     }
 
+    fn call_builtin(&mut self, builtin: BuiltinFunc, arg: &Vec<TypedExpr>) -> Result<ValueT, PrintableError> {
+        match builtin {
+            BuiltinFunc::Atan2 => todo!(),
+            BuiltinFunc::Close => todo!(),
+            BuiltinFunc::Cos => todo!(),
+            BuiltinFunc::Exp => todo!(),
+            BuiltinFunc::Gsub => todo!(),
+            BuiltinFunc::Index => todo!(),
+            BuiltinFunc::Int => {
+                // TODO: Properly handle extra arguments
+                let compiled = self.compile_expr(&arg[0], false)?;
+                let float = self.val_to_float(&compiled, arg[0].typ);
+                let floored = self.function.insn_trunc(&float);
+                self.drop_if_str(compiled, arg[0].typ);
+                Ok(ValueT::new(self.float_tag(), floored, self.zero_ptr()))
+            }
+            BuiltinFunc::Length => todo!(),
+            BuiltinFunc::Log => todo!(),
+            BuiltinFunc::Matches => todo!(),
+            BuiltinFunc::Rand => todo!(),
+            BuiltinFunc::Sin => todo!(),
+            BuiltinFunc::Split => todo!(),
+            BuiltinFunc::Sprintf => todo!(),
+            BuiltinFunc::Sqrt => todo!(),
+            BuiltinFunc::Srand => todo!(),
+            BuiltinFunc::Sub => todo!(),
+            BuiltinFunc::Substr => todo!(),
+            BuiltinFunc::System => todo!(),
+            BuiltinFunc::Tolower => todo!(),
+            BuiltinFunc::Toupper => todo!(),
+        }
+    }
+
     fn compile_expr(
         &mut self,
         expr: &TypedExpr,
@@ -300,10 +333,13 @@ impl<'a> FunctionCodegen<'a> {
                 target: target_name,
                 args,
             } => {
+                if let Some(builtin) = BuiltinFunc::get(target_name.to_str()) {
+                    return self.call_builtin(builtin, args);
+                }
                 let target = self
                     .function_map
                     .get(target_name)
-                    .expect("function to exist");
+                    .expect("expected function to exist");
                 let mut call_args = Vec::with_capacity(args.len());
                 let target_args = target.args();
                 for (idx, (ast_arg, target_arg)) in args.iter().zip(target_args.iter()).enumerate()

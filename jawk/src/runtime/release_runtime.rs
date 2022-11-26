@@ -12,7 +12,7 @@ use std::ffi::c_void;
 use std::io::{BufWriter, StdoutLock, Write};
 use std::rc::Rc;
 
-use crate::runtime::float_parser::FloatParser;
+use crate::runtime::float_parser::{FloatParser, string_to_float};
 
 pub extern "C" fn print_string(data: *mut c_void, value: *mut String) {
     let data = cast_to_runtime_data(data);
@@ -142,14 +142,7 @@ extern "C" fn binop(
 
 extern "C" fn string_to_number(_data: *mut c_void, ptr: *const String) -> f64 {
     let string = unsafe { Rc::from_raw(ptr) };
-    let res = if string.len() == 0 {
-        0.0
-    } else {
-        // TODO: Support scientific notation
-        string
-            .parse()
-            .expect(&format!("couldn't convert string to number {}", string))
-    };
+    let res = string_to_float(&*string);
     Rc::into_raw(string);
     res
 }

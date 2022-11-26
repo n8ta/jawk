@@ -1212,4 +1212,17 @@ mod integration_tests {
     ONE_LINE,
     "1\nscalar\n2\n"
 );
+
+    test!(test_str_to_float_0, "BEGIN { print 1 + \"1a\" }", ONE_LINE, "2\n");
+    test!(test_str_to_float_1, "BEGIN { print 1 + \"1.a\" }", ONE_LINE, "2\n");
+    test!(test_str_to_float_2, "BEGIN { print 1 + \"1.3a\" }", ONE_LINE, "2.3\n");
+    test!(test_str_to_float_3, "BEGIN { print 1 + \"1.3..a\" }", ONE_LINE, "2.3\n");
+    test!(test_str_to_float_4, "BEGIN { print 1 + \".1.3..a\" }", ONE_LINE, "1.1\n");
+
+    test!(test_native_int_0,"BEGIN { print int(\"123\") }", ONE_LINE, "123\n");
+    test!(test_native_int_1,"BEGIN { print int(\"33cc\") }", ONE_LINE, "33\n");
+    test!(test_native_int_2,"BEGIN { print int(5) }", ONE_LINE, "5\n");
+    test!(test_native_int_3,"BEGIN { print int(\"\") }", ONE_LINE, "0\n");
+    test!(test_native_int_4,"BEGIN { print int(2.999) }", ONE_LINE, "2\n");
+    test!(test_native_int_5,"BEGIN { print int(-2.999) }", ONE_LINE, "-2\n");
 }

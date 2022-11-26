@@ -4,7 +4,7 @@ use crate::lexer::BinOp;
 use crate::parser::ScalarType;
 use crate::runtime::arrays::Arrays;
 use crate::runtime::call_log::{Call, CallLog};
-use crate::runtime::float_parser::FloatParser;
+use crate::runtime::float_parser::{FloatParser, string_to_float};
 use crate::runtime::{ErrorCode, Runtime};
 use gnu_libjit::{Abi, Context, Function, Value};
 use hashbrown::HashMap;
@@ -137,13 +137,7 @@ extern "C" fn string_to_number(data_ptr: *mut c_void, ptr: *const String) -> f64
 
     let string = unsafe { Rc::from_raw(ptr) };
     println!("\tstring_to_number {:?} '{}'", ptr, string);
-    let res = if string.len() == 0 {
-        0.0
-    } else {
-        string
-            .parse()
-            .expect(&format!("couldn't convert string to number {}", string))
-    };
+    let res = string_to_float(&*string);
     Rc::into_raw(string);
     println!("\tret {}", res);
     res
