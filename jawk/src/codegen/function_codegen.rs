@@ -231,15 +231,22 @@ impl<'a> FunctionCodegen<'a> {
                 // Optimize print based on static knowledge of type
                 match expr.typ {
                     ScalarType::String => {
-                        self.runtime
-                            .print_string(&mut self.function, val.pointer.clone());
+                        self.runtime.print_string(&mut self.function, val.pointer.clone());
                     }
                     ScalarType::Float => {
                         self.runtime.print_float(&mut self.function, val.float);
                     }
                     ScalarType::Variable => {
-                        let str = self.val_to_string(&val, expr.typ);
-                        self.runtime.print_string(&mut self.function, str.clone());
+                        let float_tag = self.float_tag();
+                        let mut float_lbl = Label::new();
+                        let mut done_lbl = Label::new();
+                        let is_float = self.function.insn_eq(&val.tag, &float_tag);
+                        self.function.insn_branch_if(&is_float, &mut float_lbl);
+                        self.runtime.print_string(&mut self.function, val.pointer);
+                        self.function.insn_branch(&mut done_lbl);
+                        self.function.insn_label(&mut float_lbl);
+                        self.runtime.print_float(&mut self.function,val.float);
+                        self.function.insn_label(&mut done_lbl);
                     }
                 }
             }
