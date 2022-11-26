@@ -1,11 +1,11 @@
-use std::rc::Rc;
-use hashbrown::hash_map::Iter;
-use hashbrown::HashMap;
-use crate::Symbolizer;
 use crate::symbolizer::Symbol;
 use crate::typing::builtin_funcs::BuiltinFactory;
 use crate::typing::ityped_function::ITypedFunction;
 use crate::typing::{BuiltinFunc, TypedUserFunction};
+use crate::Symbolizer;
+use hashbrown::hash_map::Iter;
+use hashbrown::HashMap;
+use std::rc::Rc;
 
 pub struct FunctionMap {
     functions: HashMap<Symbol, Rc<TypedUserFunction>>,
@@ -22,12 +22,12 @@ impl FunctionMap {
     pub fn get<'a>(&mut self, name: &Symbol) -> Option<Rc<dyn ITypedFunction>> {
         match self.functions.get(name) {
             None => {
-              if let Some(builtin) = BuiltinFunc::get(name.to_str()) {
-                  Some(self.builtin_factory.get(builtin))
-              }  else {
-                  None
-              }
-            },
+                if let Some(builtin) = BuiltinFunc::get(name.to_str()) {
+                    Some(self.builtin_factory.get(builtin))
+                } else {
+                    None
+                }
+            }
             Some(boxed) => Some(boxed.clone()),
         }
     }

@@ -10,35 +10,37 @@ use jemallocator::Jemalloc;
 static GLOBAL: Jemalloc = Jemalloc;
 
 use crate::args::AwkArgs;
-use crate::parser::{Expr};
+use crate::parser::Expr;
 use crate::printable_error::PrintableError;
 
-use crate::typing::{AnalysisResults};
+use crate::typing::AnalysisResults;
 
 pub use crate::codegen::{compile_and_capture, compile_and_run};
-pub use crate::typing::{analyze};
-pub use crate::lexer::{lex};
-pub use crate::parser::{parse};
+pub use crate::lexer::lex;
+pub use crate::parser::parse;
 pub use crate::symbolizer::Symbolizer;
+pub use crate::typing::analyze;
 
 mod args;
 mod codegen;
 mod columns;
-mod lexer;
+mod global_scalars;
 mod integration_tests;
+mod lexer;
 mod parser;
 mod printable_error;
 mod runtime;
-mod typing;
 mod symbolizer;
-mod global_scalars;
-
+mod typing;
 
 pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let args = AwkArgs::new(args)?;
 
     let mut symbolizer = Symbolizer::new();
-    let ast = analyze(parse(lex(&args.program, &mut symbolizer)?, &mut symbolizer)?)?;
+    let ast = analyze(parse(
+        lex(&args.program, &mut symbolizer)?,
+        &mut symbolizer,
+    )?)?;
     if args.debug {
         println!("{}", ast);
     }
@@ -50,7 +52,6 @@ pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     }
     Ok(())
 }
-
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

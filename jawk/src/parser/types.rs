@@ -1,6 +1,6 @@
 use crate::lexer::{BinOp, LogicalOp, MathOp};
-use std::fmt::{Display, Formatter};
 use crate::symbolizer::Symbol;
+use std::fmt::{Display, Formatter};
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 pub enum ScalarType {
@@ -28,7 +28,10 @@ pub enum Stmt {
     Group(Vec<Stmt>),
     If(TypedExpr, Box<Stmt>, Option<Box<Stmt>>),
     While(TypedExpr, Box<Stmt>),
-    Printf { fstring: TypedExpr, args: Vec<TypedExpr> },
+    Printf {
+        fstring: TypedExpr,
+        args: Vec<TypedExpr>,
+    },
     Break,
     Return(Option<TypedExpr>),
 }
@@ -81,14 +84,15 @@ pub struct PatternAction {
 
 impl PatternAction {
     pub fn new<ExprT: Into<Option<TypedExpr>>>(pattern: ExprT, action: Stmt) -> Self {
-        Self { pattern: pattern.into(), action }
+        Self {
+            pattern: pattern.into(),
+            action,
+        }
     }
     pub fn new_pattern_only(test: TypedExpr) -> PatternAction {
         PatternAction::new(
             Some(test),
-            Stmt::Print(Expr::Column(Box::new(
-                Expr::NumberF64(0.0).into()),
-            ).into()),
+            Stmt::Print(Expr::Column(Box::new(Expr::NumberF64(0.0).into())).into()),
         )
     }
     pub fn new_action_only(body: Stmt) -> PatternAction {
@@ -120,7 +124,11 @@ impl Into<TypedExpr> for Expr {
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum Expr {
     ScalarAssign(Symbol, Box<TypedExpr>),
-    ArrayAssign { name: Symbol, indices: Vec<TypedExpr>, value: Box<TypedExpr> },
+    ArrayAssign {
+        name: Symbol,
+        indices: Vec<TypedExpr>,
+        value: Box<TypedExpr>,
+    },
     NumberF64(f64),
     String(Symbol),
     Concatenation(Vec<TypedExpr>),
@@ -132,9 +140,18 @@ pub enum Expr {
     NextLine,
     Ternary(Box<TypedExpr>, Box<TypedExpr>, Box<TypedExpr>),
     Regex(Symbol),
-    ArrayIndex { name: Symbol, indices: Vec<TypedExpr> },
-    InArray { name: Symbol, indices: Vec<TypedExpr> },
-    Call { target: Symbol, args: Vec<TypedExpr> },
+    ArrayIndex {
+        name: Symbol,
+        indices: Vec<TypedExpr>,
+    },
+    InArray {
+        name: Symbol,
+        indices: Vec<TypedExpr>,
+    },
+    Call {
+        target: Symbol,
+        args: Vec<TypedExpr>,
+    },
 }
 
 impl Display for TypedExpr {
@@ -157,7 +174,6 @@ fn display_comma_sep_list<T: Display>(f: &mut Formatter<'_>, indices: &[T]) -> s
     }
     Ok(())
 }
-
 
 impl Display for Expr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -199,7 +215,11 @@ impl Display for Expr {
                 display_comma_sep_list(f, indices)?;
                 write!(f, ") in {}", name)
             }
-            Expr::ArrayAssign { name, indices, value } => {
+            Expr::ArrayAssign {
+                name,
+                indices,
+                value,
+            } => {
                 write!(f, "{}[", name)?;
                 display_comma_sep_list(f, indices)?;
                 write!(f, "] = {}", value)

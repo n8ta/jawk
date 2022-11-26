@@ -1,8 +1,8 @@
-use std::fmt::{Debug, Formatter};
-use std::rc::Rc;
-use hashbrown::HashSet;
 use crate::symbolizer::Symbol;
 use crate::typing::ITypedFunction;
+use hashbrown::HashSet;
+use std::fmt::{Debug, Formatter};
+use std::rc::Rc;
 
 pub struct Call {
     pub target: Rc<dyn ITypedFunction>,
@@ -11,7 +11,9 @@ pub struct Call {
 }
 impl PartialEq for Call {
     fn eq(&self, other: &Self) -> bool {
-        self.target.name() == other.target.name() && self.args == other.args && self.src.name() == other.src.name()
+        self.target.name() == other.target.name()
+            && self.args == other.args
+            && self.src.name() == other.src.name()
     }
 }
 impl Clone for Call {
@@ -26,7 +28,7 @@ impl Clone for Call {
 
 impl Debug for Call {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f,"target: {:?}, args: {:?}", self.target.name(), self.args)
+        write!(f, "target: {:?}, args: {:?}", self.target.name(), self.args)
     }
 }
 
@@ -62,8 +64,11 @@ impl CallArg {
 }
 
 impl Call {
-    pub fn new(src: Rc<dyn ITypedFunction>, target: Rc<dyn ITypedFunction>, args: Vec<CallArg>) -> Self {
+    pub fn new(
+        src: Rc<dyn ITypedFunction>,
+        target: Rc<dyn ITypedFunction>,
+        args: Vec<CallArg>,
+    ) -> Self {
         Self { src, target, args }
     }
 }
-

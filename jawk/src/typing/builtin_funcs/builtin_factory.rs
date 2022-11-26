@@ -1,12 +1,12 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-use hashbrown::HashSet;
-use crate::Symbolizer;
 use crate::symbolizer::Symbol;
-use crate::typing::structs::Call;
-use crate::typing::{BuiltinFunc, TypedUserFunction};
 use crate::typing::builtin_funcs::builtin_func::NUM_BUILTIN_VARIANTS;
 use crate::typing::builtin_funcs::typed_builtin::TypedBuiltin;
+use crate::typing::structs::Call;
+use crate::typing::{BuiltinFunc, TypedUserFunction};
+use crate::Symbolizer;
+use hashbrown::HashSet;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct BuiltinShared {
@@ -15,7 +15,12 @@ pub struct BuiltinShared {
 }
 
 impl BuiltinShared {
-    pub fn new() -> Self { Self { callers: RefCell::new(HashSet::new()), calls: RefCell::new(vec![]) } }
+    pub fn new() -> Self {
+        Self {
+            callers: RefCell::new(HashSet::new()),
+            calls: RefCell::new(vec![]),
+        }
+    }
 }
 
 pub struct BuiltinFactory {
@@ -29,8 +34,11 @@ pub struct BuiltinFactory {
 
 impl BuiltinFactory {
     pub fn new(mut symbolizer: Symbolizer) -> Self {
-        let names= BuiltinFunc::names_as_symbols(&mut symbolizer);
-        let cache= [None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None];
+        let names = BuiltinFunc::names_as_symbols(&mut symbolizer);
+        let cache = [
+            None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+            None, None, None, None, None, None, None,
+        ];
         Self {
             shared: Rc::new(BuiltinShared::new()),
             cache,
@@ -47,7 +55,12 @@ impl BuiltinFactory {
             } else {
                 let name = self.names.get_unchecked(builtin as usize);
                 let args = builtin.args(&mut self.symbolizer);
-                let typed_builtin = Rc::new(TypedBuiltin::new(name.clone(), args, builtin, self.shared.clone()));
+                let typed_builtin = Rc::new(TypedBuiltin::new(
+                    name.clone(),
+                    args,
+                    builtin,
+                    self.shared.clone(),
+                ));
                 self.cache[builtin as usize] = Some(typed_builtin.clone());
                 typed_builtin
             }

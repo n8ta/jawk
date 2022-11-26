@@ -1,9 +1,9 @@
-use std::fmt::{Debug};
-use hashbrown::{HashSet};
-use immutable_chunkmap::map::Map;
 use crate::global_scalars::SymbolMapping;
-use crate::parser::{ScalarType};
+use crate::parser::ScalarType;
 use crate::symbolizer::Symbol;
+use hashbrown::HashSet;
+use immutable_chunkmap::map::Map;
+use std::fmt::Debug;
 
 pub type MapT = Map<Symbol, ScalarType, 1000>;
 

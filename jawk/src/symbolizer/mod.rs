@@ -1,9 +1,9 @@
+use hashbrown::HashSet;
+use lru_cache::LruCache;
 use std::cell::UnsafeCell;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::rc::{Weak, Rc};
-use hashbrown::HashSet;
-use lru_cache::LruCache;
+use std::rc::{Rc, Weak};
 
 #[derive(Clone, Debug)]
 struct WeaklyHeldStr {
@@ -14,7 +14,7 @@ impl WeaklyHeldStr {
     fn upgrade(self) -> Option<Symbol> {
         match self.w.upgrade() {
             None => None,
-            Some(sym) => Some(Symbol { sym })
+            Some(sym) => Some(Symbol { sym }),
         }
     }
 }
@@ -46,7 +46,7 @@ impl Hash for WeaklyHeldStr {
 
 #[derive(Clone)]
 pub struct Symbolizer {
-    cell: Rc<UnsafeCell<SymbolizerInner>>
+    cell: Rc<UnsafeCell<SymbolizerInner>>,
 }
 impl Debug for Symbolizer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -105,14 +105,16 @@ impl Symbolizer {
             cell: Rc::new(UnsafeCell::new(SymbolizerInner {
                 last: LruCache::new(32),
                 known: HashSet::with_capacity(8),
-            }))
+            })),
         }
     }
     fn get_internal(&mut self, sym: String) -> Symbol {
         let cell = unsafe { &mut *self.cell.get() as &mut SymbolizerInner };
         let sym = Rc::new(sym);
         let s: Symbol = Symbol { sym: sym.clone() };
-        let weakly_held = WeaklyHeldStr { w: Rc::downgrade(&sym) };
+        let weakly_held = WeaklyHeldStr {
+            w: Rc::downgrade(&sym),
+        };
         if let Some(existing) = cell.known.get(&weakly_held) {
             let upgraded = existing.clone().upgrade();
             if let Some(existing_symbol) = upgraded {

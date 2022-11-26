@@ -1,16 +1,16 @@
-use crate::codegen::{FLOAT_TAG, STRING_TAG, ValueT};
+use crate::codegen::{ValueT, FLOAT_TAG, STRING_TAG};
 use crate::columns::Columns;
 use crate::lexer::BinOp;
+use crate::parser::ScalarType;
+use crate::runtime::arrays::Arrays;
 use crate::runtime::{ErrorCode, Runtime};
 use gnu_libjit::{Abi, Context, Function, Value};
+use hashbrown::HashMap;
+use lru_cache::LruCache;
+use mawk_regex::Regex;
 use std::ffi::c_void;
 use std::io::{BufWriter, StdoutLock, Write};
 use std::rc::Rc;
-use hashbrown::HashMap;
-use mawk_regex::Regex;
-use lru_cache::LruCache;
-use crate::parser::ScalarType;
-use crate::runtime::arrays::{Arrays};
 
 use crate::runtime::float_parser::FloatParser;
 
@@ -18,10 +18,16 @@ pub extern "C" fn print_string(data: *mut c_void, value: *mut String) {
     let data = cast_to_runtime_data(data);
     let str = unsafe { Rc::from_raw(value) };
     if str.ends_with("\n") {
-        data.stdout.write_all(str.as_bytes()).expect("failed to write to stdout")
+        data.stdout
+            .write_all(str.as_bytes())
+            .expect("failed to write to stdout")
     } else {
-        data.stdout.write_all(str.as_bytes()).expect("failed to write to stdout");
-        data.stdout.write_all("\n".as_bytes()).expect("failed to write to stdout");
+        data.stdout
+            .write_all(str.as_bytes())
+            .expect("failed to write to stdout");
+        data.stdout
+            .write_all("\n".as_bytes())
+            .expect("failed to write to stdout");
     }
     // implicitly consuming str here.
 }
@@ -126,7 +132,11 @@ extern "C" fn binop(
             !reg.matches(&left)
         }
     };
-    if res { 1.0 } else { 0.0 }
+    if res {
+        1.0
+    } else {
+        0.0
+    }
     // Implicitly drop left and right
 }
 
@@ -168,16 +178,20 @@ extern "C" fn print_error(_data: *mut std::os::raw::c_void, code: ErrorCode) {
     eprintln!("error {:?}", code)
 }
 
-extern "C" fn array_assign(data_ptr: *mut std::os::raw::c_void,
-                           array: i32,
-                           key_tag: i8,
-                           key_num: f64,
-                           key_ptr: *mut String,
-                           tag: i8,
-                           float: f64,
-                           ptr: *mut String) {
+extern "C" fn array_assign(
+    data_ptr: *mut std::os::raw::c_void,
+    array: i32,
+    key_tag: i8,
+    key_num: f64,
+    key_ptr: *mut String,
+    tag: i8,
+    float: f64,
+    ptr: *mut String,
+) {
     let data = cast_to_runtime_data(data_ptr);
-    let res = data.arrays.assign(array, (key_tag, key_num, key_ptr), (tag, float, ptr));
+    let res = data
+        .arrays
+        .assign(array, (key_tag, key_num, key_ptr), (tag, float, ptr));
     match res {
         None => {}
         Some((existing_tag, _existing_float, existing_ptr)) => {
@@ -199,51 +213,55 @@ extern "C" fn array_assign(data_ptr: *mut std::os::raw::c_void,
     }
 }
 
-extern "C" fn array_access(data_ptr: *mut std::os::raw::c_void,
-                           array: i32,
-                           in_tag: i8,
-                           in_float: f64,
-                           in_ptr: *mut String,
-                           out_tag: *mut i8,
-                           out_float: *mut f64,
-                           out_value: *mut *mut String) {
+extern "C" fn array_access(
+    data_ptr: *mut std::os::raw::c_void,
+    array: i32,
+    in_tag: i8,
+    in_float: f64,
+    in_ptr: *mut String,
+    out_tag: *mut i8,
+    out_float: *mut f64,
+    out_value: *mut *mut String,
+) {
     let data = cast_to_runtime_data(data_ptr);
     match data.arrays.access(array, (in_tag, in_float, in_ptr)) {
-        None => {
-            unsafe {
-                *out_tag = STRING_TAG;
-                *out_value = empty_string(data_ptr) as *mut String;
+        None => unsafe {
+            *out_tag = STRING_TAG;
+            *out_value = empty_string(data_ptr) as *mut String;
+        },
+        Some((tag, float, str)) => unsafe {
+            *out_tag = *tag;
+            *out_float = *float;
+            if *tag == STRING_TAG {
+                let rc = Rc::from_raw(*str);
+                let cloned = rc.clone();
+                Rc::into_raw(rc);
+                *out_value = Rc::into_raw(cloned) as *mut String;
             }
-        }
-        Some((tag, float, str)) => {
-            unsafe {
-                *out_tag = *tag;
-                *out_float = *float;
-                if *tag == STRING_TAG {
-                    let rc = Rc::from_raw(*str);
-                    let cloned = rc.clone();
-                    Rc::into_raw(rc);
-                    *out_value = Rc::into_raw(cloned) as *mut String;
-                }
-            }
-        }
+        },
     }
     if in_tag == STRING_TAG {
         free_string(data_ptr, in_ptr);
     }
 }
 
-extern "C" fn in_array(data_ptr: *mut std::os::raw::c_void,
-                       array: i32,
-                       in_tag: i8,
-                       in_float: f64,
-                       in_ptr: *const String) -> f64 {
+extern "C" fn in_array(
+    data_ptr: *mut std::os::raw::c_void,
+    array: i32,
+    in_tag: i8,
+    in_float: f64,
+    in_ptr: *const String,
+) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     let res = data.arrays.in_array(array, (in_tag, in_float, in_ptr));
     if in_tag == STRING_TAG {
         unsafe { Rc::from_raw(in_ptr) };
     }
-    if res { 1.0 } else { 0.0 }
+    if res {
+        1.0
+    } else {
+        0.0
+    }
 }
 
 extern "C" fn concat_array_indices(
@@ -269,7 +287,9 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
     let base_ptr = args as *mut f64;
     unsafe {
         let fstring = Rc::from_raw(fstring);
-        data.stdout.write_all(fstring.as_bytes()).expect("to be able to write to stdout");
+        data.stdout
+            .write_all(fstring.as_bytes())
+            .expect("to be able to write to stdout");
         for i in 0..(nargs as isize) {
             // let tag = *(base_ptr.offset(i * 3) as *const i8);
             // let float = *(base_ptr.offset(i * 3 + 1) as *const f64);
@@ -282,7 +302,6 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
     };
 }
 
-
 pub struct ReleaseRuntime {
     runtime_data: *mut RuntimeData,
 }
@@ -290,7 +309,10 @@ pub struct ReleaseRuntime {
 impl Drop for ReleaseRuntime {
     fn drop(&mut self) {
         unsafe {
-            (*self.runtime_data).stdout.flush().expect("could not flush stdout");
+            (*self.runtime_data)
+                .stdout
+                .flush()
+                .expect("could not flush stdout");
         }
     }
 }
@@ -328,15 +350,11 @@ impl Runtime for ReleaseRuntime {
         let data = Box::new(RuntimeData::new(files));
         let ptr = Box::leak(data);
         let ptr = ptr as *mut RuntimeData;
-        ReleaseRuntime {
-            runtime_data: ptr,
-        }
+        ReleaseRuntime { runtime_data: ptr }
     }
 
     fn allocate_arrays(&mut self, count: usize) {
-        unsafe {
-            (*self.runtime_data).arrays.allocate(count)
-        }
+        unsafe { (*self.runtime_data).arrays.allocate(count) }
     }
 
     fn call_next_line(&mut self, func: &mut Function) -> Value {
@@ -374,18 +392,29 @@ impl Runtime for ReleaseRuntime {
         func.insn_call_native(
             number_to_string as *mut c_void,
             &[data_ptr, number],
-            Some(Context::void_ptr_type()), Abi::Cdecl,
+            Some(Context::void_ptr_type()),
+            Abi::Cdecl,
         )
     }
 
     fn print_string(&mut self, func: &mut Function, ptr: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(print_string as *mut c_void, &[data_ptr, ptr], None, Abi::Cdecl);
+        func.insn_call_native(
+            print_string as *mut c_void,
+            &[data_ptr, ptr],
+            None,
+            Abi::Cdecl,
+        );
     }
 
     fn print_float(&mut self, func: &mut Function, number: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(print_float as *mut c_void, &[data_ptr, number], None, Abi::Cdecl);
+        func.insn_call_native(
+            print_float as *mut c_void,
+            &[data_ptr, number],
+            None,
+            Abi::Cdecl,
+        );
     }
 
     fn concat(&mut self, func: &mut Function, ptr1: Value, ptr2: Value) -> Value {
@@ -444,36 +473,80 @@ impl Runtime for ReleaseRuntime {
         );
     }
 
-    fn array_access(&mut self, func: &mut Function, array: Value,
-                    key_tag: Value,
-                    key_num: Value,
-                    key_ptr: Value,
-                    out_tag_ptr: Value, out_float_ptr: Value, out_ptr_ptr: Value) {
+    fn array_access(
+        &mut self,
+        func: &mut Function,
+        array: Value,
+        key_tag: Value,
+        key_num: Value,
+        key_ptr: Value,
+        out_tag_ptr: Value,
+        out_float_ptr: Value,
+        out_ptr_ptr: Value,
+    ) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(array_access as *mut c_void, &[data_ptr, array, key_tag, key_num, key_ptr, out_tag_ptr, out_float_ptr, out_ptr_ptr], None, Abi::Cdecl);
+        func.insn_call_native(
+            array_access as *mut c_void,
+            &[
+                data_ptr,
+                array,
+                key_tag,
+                key_num,
+                key_ptr,
+                out_tag_ptr,
+                out_float_ptr,
+                out_ptr_ptr,
+            ],
+            None,
+            Abi::Cdecl,
+        );
     }
 
-    fn array_assign(&mut self, func: &mut Function, array: Value,
-                    key_tag: Value,
-                    key_num: Value,
-                    key_ptr: Value,
-                    tag: Value, float: Value, ptr: Value) {
+    fn array_assign(
+        &mut self,
+        func: &mut Function,
+        array: Value,
+        key_tag: Value,
+        key_num: Value,
+        key_ptr: Value,
+        tag: Value,
+        float: Value,
+        ptr: Value,
+    ) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(array_assign as *mut c_void, &[data_ptr, array, key_tag, key_num, key_ptr, tag, float, ptr], None, Abi::Cdecl);
+        func.insn_call_native(
+            array_assign as *mut c_void,
+            &[data_ptr, array, key_tag, key_num, key_ptr, tag, float, ptr],
+            None,
+            Abi::Cdecl,
+        );
     }
 
-    fn in_array(&mut self, func: &mut Function, array: Value,
-                key_tag: Value,
-                key_num: Value,
-                key_ptr: Value,
+    fn in_array(
+        &mut self,
+        func: &mut Function,
+        array: Value,
+        key_tag: Value,
+        key_num: Value,
+        key_ptr: Value,
     ) -> Value {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(in_array as *mut c_void, &[data_ptr, array, key_tag, key_num, key_ptr], Some(Context::float64_type()), Abi::Cdecl)
+        func.insn_call_native(
+            in_array as *mut c_void,
+            &[data_ptr, array, key_tag, key_num, key_ptr],
+            Some(Context::float64_type()),
+            Abi::Cdecl,
+        )
     }
 
     fn printf(&mut self, func: &mut Function, fstring: Value, nargs: Value, args: Value) {
         let data_ptr = self.data_ptr(func);
-        func.insn_call_native(printf as *mut c_void, &[data_ptr, fstring, nargs, args], None, Abi::VarArg);
+        func.insn_call_native(
+            printf as *mut c_void,
+            &[data_ptr, fstring, nargs, args],
+            None,
+            Abi::VarArg,
+        );
     }
 
     fn pointer_to_name_mapping(&self) -> HashMap<String, String> {
@@ -483,18 +556,42 @@ impl Runtime for ReleaseRuntime {
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) {
         let data_ptr = self.data_ptr(func);
         match typ {
-            ScalarType::String => {func.insn_call_native(free_string as *mut c_void, &[data_ptr, value.pointer], None, Abi::Cdecl);},
-            ScalarType::Float => {},
-            ScalarType::Variable => {func.insn_call_native(free_if_string as *mut c_void, &[data_ptr, value.tag, value.pointer], None, Abi::Cdecl);},
+            ScalarType::String => {
+                func.insn_call_native(
+                    free_string as *mut c_void,
+                    &[data_ptr, value.pointer],
+                    None,
+                    Abi::Cdecl,
+                );
+            }
+            ScalarType::Float => {}
+            ScalarType::Variable => {
+                func.insn_call_native(
+                    free_if_string as *mut c_void,
+                    &[data_ptr, value.tag, value.pointer],
+                    None,
+                    Abi::Cdecl,
+                );
+            }
         };
     }
 
     fn copy_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) -> ValueT {
         let data_ptr = self.data_ptr(func);
         let ptr = match typ {
-            ScalarType::String => func.insn_call_native(copy_string as *mut c_void, &[data_ptr, value.pointer], Some(Context::void_ptr_type()), Abi::Cdecl),
+            ScalarType::String => func.insn_call_native(
+                copy_string as *mut c_void,
+                &[data_ptr, value.pointer],
+                Some(Context::void_ptr_type()),
+                Abi::Cdecl,
+            ),
             ScalarType::Float => value.pointer,
-            ScalarType::Variable => func.insn_call_native(copy_if_string as *mut c_void, &[data_ptr, value.tag.clone(), value.pointer], Some(Context::void_ptr_type()), Abi::Cdecl),
+            ScalarType::Variable => func.insn_call_native(
+                copy_if_string as *mut c_void,
+                &[data_ptr, value.tag.clone(), value.pointer],
+                Some(Context::void_ptr_type()),
+                Abi::Cdecl,
+            ),
         };
         ValueT::new(value.tag, value.float, ptr)
     }

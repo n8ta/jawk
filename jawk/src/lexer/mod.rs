@@ -1,12 +1,11 @@
 mod types;
 
+use crate::{PrintableError, Symbolizer};
 use std::iter::Peekable;
 use std::str::Chars;
 pub use types::{BinOp, LogicalOp, MathOp, Token, TokenType};
-use crate::{PrintableError, Symbolizer};
 
 type LexerResult = Result<Vec<Token>, PrintableError>;
-
 
 pub fn lex(str: &str, symbolizer: &mut Symbolizer) -> LexerResult {
     let mut lexer = Lexer::new(str, symbolizer);
@@ -26,9 +25,8 @@ struct Lexer<'a, 'b> {
     buffer: String,
     line: usize,
     tokens: Vec<Token>,
-    symbolizer: &'b mut Symbolizer
+    symbolizer: &'b mut Symbolizer,
 }
-
 
 impl<'a, 'b> Lexer<'a, 'b> {
     fn new(src: &'a str, symbolizer: &'b mut Symbolizer) -> Lexer<'a, 'b> {
@@ -37,7 +35,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
             line: 0,
             tokens: Vec::with_capacity(1000),
             buffer: String::with_capacity(30),
-            symbolizer
+            symbolizer,
         }
     }
     fn is_at_end(&mut self) -> bool {
@@ -68,7 +66,10 @@ impl<'a, 'b> Lexer<'a, 'b> {
         }
         if self.is_at_end() {
             let string = self.collect_buffer();
-            return Err(PrintableError::new(format!("Unterminated String: `{}`", string)));
+            return Err(PrintableError::new(format!(
+                "Unterminated String: `{}`",
+                string
+            )));
         }
         let str = self.collect_buffer();
         self.advance();
@@ -76,7 +77,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
         return Ok(());
     }
     fn regex(&mut self) -> Result<(), PrintableError> {
-        // a ~ b 
+        // a ~ b
         // a ~ /match/'
         self.buffer.clear();
         while self.peek() != '/' && !self.is_at_end() {
@@ -89,7 +90,10 @@ impl<'a, 'b> Lexer<'a, 'b> {
 
         if self.is_at_end() {
             let string = self.collect_buffer();
-            return Err(PrintableError::new(format!("Unterminated regex: {}", string)));
+            return Err(PrintableError::new(format!(
+                "Unterminated regex: {}",
+                string
+            )));
         }
         let regex = self.collect_buffer();
         self.advance();
@@ -160,9 +164,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
     fn peek(&mut self) -> char {
         match self.src.peek() {
             None => 0x0 as char,
-            Some(c) => {
-                *c
-            },
+            Some(c) => *c,
         }
     }
     fn scan_token(&mut self) -> Result<(), PrintableError> {
@@ -202,23 +204,26 @@ impl<'a, 'b> Lexer<'a, 'b> {
                 } else {
                     let token = match self.matches('=') {
                         true => Token::BinOp(BinOp::BangEq),
-                        false => Token::Bang
+                        false => Token::Bang,
                     };
                     self.add_token(token);
                 };
-                
             }
             '|' => {
                 let tt = match self.matches('|') {
                     true => Token::LogicalOp(LogicalOp::Or),
-                    false => return Err(PrintableError::new("| must be followed by ||".to_string())),
+                    false => {
+                        return Err(PrintableError::new("| must be followed by ||".to_string()))
+                    }
                 };
                 self.add_token(tt);
             }
             '&' => {
                 let tt = match self.matches('&') {
                     true => Token::LogicalOp(LogicalOp::And),
-                    false => return Err(PrintableError::new("| must be followed by &".to_string())),
+                    false => {
+                        return Err(PrintableError::new("| must be followed by &".to_string()))
+                    }
                 };
                 self.add_token(tt);
             }
@@ -306,7 +311,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
 
     fn whitespaces(&mut self) {
         while self.matches(' ') {}
-    } 
+    }
 
     fn matches(&mut self, expected: char) -> bool {
         if self.is_at_end() {
@@ -728,7 +733,6 @@ fn test_regex_slash() {
     );
 }
 
-
 #[test]
 fn test_regex_slash_not() {
     let str = "a !~ /match/";
@@ -743,7 +747,6 @@ fn test_regex_slash_not() {
         ]
     );
 }
-
 
 #[test]
 fn test_array_ops_slash_not() {
@@ -780,7 +783,6 @@ fn test_array_ops_slash_not() {
         ]
     );
 }
-
 
 #[test]
 fn test_function() {
@@ -819,6 +821,4 @@ fn test_ident_bug_fix() {
             Token::EOF,
         ]
     );
-
 }
-

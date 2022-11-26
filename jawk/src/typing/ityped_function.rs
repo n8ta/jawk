@@ -1,14 +1,14 @@
+use crate::parser::{Arg, ArgT};
+use crate::symbolizer::Symbol;
+use crate::typing::structs::Call;
+use crate::typing::TypedUserFunction;
+use crate::{AnalysisResults, PrintableError};
+use hashbrown::HashSet;
 use std::cell::Ref;
 use std::fmt::{Debug, Display};
 use std::rc::Rc;
-use hashbrown::HashSet;
-use crate::{AnalysisResults, PrintableError};
-use crate::parser::{Arg, ArgT};
-use crate::symbolizer::Symbol;
-use crate::typing::TypedUserFunction;
-use crate::typing::structs::{Call};
 
-pub trait ITypedFunction: Debug + Display  {
+pub trait ITypedFunction: Debug + Display {
     fn args(&self) -> Ref<'_, Vec<Arg>>;
     fn arity(&self) -> usize;
     fn add_caller(&self, caller: Rc<TypedUserFunction>);
@@ -20,7 +20,12 @@ pub trait ITypedFunction: Debug + Display  {
     // We are function A
     // A --> B
     // B has new information about the link from A to B
-    fn reverse_call(&self, link: &Call, args: &[Arg], analysis: &mut AnalysisResults) -> Result<HashSet<Symbol>, PrintableError>;
+    fn reverse_call(
+        &self,
+        link: &Call,
+        args: &[Arg],
+        analysis: &mut AnalysisResults,
+    ) -> Result<HashSet<Symbol>, PrintableError>;
 
     // We are function B
     // A --> B

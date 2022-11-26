@@ -1,4 +1,4 @@
-use gnu_libjit::{Value};
+use gnu_libjit::Value;
 
 pub struct CodegenConsts {
     // Used to init the pointer section of the value struct when it's undefined. Should never be dereferenced.
@@ -12,7 +12,19 @@ pub struct CodegenConsts {
 }
 
 impl CodegenConsts {
-    pub fn new(zero_ptr: Value, zero_f: Value, float_tag: Value, string_tag: Value, sentinel_float: Value) -> Self {
-        Self { zero_f, zero_ptr, float_tag, string_tag, sentinel_float }
+    pub fn new(
+        zero_ptr: Value,
+        zero_f: Value,
+        float_tag: Value,
+        string_tag: Value,
+        sentinel_float: Value,
+    ) -> Self {
+        Self {
+            zero_f,
+            zero_ptr,
+            float_tag,
+            string_tag,
+            sentinel_float,
+        }
     }
 }

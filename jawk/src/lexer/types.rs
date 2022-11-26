@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use crate::symbolizer::Symbol;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialOrd, PartialEq, Copy)]
 pub enum MathOp {

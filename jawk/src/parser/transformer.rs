@@ -1,5 +1,5 @@
 use crate::parser::{PatternAction, Stmt, TypedExpr};
-use crate::{Expr};
+use crate::Expr;
 
 fn group_vec_of_stmt(mut stmts: Vec<Stmt>) -> Stmt {
     if stmts.len() == 1 {

@@ -1,18 +1,26 @@
-use hashbrown::HashSet;
-use crate::{PrintableError};
 use crate::symbolizer::Symbol;
-use crate::typing::{ITypedFunction, TypedProgram};
 use crate::typing::structs::Call;
+use crate::typing::{ITypedFunction, TypedProgram};
+use crate::PrintableError;
+use hashbrown::HashSet;
 
-fn propogate(program: &mut TypedProgram, link: &Call) -> Result<(HashSet<Symbol>, HashSet<Symbol>), PrintableError> {
-
+fn propogate(
+    program: &mut TypedProgram,
+    link: &Call,
+) -> Result<(HashSet<Symbol>, HashSet<Symbol>), PrintableError> {
     let caller_arg_types = link.src.get_call_types(&program.global_analysis, &link);
 
     let dest = link.target.clone();
     let src = link.src.clone();
 
     if link.args.len() != dest.arity() {
-        return Err(PrintableError::new(format!("Function `{}` accepts {} arguments but was called with {} from function `{}`", dest.name(), dest.arity(), link.args.len(), link.src.name())));
+        return Err(PrintableError::new(format!(
+            "Function `{}` accepts {} arguments but was called with {} from function `{}`",
+            dest.name(),
+            dest.arity(),
+            link.args.len(),
+            link.src.name()
+        )));
     }
 
     let updated_in_dest = dest.receive_call(&caller_arg_types)?;
@@ -27,7 +35,7 @@ pub fn inference_pass(mut prog: TypedProgram) -> Result<TypedProgram, PrintableE
         for call in func.calls().iter() {
             calls.push(call.clone());
         }
-    };
+    }
 
     while let Some(call) = calls.pop() {
         // While there are links left to analyze propogate any information in the source of the link to the destination
@@ -43,13 +51,17 @@ pub fn inference_pass(mut prog: TypedProgram) -> Result<TypedProgram, PrintableE
             }
         }
 
-        if updated_in_src.len() == 0 { continue; }
+        if updated_in_src.len() == 0 {
+            continue;
+        }
 
         // Loop through functions who call source
         for caller in call.src.callers().iter() {
-            for call_to_source in caller.calls()
+            for call_to_source in caller
+                .calls()
                 .iter()
-                .filter(|call_to_src| call_to_src.target.name() == call.src.name()) {
+                .filter(|call_to_src| call_to_src.target.name() == call.src.name())
+            {
                 // And push them back on the stack
                 calls.push(call_to_source.clone());
             }

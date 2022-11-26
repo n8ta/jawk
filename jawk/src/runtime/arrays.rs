@@ -1,6 +1,6 @@
-use std::rc::Rc;
-use hashbrown::HashMap;
 use crate::codegen::FLOAT_TAG;
+use hashbrown::HashMap;
+use std::rc::Rc;
 
 #[derive(Hash, PartialEq, Eq, Clone)]
 struct HashFloat {
@@ -9,7 +9,9 @@ struct HashFloat {
 
 impl HashFloat {
     pub fn new(num: f64) -> Self {
-        Self { bytes: num.to_le_bytes() }
+        Self {
+            bytes: num.to_le_bytes(),
+        }
     }
     #[allow(dead_code)]
     pub fn to_float64(&self) -> f64 {
@@ -22,7 +24,6 @@ enum MapKey {
     String(Rc<String>),
     Float(HashFloat),
 }
-
 
 pub type MapValue = (i8, f64, *const String);
 
@@ -38,7 +39,7 @@ impl MapKey {
             let str = unsafe { Rc::from_raw(str) };
             let res = match str.parse::<f64>() {
                 Ok(float) => MapKey::Float(HashFloat::new(float)),
-                Err(_err) => MapKey::String(str.clone())
+                Err(_err) => MapKey::String(str.clone()),
             };
             Rc::into_raw(str);
             res
@@ -58,7 +59,9 @@ impl AwkMap {
         self.map.insert(key.clone(), val)
     }
     fn new() -> Self {
-        Self { map: HashMap::new() }
+        Self {
+            map: HashMap::new(),
+        }
     }
     fn in_array(&mut self, key: &MapKey) -> bool {
         self.map.contains_key(key)
@@ -71,9 +74,7 @@ pub struct Arrays {
 
 impl Arrays {
     pub fn new() -> Self {
-        Self {
-            arrays: Vec::new(),
-        }
+        Self { arrays: Vec::new() }
     }
     pub fn allocate(&mut self, count: usize) {
         self.arrays = Vec::with_capacity(count);
@@ -83,23 +84,25 @@ impl Arrays {
     }
 
     pub fn access(&mut self, array_id: i32, key: MapValue) -> Option<&MapValue> {
-        let array = self.arrays.get_mut(array_id as usize).expect("array to exist based on id");
+        let array = self
+            .arrays
+            .get_mut(array_id as usize)
+            .expect("array to exist based on id");
         array.access(&MapKey::new(key))
     }
 
-    pub fn assign(&mut self,
-                  array_id: i32,
-                  indices: MapValue,
-                  value: MapValue,
+    pub fn assign(
+        &mut self,
+        array_id: i32,
+        indices: MapValue,
+        value: MapValue,
     ) -> Option<MapValue> {
-        let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize)};
+        let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize) };
         array.assign(&MapKey::new(indices), value)
     }
 
-    pub fn in_array(&mut self,
-                    array_id: i32,
-                    indices: MapValue) -> bool {
-        let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize)};
+    pub fn in_array(&mut self, array_id: i32, indices: MapValue) -> bool {
+        let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize) };
         array.in_array(&MapKey::new(indices))
     }
 }

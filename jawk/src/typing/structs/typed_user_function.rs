@@ -1,14 +1,14 @@
+use crate::parser::{Arg, ArgT, Function, ScalarType};
+use crate::symbolizer::Symbol;
+use crate::typing::ityped_function::ITypedFunction;
+use crate::typing::reconcile::reconcile;
+use crate::typing::structs::{Call, CallArg};
+use crate::{AnalysisResults, PrintableError};
+use hashbrown::HashSet;
 use std::cell::{Ref, RefCell, RefMut};
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use hashbrown::HashSet;
-use crate::parser::{Arg, ArgT, Function, ScalarType};
-use crate::{AnalysisResults, PrintableError};
-use crate::symbolizer::Symbol;
-use crate::typing::structs::{Call, CallArg};
-use crate::typing::ityped_function::ITypedFunction;
-use crate::typing::reconcile::reconcile;
 
 #[derive(Debug)]
 pub struct TypedUserFunction {
@@ -63,18 +63,23 @@ impl ITypedFunction for TypedUserFunction {
     }
 
     fn get_call_types(&self, global_analysis: &AnalysisResults, link: &Call) -> Vec<ArgT> {
-        link.args.iter().map(|arg|
-            match arg {
+        link.args
+            .iter()
+            .map(|arg| match arg {
                 CallArg::Variable(name) => {
                     TypedUserFunction::get_type(global_analysis, &self, &name)
                 }
-                CallArg::Scalar => {
-                    ArgT::Scalar
-                }
-            }).collect()
+                CallArg::Scalar => ArgT::Scalar,
+            })
+            .collect()
     }
 
-    fn reverse_call(&self, link: &Call, args: &[Arg], analysis: &mut AnalysisResults) -> Result<HashSet<Symbol>, PrintableError> {
+    fn reverse_call(
+        &self,
+        link: &Call,
+        args: &[Arg],
+        analysis: &mut AnalysisResults,
+    ) -> Result<HashSet<Symbol>, PrintableError> {
         // Used in this case:
         //      function knows_type(arr) { arr[0[] = 1 }
         //      BEGIN { knows_type(a) }
@@ -84,13 +89,9 @@ impl ITypedFunction for TypedUserFunction {
         for (call_arg, function_arg) in link.args.iter().zip(args.iter()) {
             if let CallArg::Variable(name) = call_arg {
                 let updated_sym = match function_arg.typ {
-                    ArgT::Scalar => {
-                        self.use_as_scalar(&name, analysis)?
-                    }
-                    ArgT::Array => {
-                        self.use_as_array(&name, analysis)?
-                    }
-                    ArgT::Unknown => None
+                    ArgT::Scalar => self.use_as_scalar(&name, analysis)?,
+                    ArgT::Array => self.use_as_array(&name, analysis)?,
+                    ArgT::Unknown => None,
                 };
                 if let Some(updated_sym) = updated_sym {
                     updated.insert(updated_sym);
@@ -107,10 +108,14 @@ impl ITypedFunction for TypedUserFunction {
         // then arg_unknown can update its arg a to be a scalar.
         let mut function_args = self.args.borrow_mut();
         let mut updated_in_dest = HashSet::new();
-        reconcile(call.as_slice(),
-                  &mut *function_args,
-                  self.name.clone(),
-                  &mut |sym| { updated_in_dest.insert(sym); })?;
+        reconcile(
+            call.as_slice(),
+            &mut *function_args,
+            self.name.clone(),
+            &mut |sym| {
+                updated_in_dest.insert(sym);
+            },
+        )?;
         Ok(updated_in_dest)
     }
 }
@@ -118,7 +123,11 @@ impl ITypedFunction for TypedUserFunction {
 impl TypedUserFunction {
     pub fn new(func: Function) -> Self {
         let name = func.name.clone();
-        let args = func.args.iter().map(|sym| Arg::new(sym.clone(), ArgT::Unknown)).collect();
+        let args = func
+            .args
+            .iter()
+            .map(|sym| Arg::new(sym.clone(), ArgT::Unknown))
+            .collect();
         Self {
             func: RefCell::new(func),
             callers: RefCell::new(HashSet::new()),
@@ -130,7 +139,11 @@ impl TypedUserFunction {
         }
     }
 
-    fn get_type(global_analysis: &AnalysisResults, func: &TypedUserFunction, name: &Symbol) -> ArgT {
+    fn get_type(
+        global_analysis: &AnalysisResults,
+        func: &TypedUserFunction,
+        name: &Symbol,
+    ) -> ArgT {
         if let Some((_idx, typ)) = func.get_arg_idx_and_type(name) {
             return typ;
         }
@@ -142,7 +155,6 @@ impl TypedUserFunction {
         }
         ArgT::Unknown
     }
-
 
     pub fn get_arg_idx_and_type(&self, name: &Symbol) -> Option<(usize, ArgT)> {
         let args = self.args.borrow();
@@ -157,30 +169,58 @@ impl TypedUserFunction {
         self.globals_used.borrow()
     }
 
-    fn use_as_array(&self, var: &Symbol, global_analysis: &mut AnalysisResults) -> Result<Option<Symbol>, PrintableError> {
+    fn use_as_array(
+        &self,
+        var: &Symbol,
+        global_analysis: &mut AnalysisResults,
+    ) -> Result<Option<Symbol>, PrintableError> {
         if let Some((_idx, typ)) = self.get_arg_idx_and_type(var) {
             match typ {
-                ArgT::Scalar => return Err(PrintableError::new(format!("fatal: attempt to use scalar `{}` in a array context", var))),
+                ArgT::Scalar => {
+                    return Err(PrintableError::new(format!(
+                        "fatal: attempt to use scalar `{}` in a array context",
+                        var
+                    )))
+                }
                 ArgT::Array => {} // No-op type matches
-                ArgT::Unknown => { self.set_arg_type(var, ArgT::Array)?; }
+                ArgT::Unknown => {
+                    self.set_arg_type(var, ArgT::Array)?;
+                }
             }
         }
         if let Some(_type) = global_analysis.global_scalars.get(var) {
-            return Err(PrintableError::new(format!("fatal: attempt to scalar `{}` in an array context", var)));
+            return Err(PrintableError::new(format!(
+                "fatal: attempt to scalar `{}` in an array context",
+                var
+            )));
         }
         global_analysis.global_arrays.insert(&var);
         return Ok(Some(var.clone()));
     }
-    fn use_as_scalar(&self, var: &Symbol, global_analysis: &mut AnalysisResults) -> Result<Option<Symbol>, PrintableError> {
+    fn use_as_scalar(
+        &self,
+        var: &Symbol,
+        global_analysis: &mut AnalysisResults,
+    ) -> Result<Option<Symbol>, PrintableError> {
         if let Some((_idx, typ)) = self.get_arg_idx_and_type(var) {
             match typ {
                 ArgT::Scalar => {} // No-op type matches
-                ArgT::Array => return Err(PrintableError::new(format!("fatal: attempt to use array `{}` in a scalar context", var))),
-                ArgT::Unknown => { self.set_arg_type(var, ArgT::Scalar)?; }
+                ArgT::Array => {
+                    return Err(PrintableError::new(format!(
+                        "fatal: attempt to use array `{}` in a scalar context",
+                        var
+                    )))
+                }
+                ArgT::Unknown => {
+                    self.set_arg_type(var, ArgT::Scalar)?;
+                }
             }
         }
         if let Some(_type) = global_analysis.global_arrays.get(var) {
-            return Err(PrintableError::new(format!("fatal: attempt to use array `{}` in an scalar context", var)));
+            return Err(PrintableError::new(format!(
+                "fatal: attempt to use array `{}` in an scalar context",
+                var
+            )));
         }
         global_analysis.global_scalars.insert(&var);
         return Ok(Some(var.clone()));
@@ -201,7 +241,11 @@ impl TypedUserFunction {
         let mut args = self.args.borrow_mut();
         if let Some(arg) = args.iter_mut().find(|a| a.name == *var) {
             if arg.typ != ArgT::Unknown && arg.typ != typ {
-                return Err(PrintableError::new(format!("fatal: attempt to mix array and scalar types for function {} arg {}", self.func.borrow().name, var)));
+                return Err(PrintableError::new(format!(
+                    "fatal: attempt to mix array and scalar types for function {} arg {}",
+                    self.func.borrow().name,
+                    var
+                )));
             }
             arg.typ = typ;
         }

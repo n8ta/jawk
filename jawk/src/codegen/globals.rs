@@ -1,12 +1,12 @@
-use std::os::raw::c_void;
-use std::rc::Rc;
-use gnu_libjit::{Context, Function, Value};
-use hashbrown::HashMap;
-use crate::{AnalysisResults, PrintableError, Symbolizer};
-use crate::codegen::{STRING_TAG, ValuePtrT, ValueT};
+use crate::codegen::{ValuePtrT, ValueT, STRING_TAG};
 use crate::global_scalars::SymbolMapping;
 use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
+use crate::{AnalysisResults, PrintableError, Symbolizer};
+use gnu_libjit::{Context, Function, Value};
+use hashbrown::HashMap;
+use std::os::raw::c_void;
+use std::rc::Rc;
 
 pub struct Globals {
     mapping: SymbolMapping,
@@ -22,7 +22,8 @@ impl Globals {
         analysis: AnalysisResults,
         runtime: &mut RuntimeT,
         function: &mut Function,
-        _symbolizer: &mut Symbolizer) -> Self {
+        _symbolizer: &mut Symbolizer,
+    ) -> Self {
         // global scalars + str_consts + return_value
         let scalar_memory = 3 * analysis.global_scalars.len();
         let const_str_memory = analysis.str_consts.len();
@@ -50,7 +51,11 @@ impl Globals {
         for (name, _) in init.mapping.mapping().clone() {
             let ptr = runtime.init_empty_string() as *mut c_void;
             let ptr_const = function.create_void_ptr_constant(ptr);
-            let val = ValueT::string(function.create_sbyte_constant(STRING_TAG), function.create_float64_constant(0.0), ptr_const);
+            let val = ValueT::string(
+                function.create_sbyte_constant(STRING_TAG),
+                function.create_float64_constant(0.0),
+                ptr_const,
+            );
             init.set(function, &name, &val)
         }
 
@@ -89,16 +94,15 @@ impl Globals {
         map
     }
 
-    fn ptrs(&self,
-            name: &Symbol,
-            function: &mut Function) -> ValuePtrT {
-        let idx = self.mapping.get(name).expect(&format!("symbol not mapped to a global `{}`", name));
+    fn ptrs(&self, name: &Symbol, function: &mut Function) -> ValuePtrT {
+        let idx = self
+            .mapping
+            .get(name)
+            .expect(&format!("symbol not mapped to a global `{}`", name));
         Globals::ptrs_idx(&self.global_scalar_allocation, *idx, function)
     }
 
-    fn ptrs_idx(allocation : &Vec<i64>,
-                idx: i32,
-                function: &mut Function) -> ValuePtrT {
+    fn ptrs_idx(allocation: &Vec<i64>, idx: i32, function: &mut Function) -> ValuePtrT {
         unsafe {
             let alloc_ptr = (*allocation).as_ptr();
             let tag = alloc_ptr.offset((3 * idx) as isize);
@@ -111,10 +115,7 @@ impl Globals {
         }
     }
 
-    pub fn set(&self,
-               function: &mut Function,
-               name: &Symbol,
-               value: &ValueT) {
+    pub fn set(&self, function: &mut Function, name: &Symbol, value: &ValueT) {
         let ptrs = self.ptrs(&name, function);
         Globals::store(function, &ptrs, value)
     }
@@ -143,8 +144,15 @@ impl Globals {
         Ok(alloc_ptr as *mut c_void)
     }
 
-    pub fn get_array(&self, function: &mut Function, name: &Symbol) -> Result<Value, PrintableError> {
-        let idx = self.arrays.get(name).expect(&format!("expected array to exist `{}`", name));
+    pub fn get_array(
+        &self,
+        function: &mut Function,
+        name: &Symbol,
+    ) -> Result<Value, PrintableError> {
+        let idx = self
+            .arrays
+            .get(name)
+            .expect(&format!("expected array to exist `{}`", name));
         Ok(function.create_int_constant(*idx))
     }
 }

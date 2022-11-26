@@ -16,20 +16,23 @@ impl FloatParser {
         Self {
             buffer: [0; 256],
             options,
-        } }
+        }
+    }
     pub fn parse(&mut self, flt: f64) -> String {
         #[cfg(debug_assertions)]
         lexical_core::write_with_options::<_, FORMAT>(flt, &mut self.buffer, &self.options);
 
         let res = unsafe {
-            lexical_core::write_with_options_unchecked::<_, FORMAT>(flt, &mut self.buffer, &self.options)
+            lexical_core::write_with_options_unchecked::<_, FORMAT>(
+                flt,
+                &mut self.buffer,
+                &self.options,
+            )
         };
 
         #[cfg(debug_assertions)]
         String::from_utf8_lossy(res).to_string();
 
-        unsafe {
-            String::from_utf8_unchecked(res.to_vec())
-        }
+        unsafe { String::from_utf8_unchecked(res.to_vec()) }
     }
 }

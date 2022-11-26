@@ -1,17 +1,17 @@
-mod types;
-mod transformer;
 mod test;
+mod transformer;
+mod types;
 
-use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
 use crate::lexer::{BinOp, LogicalOp, MathOp, Token, TokenType};
-pub use crate::parser::types::PatternAction;
-pub use types::{Expr, Function, ScalarType, Stmt, TypedExpr, Arg, ArgT};
-use crate::{AnalysisResults, Symbolizer};
 use crate::parser::transformer::transform;
+pub use crate::parser::types::PatternAction;
 use crate::printable_error::PrintableError;
 use crate::symbolizer::Symbol;
 use crate::typing::BuiltinFunc;
+use crate::{AnalysisResults, Symbolizer};
+use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
+pub use types::{Arg, ArgT, Expr, Function, ScalarType, Stmt, TypedExpr};
 
 // Pattern Action Type
 // Normal eg: $1 == "a" { doSomething() }
@@ -36,9 +36,20 @@ impl Program {
         let body = transform(vec![], vec![], vec![PatternAction::new_action_only(action)]);
         let mut functions = HashMap::new();
         functions.insert(name.clone(), Function::new(name, vec![], body));
-        Program { functions, global_analysis: AnalysisResults::new(), symbolizer }
+        Program {
+            functions,
+            global_analysis: AnalysisResults::new(),
+            symbolizer,
+        }
     }
-    pub fn new(name: Symbol, begins: Vec<Stmt>, ends: Vec<Stmt>, pas: Vec<PatternAction>, parsed_functions: Vec<Function>, symbolizer: Symbolizer) -> Program {
+    pub fn new(
+        name: Symbol,
+        begins: Vec<Stmt>,
+        ends: Vec<Stmt>,
+        pas: Vec<PatternAction>,
+        parsed_functions: Vec<Function>,
+        symbolizer: Symbolizer,
+    ) -> Program {
         let body = transform(begins, ends, pas);
         let main = Function::new(name.clone(), vec![], body);
         let mut functions = HashMap::new();
@@ -46,7 +57,11 @@ impl Program {
         for func in parsed_functions {
             functions.insert(func.name.clone(), func);
         }
-        Program { functions, global_analysis: AnalysisResults::new(), symbolizer }
+        Program {
+            functions,
+            global_analysis: AnalysisResults::new(),
+            symbolizer,
+        }
     }
 }
 
@@ -64,33 +79,36 @@ impl Display for Program {
     }
 }
 
-const STRING_CONCAT_SKIPS: u64 =
-    TokenType::InplaceAssign as u64 |
-        TokenType::Less as u64 |
-        TokenType::LessEq as u64 |
-        TokenType::BangEq as u64 |
-        TokenType::EqEq as u64 |
-        TokenType::Greater as u64 |
-        TokenType::GreaterEq as u64 |
-        TokenType::And as u64 |
-        TokenType::Or as u64 |
-        TokenType::Eq as u64 |
-        TokenType::Semicolon as u64 |
-        TokenType::RightBrace as u64 |
-        TokenType::RightParen as u64 |
-        TokenType::LeftBrace as u64 |
-        TokenType::Question as u64 |
-        TokenType::Colon as u64 |
-        TokenType::MatchedBy as u64 |
-        TokenType::NotMatchedBy as u64 |
-        TokenType::Comma as u64 |
-        TokenType::In as u64 |
-        TokenType::LeftBracket as u64 |
-        TokenType::RightBracket as u64 |
-        TokenType::Printf as u64;
+const STRING_CONCAT_SKIPS: u64 = TokenType::InplaceAssign as u64
+    | TokenType::Less as u64
+    | TokenType::LessEq as u64
+    | TokenType::BangEq as u64
+    | TokenType::EqEq as u64
+    | TokenType::Greater as u64
+    | TokenType::GreaterEq as u64
+    | TokenType::And as u64
+    | TokenType::Or as u64
+    | TokenType::Eq as u64
+    | TokenType::Semicolon as u64
+    | TokenType::RightBrace as u64
+    | TokenType::RightParen as u64
+    | TokenType::LeftBrace as u64
+    | TokenType::Question as u64
+    | TokenType::Colon as u64
+    | TokenType::MatchedBy as u64
+    | TokenType::NotMatchedBy as u64
+    | TokenType::Comma as u64
+    | TokenType::In as u64
+    | TokenType::LeftBracket as u64
+    | TokenType::RightBracket as u64
+    | TokenType::Printf as u64;
 
 pub fn parse(tokens: Vec<Token>, symbolizer: &mut Symbolizer) -> Result<Program, PrintableError> {
-    let mut parser = Parser { tokens, current: 0, symbolizer };
+    let mut parser = Parser {
+        tokens,
+        current: 0,
+        symbolizer,
+    };
     parser.parse()
 }
 
@@ -116,9 +134,15 @@ impl<'a> Parser<'a> {
             if self.matches(flags!(TokenType::Function)) {
                 let name = self.ident_consume("Function name must follow function keyword")?;
                 if BuiltinFunc::get(&name.sym).is_some() {
-                    return Err(PrintableError::new(format!("Cannot name a function {} as that is a builtin function", name)));
+                    return Err(PrintableError::new(format!(
+                        "Cannot name a function {} as that is a builtin function",
+                        name
+                    )));
                 }
-                self.consume(TokenType::LeftParen, "Function name must be followed by '('")?;
+                self.consume(
+                    TokenType::LeftParen,
+                    "Function name must be followed by '('",
+                )?;
                 let mut args = vec![];
                 loop {
                     if self.peek().ttype() != TokenType::RightParen {
@@ -127,12 +151,18 @@ impl<'a> Parser<'a> {
                         break;
                     }
                     if self.peek().ttype() != TokenType::RightParen {
-                        self.consume(TokenType::Comma, "Expected comma after function argument and before right paren")?;
+                        self.consume(
+                            TokenType::Comma,
+                            "Expected comma after function argument and before right paren",
+                        )?;
                         continue;
                     }
                     break;
                 }
-                self.consume(TokenType::RightParen, "Expected right paren after function arguments")?;
+                self.consume(
+                    TokenType::RightParen,
+                    "Expected right paren after function arguments",
+                )?;
                 let body = self.group()?;
                 functions.push(Function::new(name, args, body))
             } else {
@@ -143,7 +173,14 @@ impl<'a> Parser<'a> {
                 };
             }
         }
-        Ok(Program::new(self.symbolizer.get("main function"), begins, ends, pattern_actions, functions, self.symbolizer.clone()))
+        Ok(Program::new(
+            self.symbolizer.get("main function"),
+            begins,
+            ends,
+            pattern_actions,
+            functions,
+            self.symbolizer.clone(),
+        ))
     }
 
     fn ident_consume(&mut self, error_msg: &str) -> Result<Symbol, PrintableError> {
@@ -172,7 +209,6 @@ impl<'a> Parser<'a> {
             TokenType::name(self.peek().ttype()),
         )))
     }
-
 
     fn matches(&mut self, tokens: u64) -> bool {
         let tkn = match self.tokens.get(self.current) {
@@ -279,7 +315,9 @@ impl<'a> Parser<'a> {
         let stmt = if self.matches(flags!(TokenType::Print)) {
             Stmt::Print(self.expression()?) // TODO: print 1,2,3
         } else if self.matches(flags!(TokenType::Ret)) {
-            if self.peek().ttype() != TokenType::RightBrace && self.peek_next().ttype() != TokenType::Semicolon {
+            if self.peek().ttype() != TokenType::RightBrace
+                && self.peek_next().ttype() != TokenType::Semicolon
+            {
                 let expr = self.expression()?;
                 Stmt::Return(Some(expr))
             } else {
@@ -408,18 +446,23 @@ impl<'a> Parser<'a> {
             let var = var.clone();
             if self.matches(flags!(TokenType::Eq)) {
                 // =
-                return Ok(TypedExpr::new(Expr::ScalarAssign(var, Box::new(self.assignment()?))));
+                return Ok(TypedExpr::new(Expr::ScalarAssign(
+                    var,
+                    Box::new(self.assignment()?),
+                )));
             } else if self.matches(flags!(TokenType::InplaceAssign)) {
                 // += -= *= ...
-                let math_op = if let Token::InplaceEq(math_op) = self.previous().unwrap() { math_op } else { unreachable!() };
+                let math_op = if let Token::InplaceEq(math_op) = self.previous().unwrap() {
+                    math_op
+                } else {
+                    unreachable!()
+                };
                 let expr = Expr::MathOp(
                     Box::new(Expr::Variable(var.clone()).into()),
                     math_op,
                     Box::new(self.assignment()?),
                 );
-                return Ok(Expr::ScalarAssign(
-                    var,
-                    Box::new(expr.into())).into());
+                return Ok(Expr::ScalarAssign(var, Box::new(expr.into())).into());
             }
         }
         let mut is_array_index = false;
@@ -429,7 +472,12 @@ impl<'a> Parser<'a> {
         if is_array_index && self.matches(flags!(TokenType::Eq)) {
             if let Expr::ArrayIndex { name, indices } = expr.expr {
                 let value = Box::new(self.assignment()?);
-                return Ok(Expr::ArrayAssign { name, indices, value }.into());
+                return Ok(Expr::ArrayAssign {
+                    name,
+                    indices,
+                    value,
+                }
+                .into());
             } else {
                 unreachable!()
             }
@@ -441,7 +489,10 @@ impl<'a> Parser<'a> {
         let cond = self.logical_or()?;
         while self.matches(flags!(TokenType::Question)) {
             let expr1 = self.ternary()?;
-            self.consume(TokenType::Colon, "Expected a colon after question mark in a ternary!")?;
+            self.consume(
+                TokenType::Colon,
+                "Expected a colon after question mark in a ternary!",
+            )?;
             let expr2 = self.ternary()?;
             return Ok(TypedExpr::new(Expr::Ternary(
                 Box::new(cond),
@@ -482,31 +533,65 @@ impl<'a> Parser<'a> {
         // is totally valid and prints 0
         let mut expr = self.multi_dim_array_membership()?;
         while self.matches(flags!(TokenType::In)) {
-            let name =
-                if let Token::Ident(name) = self.consume(TokenType::Ident, "An array name must follow `<expr> in`")?
-                { name } else { unreachable!() };
-            expr = Expr::InArray { name, indices: vec![expr] }.into()
+            let name = if let Token::Ident(name) =
+                self.consume(TokenType::Ident, "An array name must follow `<expr> in`")?
+            {
+                name
+            } else {
+                unreachable!()
+            };
+            expr = Expr::InArray {
+                name,
+                indices: vec![expr],
+            }
+            .into()
         }
         Ok(expr)
     }
 
     fn helper_multi_dim_array(&mut self) -> Result<TypedExpr, PrintableError> {
-        self.consume(TokenType::LeftParen, "Multidimensional array must begin with left paren")?;
+        self.consume(
+            TokenType::LeftParen,
+            "Multidimensional array must begin with left paren",
+        )?;
         let mut exprs = vec![self.regex()?];
         while self.matches(flags!(TokenType::Comma)) {
-            if self.peek().ttype() == TokenType::RightParen { break; }
+            if self.peek().ttype() == TokenType::RightParen {
+                break;
+            }
             exprs.push(self.regex()?);
         }
-        self.consume(TokenType::RightParen, "Multidimensional array indices must end with right paren")?;
-        self.consume(TokenType::In, "Multidimensional array access must be followed by an 'in'")?;
+        self.consume(
+            TokenType::RightParen,
+            "Multidimensional array indices must end with right paren",
+        )?;
+        self.consume(
+            TokenType::In,
+            "Multidimensional array access must be followed by an 'in'",
+        )?;
         let ident = self.consume(TokenType::Ident, "Multidimensional array access must be followed by an array name. Eg: (1,2,3) in ARRAY_NAME")?;
-        let ident = if let Token::Ident(ident) = ident { ident } else { unreachable!("compiler bug consumed ident but got something else") };
+        let ident = if let Token::Ident(ident) = ident {
+            ident
+        } else {
+            unreachable!("compiler bug consumed ident but got something else")
+        };
 
-        let mut expr = TypedExpr::new(Expr::InArray { name: ident, indices: exprs });
+        let mut expr = TypedExpr::new(Expr::InArray {
+            name: ident,
+            indices: exprs,
+        });
         while self.matches(flags!(TokenType::In)) {
             let ident = self.consume(TokenType::Ident, "Multidimensional array access must be followed by an array name. Eg: (1,2,3) in ARRAY_NAME")?;
-            let ident = if let Token::Ident(ident) = ident { ident } else { unreachable!("compiler bug consumed ident but got something else") };
-            expr = Expr::InArray { name: ident, indices: vec![expr.into()] }.into();
+            let ident = if let Token::Ident(ident) = ident {
+                ident
+            } else {
+                unreachable!("compiler bug consumed ident but got something else")
+            };
+            expr = Expr::InArray {
+                name: ident,
+                indices: vec![expr.into()],
+            }
+            .into();
         }
         Ok(expr)
     }
@@ -515,7 +600,9 @@ impl<'a> Parser<'a> {
         let mut idx = self.current;
         // Check if we match the regex \(.+\) in if so call the helper
         if *self.peek_at(idx) == Token::LeftParen {
-            while *self.peek_at(idx) != Token::RightParen && !self.is_at_end() { idx += 1; }
+            while *self.peek_at(idx) != Token::RightParen && !self.is_at_end() {
+                idx += 1;
+            }
             if *self.peek_at(idx) == Token::RightParen && *self.peek_at(idx + 1) == Token::In {
                 return self.helper_multi_dim_array();
             }
@@ -529,15 +616,28 @@ impl<'a> Parser<'a> {
         while self.matches(flags!(TokenType::MatchedBy, TokenType::NotMatchedBy)) {
             expr = Expr::BinOp(
                 Box::new(expr),
-                if self.previous().unwrap().ttype() == TokenType::MatchedBy { BinOp::MatchedBy } else { BinOp::NotMatchedBy },
-                Box::new(self.compare()?)).into();
+                if self.previous().unwrap().ttype() == TokenType::MatchedBy {
+                    BinOp::MatchedBy
+                } else {
+                    BinOp::NotMatchedBy
+                },
+                Box::new(self.compare()?),
+            )
+            .into();
         }
         Ok(expr)
     }
 
     fn compare(&mut self) -> Result<TypedExpr, PrintableError> {
         let mut expr = self.string_concat()?;
-        while self.matches(flags!(TokenType::GreaterEq, TokenType::Greater, TokenType::Less, TokenType::LessEq, TokenType::EqEq, TokenType::BangEq)) {
+        while self.matches(flags!(
+            TokenType::GreaterEq,
+            TokenType::Greater,
+            TokenType::Less,
+            TokenType::LessEq,
+            TokenType::EqEq,
+            TokenType::BangEq
+        )) {
             let op = match self.previous().unwrap() {
                 Token::BinOp(BinOp::Less) => BinOp::Less,
                 Token::BinOp(BinOp::LessEq) => BinOp::LessEq,
@@ -559,8 +659,9 @@ impl<'a> Parser<'a> {
 
     fn string_concat(&mut self) -> Result<TypedExpr, PrintableError> {
         let mut expr = self.plus_minus()?;
-        while !self.is_at_end() &&
-            !Parser::types_contain(STRING_CONCAT_SKIPS, self.peek().ttype() as u64) {
+        while !self.is_at_end()
+            && !Parser::types_contain(STRING_CONCAT_SKIPS, self.peek().ttype() as u64)
+        {
             if let Expr::Concatenation(vals) = &mut expr.expr {
                 vals.push(self.plus_minus()?);
             } else {
@@ -601,7 +702,7 @@ impl<'a> Parser<'a> {
         if !(self.peek().ttype() == TokenType::Minus
             && self.peek_next().ttype() == TokenType::Minus)
             && !(self.peek().ttype() == TokenType::Plus
-            && self.peek_next().ttype() == TokenType::Plus)
+                && self.peek_next().ttype() == TokenType::Plus)
             && self.matches(flags!(TokenType::Minus, TokenType::Plus, TokenType::Bang))
         {
             let p = self.previous().unwrap().ttype();
@@ -613,7 +714,8 @@ impl<'a> Parser<'a> {
                 TokenType::Plus => Expr::MathOp(Box::new(zero), MathOp::Plus, Box::new(rhs)),
                 TokenType::Minus => Expr::MathOp(Box::new(zero), MathOp::Minus, Box::new(rhs)),
                 _ => unreachable!(),
-            }.into());
+            }
+            .into());
         }
         self.exp()
     }
@@ -642,7 +744,8 @@ impl<'a> Parser<'a> {
                     Box::new(var_expr),
                     MathOp::Plus,
                     Box::new(Expr::NumberF64(1.0).into()),
-                ).into();
+                )
+                .into();
 
                 return Ok(Expr::ScalarAssign(name, Box::new(increment)).into());
             }
@@ -660,7 +763,8 @@ impl<'a> Parser<'a> {
                     Box::new(var),
                     MathOp::Minus,
                     Box::new(Expr::NumberF64(1.0).into()),
-                ).into();
+                )
+                .into();
 
                 return Ok(Expr::ScalarAssign(name, Box::new(decrement)).into());
             }
@@ -675,7 +779,8 @@ impl<'a> Parser<'a> {
         if let Expr::Variable(_) = &expr.expr {
             // Check enum variant before cloning it since the clone is expensive
             if let Expr::Variable(name) = expr.expr.clone() {
-                if self.peek().ttype() == TokenType::Plus && self.peek_next().ttype() == TokenType::Plus
+                if self.peek().ttype() == TokenType::Plus
+                    && self.peek_next().ttype() == TokenType::Plus
                 {
                     self.advance()?;
                     self.advance()?;
@@ -684,14 +789,14 @@ impl<'a> Parser<'a> {
                         MathOp::Plus,
                         Box::new(Expr::NumberF64(1.0).into()),
                     )
-                        .into();
+                    .into();
                     let assign = Expr::ScalarAssign(name, Box::new(increment)).into();
                     expr = Expr::MathOp(
                         Box::new(assign),
                         MathOp::Minus,
                         Box::new(Expr::NumberF64(1.0).into()),
                     )
-                        .into();
+                    .into();
                 } else if self.peek().ttype() == TokenType::Minus
                     && self.peek_next().ttype() == TokenType::Minus
                 {
@@ -702,16 +807,18 @@ impl<'a> Parser<'a> {
                         MathOp::Minus,
                         Box::new(Expr::NumberF64(1.0).into()),
                     )
-                        .into();
+                    .into();
                     let assign = Expr::ScalarAssign(name, Box::new(decrement)).into();
                     expr = Expr::MathOp(
                         Box::new(assign),
                         MathOp::Plus,
                         Box::new(Expr::NumberF64(1.0).into()),
                     )
-                        .into();
+                    .into();
                 }
-            } else { unreachable!() }
+            } else {
+                unreachable!()
+            }
         }
         Ok(expr)
     }
@@ -780,7 +887,10 @@ impl<'a> Parser<'a> {
             if self.matches(flags!(TokenType::Comma)) {
                 continue;
             } else {
-                self.consume(TokenType::RightParen, "Expected a right paren ')' after a function call")?;
+                self.consume(
+                    TokenType::RightParen,
+                    "Expected a right paren ')' after a function call",
+                )?;
                 break;
             }
         }
@@ -789,10 +899,15 @@ impl<'a> Parser<'a> {
 
     fn array_index(&mut self, name: Symbol) -> Result<TypedExpr, PrintableError> {
         let mut indices = vec![self.expression()?];
-        while self.matches(flags!(TokenType::Comma)) && self.peek().ttype() != TokenType::RightBracket {
+        while self.matches(flags!(TokenType::Comma))
+            && self.peek().ttype() != TokenType::RightBracket
+        {
             indices.push(self.expression()?);
         }
-        self.consume(TokenType::RightBracket, "Array indexing must end with a right bracket.")?;
+        self.consume(
+            TokenType::RightBracket,
+            "Array indexing must end with a right bracket.",
+        )?;
         Ok(Expr::ArrayIndex { name, indices }.into())
     }
 }

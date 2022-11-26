@@ -1,9 +1,8 @@
-use std::fmt::{Display, Formatter};
 use crate::parser::{Arg, ArgT};
 use crate::printable_error::PrintableError;
-use crate::Symbolizer;
 use crate::symbolizer::Symbol;
-
+use crate::Symbolizer;
+use std::fmt::{Display, Formatter};
 
 pub const NUM_BUILTIN_VARIANTS: usize = 21;
 
@@ -41,7 +40,7 @@ impl BuiltinFunc {
             BuiltinFunc::Exp => todo!(),
             BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Index => todo!(),
-            BuiltinFunc::Int => vec![Arg::new(s.get("int-0"), ArgT::Scalar)],
+            BuiltinFunc::Int => vec![Arg::new(s.get("int-arg-0"), ArgT::Scalar)],
             BuiltinFunc::Length => todo!(),
             BuiltinFunc::Log => todo!(),
             BuiltinFunc::Matches => todo!(),
@@ -80,7 +79,7 @@ impl BuiltinFunc {
             symbolizer.get("Substr"),
             symbolizer.get("System"),
             symbolizer.get("Tolower"),
-            symbolizer.get("Toupper")
+            symbolizer.get("Toupper"),
         ]
     }
     pub fn to_str(&self) -> &'static str {
@@ -149,7 +148,10 @@ impl TryFrom<&str> for BuiltinFunc {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match BuiltinFunc::get(value) {
             Some(r) => Ok(r),
-            _ => Err(PrintableError::new(format!("{} is not a builtin function", value))),
+            _ => Err(PrintableError::new(format!(
+                "{} is not a builtin function",
+                value
+            ))),
         }
     }
 }

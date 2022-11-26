@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use crate::PrintableError;
+use std::path::PathBuf;
 
 // TODO: Find a small library to do this
 
@@ -21,13 +21,13 @@ impl ProgramType {
     pub fn load(self) -> Result<String, PrintableError> {
         match self {
             ProgramType::CLI(s) => Ok(s),
-            ProgramType::File(s) =>
-                {
-                    match std::fs::read_to_string(&s) {
-                        Ok(s) => Ok(s),
-                        Err(e) => Err(PrintableError::new(format!("Unable to load source program '{}'\nGot error: {}", s, e)))
-                    }
-                },
+            ProgramType::File(s) => match std::fs::read_to_string(&s) {
+                Ok(s) => Ok(s),
+                Err(e) => Err(PrintableError::new(format!(
+                    "Unable to load source program '{}'\nGot error: {}",
+                    s, e
+                ))),
+            },
         }
     }
 }
@@ -60,14 +60,14 @@ impl AwkArgs {
                     if let Some(next) = args.get(i + 1) {
                         save_executable = Some(PathBuf::from(next));
                     } else {
-                        return Err(PrintableError::new("Expected path after --save"))
+                        return Err(PrintableError::new("Expected path after --save"));
                     }
                     i += 2;
                 }
                 "-f" => {
                     if program != None {
                         print_help();
-                        return Err(PrintableError::new("Cannot specify multiple programs!"))
+                        return Err(PrintableError::new("Cannot specify multiple programs!"));
                     }
                     let next = match args.get(i + 1) {
                         None => {

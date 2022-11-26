@@ -1,9 +1,9 @@
+use crate::parser::{Arg, ArgT};
+use crate::typing::{ITypedFunction, TypedUserFunction};
+use gnu_libjit::{Abi, Context, Function};
 use std::cell::Ref;
 use std::ops::Deref;
 use std::rc::Rc;
-use gnu_libjit::{Abi, Context, Function};
-use crate::parser::{Arg, ArgT};
-use crate::typing::{ITypedFunction, TypedUserFunction};
 
 pub struct CallableFunction {
     function: Function,
@@ -12,7 +12,10 @@ pub struct CallableFunction {
 
 impl CallableFunction {
     pub fn main(function: Function, typed_function: Rc<TypedUserFunction>) -> Self {
-        Self { function, typed_function }
+        Self {
+            function,
+            typed_function,
+        }
     }
     pub fn new(context: &Context, typed_function: Rc<TypedUserFunction>) -> Self {
         let args = typed_function.args();
@@ -31,7 +34,9 @@ impl CallableFunction {
             }
         }
         drop(args);
-        let function = context.function(Abi::Fastcall, &Context::int_type(), params).unwrap();
+        let function = context
+            .function(Abi::Fastcall, &Context::int_type(), params)
+            .unwrap();
         Self {
             function,
             typed_function,
@@ -52,5 +57,3 @@ impl Deref for CallableFunction {
         &self.function
     }
 }
-
-

@@ -1,12 +1,13 @@
 #[cfg(test)]
 mod tests {
-    use crate::{analyze, Symbolizer};
     use crate::printable_error::PrintableError;
     use crate::typing::tests::tests::{gen_ast, test_exception};
     use crate::typing::TypedProgram;
+    use crate::{analyze, Symbolizer};
 
     fn strip(data: &str) -> String {
-        let data: String = data.replace("\n", "")
+        let data: String = data
+            .replace("\n", "")
             .replace(" ", "")
             .replace("\t", "")
             .replace(";", "")
@@ -59,9 +60,11 @@ mod tests {
 
     #[test]
     fn test_typed_loop() {
-        test_it("BEGIN \
+        test_it(
+            "BEGIN \
                { while (1) { x=1; } print x; }",
-                "while(f 1){ (f x = (f1)); }print(vx)");
+            "while(f 1){ (f x = (f1)); }print(vx)",
+        );
     }
 
     #[test]
@@ -114,8 +117,9 @@ mod tests {
 
     #[test]
     fn test_while_break_typing() {
-        test_it("BEGIN { while (1) { if (x == 33) { break } x = x + 1; } print x; }",
-                "while (f1) { if (f(vx) == (f33)) { break } (f x = (f ( v x) + (f 1 ))) } print (v x)",
+        test_it(
+            "BEGIN { while (1) { if (x == 33) { break } x = x + 1; } print x; }",
+            "while (f1) { if (f(vx) == (f33)) { break } (f x = (f ( v x) + (f 1 ))) } print (v x)",
         )
     }
 
@@ -128,21 +132,20 @@ mod tests {
 
     #[test]
     fn test_typing_while_x_uninit_1() {
-        test_it("BEGIN { while ( (x=x+1) < 1) { }}",
-                "while (f(f x = (f (v x) + (f 1))) < (f1)) {}")
+        test_it(
+            "BEGIN { while ( (x=x+1) < 1) { }}",
+            "while (f(f x = (f (v x) + (f 1))) < (f1)) {}",
+        )
     }
-
 
     #[test]
     fn test_typing_while_x_uninit_2() {
-        test_it("BEGIN { while ( x < 1) { }}",
-                "while (f (v x) < (f 1) ) {}")
+        test_it("BEGIN { while ( x < 1) { }}", "while (f (v x) < (f 1) ) {}")
     }
 
     #[test]
     fn test_typing_while_x_uninit_3() {
-        test_it("BEGIN { x = x + 1; }",
-                "(f x = (f (v x) + (f 1)))")
+        test_it("BEGIN { x = x + 1; }", "(f x = (f (v x) + (f 1)))")
     }
 
     #[test]
@@ -166,40 +169,53 @@ mod tests {
         );
     }
 
-
     #[test]
     fn test_ternary() {
-        test_it("\
+        test_it(
+            "\
     BEGIN { x = \"a\"; x ? (x=1) : (x=2); print x; }",
-                "(s x = (s \"a\")); \n(f (s x) ? (f x = (f 1)) : (f x = (f 2))); \nprint (f x)");
+            "(s x = (s \"a\")); \n(f (s x) ? (f x = (f 1)) : (f x = (f 2))); \nprint (f x)",
+        );
     }
 
     #[test]
     fn test_ternary_2() {
-        test_it("\
+        test_it(
+            "\
     BEGIN { x = \"a\"; x ? (x=1) : (x=\"a\"); print x; }",
-                "(s x = (s \"a\")); \n(v (s x) ? (f x = (f 1)) : (s x = (s \"a\"))); \nprint (v x)");
+            "(s x = (s \"a\")); \n(v (s x) ? (f x = (f 1)) : (s x = (s \"a\"))); \nprint (v x)",
+        );
     }
 
     #[test]
     fn test_ternary_3() {
-        test_it("\
+        test_it(
+            "\
     BEGIN { x ? (x=1) : (x=\"a\"); print x; }",
-                "(v (v x) ? (f x = (f 1)) : (s x = (s \"a\"))); \nprint (v x)");
+            "(v (v x) ? (f x = (f 1)) : (s x = (s \"a\"))); \nprint (v x)",
+        );
     }
 
     #[test]
     fn test_ternary_4() {
-        test_it("\
+        test_it(
+            "\
     BEGIN { x ? (x=1) : (x=4); print x; }",
-                "(f (v x) ? (f x = (f 1)) : (f x = (f 4)));\nprint (f x)");
+            "(f (v x) ? (f x = (f 1)) : (f x = (f 4)));\nprint (f x)",
+        );
     }
 
     #[test]
     fn test_fails() {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        let res = analyze(parse(lex("BEGIN { a = 0; a[0] = 1; }", &mut symbolizer).unwrap(), &mut symbolizer).unwrap());
+        let res = analyze(
+            parse(
+                lex("BEGIN { a = 0; a[0] = 1; }", &mut symbolizer).unwrap(),
+                &mut symbolizer,
+            )
+            .unwrap(),
+        );
         assert!(res.is_err());
     }
 
@@ -207,7 +223,13 @@ mod tests {
     fn test_fails_2() {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        let ast = analyze(parse(lex("BEGIN { a[0] = 1; a = 0;  }", &mut symbolizer).unwrap(), &mut symbolizer).unwrap());
+        let ast = analyze(
+            parse(
+                lex("BEGIN { a[0] = 1; a = 0;  }", &mut symbolizer).unwrap(),
+                &mut symbolizer,
+            )
+            .unwrap(),
+        );
         assert!(ast.is_err());
     }
 
@@ -215,7 +237,13 @@ mod tests {
     fn test_fails_3() {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        let ast = analyze(parse(lex("BEGIN { if(x) { a[0] = 1; } a = 0;  }", &mut symbolizer).unwrap(), &mut symbolizer).unwrap());
+        let ast = analyze(
+            parse(
+                lex("BEGIN { if(x) { a[0] = 1; } a = 0;  }", &mut symbolizer).unwrap(),
+                &mut symbolizer,
+            )
+            .unwrap(),
+        );
         assert!(ast.is_err());
     }
 
@@ -224,24 +252,31 @@ mod tests {
 
     #[test]
     fn test_typing_scalar_function() {
-        test_it_funcs("function a() { return 1; } BEGIN { print 1; }",
-                      "function a() { return (f 1); } function mainfunction() { print (f 1) }");
+        test_it_funcs(
+            "function a() { return 1; } BEGIN { print 1; }",
+            "function a() { return (f 1); } function mainfunction() { print (f 1) }",
+        );
     }
 
     #[test]
     fn test_arr_typing() {
-        test_it("BEGIN { b[0] = d; }",
-                "(v b[(f 0)] = (v d))");
+        test_it("BEGIN { b[0] = d; }", "(v b[(f 0)] = (v d))");
     }
 
     #[test]
     fn test_typing_array_fails_mixed_ret() {
-        test_exception("function a(arg) { if(arg) { return 1; } b[0] = 2; return b } BEGIN { print 0; }", "attempted to use")
+        test_exception(
+            "function a(arg) { if(arg) { return 1; } b[0] = 2; return b } BEGIN { print 0; }",
+            "attempted to use",
+        )
     }
 
     #[test]
     fn test_typing_array_fails_no_ret() {
-        test_exception("function a(arg) { if(arg) { b[0] = 1; return b; } } BEGIN { print 0; }", "attempt to use")
+        test_exception(
+            "function a(arg) { if(arg) { b[0] = 1; return b; } } BEGIN { print 0; }",
+            "attempt to use",
+        )
     }
 
     #[test]

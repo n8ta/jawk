@@ -1,12 +1,12 @@
-use std::rc::Rc;
-use hashbrown::{HashMap, HashSet};
-use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
-use crate::{Expr, PrintableError};
 use crate::global_scalars::SymbolMapping;
+use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::symbolizer::Symbol;
-use crate::typing::{ITypedFunction, TypedProgram};
-use crate::typing::structs::{TypedUserFunction, FunctionMap, CallArg, Call};
 use crate::typing::analysis_results::{AnalysisResults, MapT};
+use crate::typing::structs::{Call, CallArg, FunctionMap, TypedUserFunction};
+use crate::typing::{ITypedFunction, TypedProgram};
+use crate::{Expr, PrintableError};
+use hashbrown::{HashMap, HashSet};
+use std::rc::Rc;
 
 pub struct FunctionAnalysis {
     global_scalars: MapT,
@@ -36,7 +36,9 @@ pub fn function_pass(prog: Program) -> Result<TypedProgram, PrintableError> {
 
 impl FunctionAnalysis {
     pub fn analyze_program(mut self) -> Result<TypedProgram, PrintableError> {
-        let user_functions: Vec<Rc<TypedUserFunction>> = self.functions.user_functions()
+        let user_functions: Vec<Rc<TypedUserFunction>> = self
+            .functions
+            .user_functions()
             .iter()
             .map(|(_, v)| v.clone())
             .collect();
@@ -57,52 +59,94 @@ impl FunctionAnalysis {
 
         Ok(TypedProgram::new(self.functions, results))
     }
-    fn use_as_scalar(&mut self, var: &Symbol, typ: ScalarType, function: &Rc<TypedUserFunction>) -> Result<(), PrintableError> {
+    fn use_as_scalar(
+        &mut self,
+        var: &Symbol,
+        typ: ScalarType,
+        function: &Rc<TypedUserFunction>,
+    ) -> Result<(), PrintableError> {
         if let Some((_idx, arg_t)) = function.get_arg_idx_and_type(var) {
             match arg_t {
                 ArgT::Scalar => {} // scalar arg used as scalar, lgtm
-                ArgT::Array => return Err(PrintableError::new(format!("fatal: attempt to use array `{}` in a scalar context", var))),
-                ArgT::Unknown => { function.set_arg_type(var, ArgT::Scalar)?; }
+                ArgT::Array => {
+                    return Err(PrintableError::new(format!(
+                        "fatal: attempt to use array `{}` in a scalar context",
+                        var
+                    )))
+                }
+                ArgT::Unknown => {
+                    function.set_arg_type(var, ArgT::Scalar)?;
+                }
             }
             return Ok(());
         }
         if self.func_names.contains(var) {
-            return Err(PrintableError::new(format!("fatal: attempt to use function `{}` in a scalar context", var)));
+            return Err(PrintableError::new(format!(
+                "fatal: attempt to use function `{}` in a scalar context",
+                var
+            )));
         }
         if self.global_arrays.contains_key(var) {
-            return Err(PrintableError::new(format!("fatal: attempt to use array `{}` in a scalar context", var)));
+            return Err(PrintableError::new(format!(
+                "fatal: attempt to use array `{}` in a scalar context",
+                var
+            )));
         }
         function.use_global(var);
         self.global_scalars = self.global_scalars.insert(var.clone(), typ).0;
         Ok(())
     }
-    fn use_as_array(&mut self, var: &Symbol, function: &Rc<TypedUserFunction>) -> Result<(), PrintableError> {
+    fn use_as_array(
+        &mut self,
+        var: &Symbol,
+        function: &Rc<TypedUserFunction>,
+    ) -> Result<(), PrintableError> {
         if let Some((_idx, arg_t)) = function.get_arg_idx_and_type(var) {
             match arg_t {
-                ArgT::Scalar => return Err(PrintableError::new(format!("fatal: attempt to use scalar `{}` in a array context", var))),
+                ArgT::Scalar => {
+                    return Err(PrintableError::new(format!(
+                        "fatal: attempt to use scalar `{}` in a array context",
+                        var
+                    )))
+                }
                 ArgT::Array => {}
-                ArgT::Unknown => { function.set_arg_type(var, ArgT::Array)?; }
+                ArgT::Unknown => {
+                    function.set_arg_type(var, ArgT::Array)?;
+                }
             }
             return Ok(());
         }
         if self.func_names.contains(var) {
-            return Err(PrintableError::new(format!("fatal: attempt to use function `{}` in a scalar context", var)));
+            return Err(PrintableError::new(format!(
+                "fatal: attempt to use function `{}` in a scalar context",
+                var
+            )));
         }
         if let Some(_type) = self.global_scalars.get(var) {
-            return Err(PrintableError::new(format!("fatal: attempt to scalar `{}` in an array context", var)));
+            return Err(PrintableError::new(format!(
+                "fatal: attempt to scalar `{}` in an array context",
+                var
+            )));
         }
         self.global_arrays.insert(&var);
         Ok(())
     }
 
-    fn analyze_stmt(&mut self, stmt: &mut Stmt, function: &Rc<TypedUserFunction>) -> Result<(), PrintableError> {
+    fn analyze_stmt(
+        &mut self,
+        stmt: &mut Stmt,
+        function: &Rc<TypedUserFunction>,
+    ) -> Result<(), PrintableError> {
         match stmt {
             Stmt::Return(ret) => {
                 if let Some(ret_value) = ret {
                     self.analyze_expr(ret_value, function, true)?;
                 }
             }
-            Stmt::Printf { args: printf_args, fstring } => {
+            Stmt::Printf {
+                args: printf_args,
+                fstring,
+            } => {
                 for arg in printf_args {
                     self.analyze_expr(arg, function, false)?;
                 }
@@ -139,10 +183,10 @@ impl FunctionAnalysis {
 
                 self.analyze_stmt(body, function)?;
 
-
                 let after_body_map = self.global_scalars.clone();
 
-                self.global_scalars = FunctionAnalysis::merge_maps(&[&after_test_map, &after_body_map, &pre_map]);
+                self.global_scalars =
+                    FunctionAnalysis::merge_maps(&[&after_test_map, &after_body_map, &pre_map]);
 
                 self.analyze_expr(test, function, false)?;
 
@@ -151,17 +195,24 @@ impl FunctionAnalysis {
                 let after_body_map = self.global_scalars.clone();
 
                 // Pass in an empty map to show that it's possible body branch never taken
-                self.global_scalars = FunctionAnalysis::merge_maps(&[&after_test_map, &after_body_map, &pre_map]);
+                self.global_scalars =
+                    FunctionAnalysis::merge_maps(&[&after_test_map, &after_body_map, &pre_map]);
             }
         }
         Ok(())
     }
 
-    fn analyze_expr(&mut self, expr: &mut TypedExpr, function: &Rc<TypedUserFunction>, is_returned: bool) -> Result<(), PrintableError> {
+    fn analyze_expr(
+        &mut self,
+        expr: &mut TypedExpr,
+        function: &Rc<TypedUserFunction>,
+        is_returned: bool,
+    ) -> Result<(), PrintableError> {
         match &mut expr.expr {
             Expr::Call { args, target } => {
                 for arg in args.iter_mut() {
-                    if let Expr::Variable(_str) = &arg.expr {} else {
+                    if let Expr::Variable(_str) = &arg.expr {
+                    } else {
                         self.analyze_expr(arg, function, false)?;
                     }
                 }
@@ -173,7 +224,13 @@ impl FunctionAnalysis {
                     }
                 });
                 let target_func = match self.functions.get(target) {
-                    None => return Err(PrintableError::new(format!("Function `{}` does not exist. Called from function `{}`", target, function.name()))),
+                    None => {
+                        return Err(PrintableError::new(format!(
+                            "Function `{}` does not exist. Called from function `{}`",
+                            target,
+                            function.name()
+                        )))
+                    }
                     Some(f) => f.clone(),
                 };
                 let call = Call::new(function.clone(), target_func.clone(), call_args.collect());
@@ -228,10 +285,16 @@ impl FunctionAnalysis {
             Expr::Variable(var) => {
                 if let Some((_idx, arg_t)) = function.get_arg_idx_and_type(var) {
                     if arg_t == ArgT::Array && is_returned {
-                        return Err(PrintableError::new(format!("fatal: attempted to use array {} in scalar context", var)));
+                        return Err(PrintableError::new(format!(
+                            "fatal: attempted to use array {} in scalar context",
+                            var
+                        )));
                     }
                 } else if self.global_arrays.contains_key(var) && is_returned {
-                    return Err(PrintableError::new(format!("fatal: attempted to use array {} in scalar context", var)));
+                    return Err(PrintableError::new(format!(
+                        "fatal: attempted to use array {} in scalar context",
+                        var
+                    )));
                 } else if let Some(typ) = self.global_scalars.get(var) {
                     expr.typ = *typ;
                 } else {
@@ -262,7 +325,11 @@ impl FunctionAnalysis {
                     self.analyze_expr(idx, function, false)?;
                 }
             }
-            Expr::ArrayAssign { indices, name, value } => {
+            Expr::ArrayAssign {
+                indices,
+                name,
+                value,
+            } => {
                 self.use_as_array(name, function)?;
                 for idx in indices {
                     self.analyze_expr(idx, function, false)?;

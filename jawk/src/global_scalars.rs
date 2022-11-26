@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::symbolizer::Symbol;
+use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct SymbolMapping {
@@ -7,12 +7,17 @@ pub struct SymbolMapping {
 }
 
 impl SymbolMapping {
-    pub fn new() -> Self { Self { mapping: HashMap::new() } }
+    pub fn new() -> Self {
+        Self {
+            mapping: HashMap::new(),
+        }
+    }
     pub fn insert(&mut self, symbol: &Symbol) {
         if self.mapping.contains_key(&symbol) {
             return;
         } else {
-            self.mapping.insert(symbol.clone(), self.mapping.len() as i32)
+            self.mapping
+                .insert(symbol.clone(), self.mapping.len() as i32)
         };
     }
     pub fn get(&self, symbol: &Symbol) -> Option<&i32> {

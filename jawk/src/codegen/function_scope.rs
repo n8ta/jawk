@@ -1,13 +1,13 @@
-use std::cell::Ref;
-use std::os::raw::c_void;
-use gnu_libjit::{Function, Value};
-use hashbrown::{HashMap};
 use crate::codegen::globals::Globals;
 use crate::codegen::ValueT;
 use crate::global_scalars::SymbolMapping;
 use crate::parser::{Arg, ArgT};
-use crate::PrintableError;
 use crate::symbolizer::Symbol;
+use crate::PrintableError;
+use gnu_libjit::{Function, Value};
+use hashbrown::HashMap;
+use std::cell::Ref;
+use std::os::raw::c_void;
 
 // Global variables are stored on the heap. Loading and storing to the heap is expensive so
 // the function scopes acts as a cache of the globals by storing a copy of needed globals as
@@ -35,7 +35,11 @@ impl<'a> FunctionScope<'a> {
         for arg in args.iter() {
             match arg.typ {
                 ArgT::Scalar => {
-                    let value = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr());
+                    let value = ValueT::new(
+                        function.create_value_int(),
+                        function.create_value_float64(),
+                        function.create_value_void_ptr(),
+                    );
                     let tag = function.arg(idx).unwrap();
                     let float = function.arg(idx + 1).unwrap();
                     let pointer = function.arg(idx + 2).unwrap();
@@ -43,31 +47,44 @@ impl<'a> FunctionScope<'a> {
                     function.insn_store(&value.tag, &tag);
                     function.insn_store(&value.float, &float);
                     function.insn_store(&value.pointer, &pointer);
-                    function_scope.pure_local_scalar.insert(arg.name.clone(), value);
+                    function_scope
+                        .pure_local_scalar
+                        .insert(arg.name.clone(), value);
                     idx += 3;
                 }
                 ArgT::Array => {
                     let value = function.create_value_int();
                     let arr = function.arg(idx).unwrap();
                     function.insn_store(&value, &arr);
-                    function_scope.pure_local_array.insert(arg.name.clone(), value);
+                    function_scope
+                        .pure_local_array
+                        .insert(arg.name.clone(), value);
                     idx += 1;
                 }
                 ArgT::Unknown => {}
             }
-        };
+        }
         function_scope
     }
-    pub fn get_scalar(&mut self, function: &mut Function, name: &Symbol) -> Result<ValueT, PrintableError> {
+    pub fn get_scalar(
+        &mut self,
+        function: &mut Function,
+        name: &Symbol,
+    ) -> Result<ValueT, PrintableError> {
         if let Some(local) = self.pure_local_scalar.get(name) {
             Ok(local.clone())
         } else if let Some(local_global) = self.local_globals.get(name) {
             Ok(local_global.clone())
         } else {
             let global_value = self.globals.get(name, function)?;
-            let mut local_global = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr());
+            let mut local_global = ValueT::new(
+                function.create_value_int(),
+                function.create_value_float64(),
+                function.create_value_void_ptr(),
+            );
             self.store(function, &mut local_global, &global_value);
-            self.local_globals.insert(name.clone(), local_global.clone());
+            self.local_globals
+                .insert(name.clone(), local_global.clone());
             Ok(local_global)
         }
     }
@@ -92,7 +109,11 @@ impl<'a> FunctionScope<'a> {
             Some(local_global.clone())
         } else {
             // Create a new stack var for it
-            let mut local_global = ValueT::new(function.create_value_int(), function.create_value_float64(), function.create_value_void_ptr());
+            let mut local_global = ValueT::new(
+                function.create_value_int(),
+                function.create_value_float64(),
+                function.create_value_void_ptr(),
+            );
             self.store(function, &mut local_global, value);
             self.local_globals.insert(name.clone(), local_global);
             None
@@ -115,7 +136,11 @@ impl<'a> FunctionScope<'a> {
         self.local_globals.clear();
     }
 
-    pub fn get_array(&mut self, function: &mut Function, name: &Symbol) -> Result<Value, PrintableError> {
+    pub fn get_array(
+        &mut self,
+        function: &mut Function,
+        name: &Symbol,
+    ) -> Result<Value, PrintableError> {
         if let Some(val) = self.pure_local_array.get(name) {
             return Ok(val.clone());
         }
