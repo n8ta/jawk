@@ -30,6 +30,7 @@ fn propogate(
 
 pub fn inference_pass(mut prog: TypedProgram) -> Result<TypedProgram, PrintableError> {
     let mut calls: Vec<Call> = vec![];
+
     // Push every call between functions onto a stack as a link between them
     for (_name, func) in prog.functions.user_functions().iter() {
         for call in func.calls().iter() {
@@ -57,9 +58,7 @@ pub fn inference_pass(mut prog: TypedProgram) -> Result<TypedProgram, PrintableE
 
         // Loop through functions who call source
         for caller in call.src.callers().iter() {
-            for call_to_source in caller
-                .calls()
-                .iter()
+            for call_to_source in caller.calls().iter()
                 .filter(|call_to_src| call_to_src.target.name() == call.src.name())
             {
                 // And push them back on the stack

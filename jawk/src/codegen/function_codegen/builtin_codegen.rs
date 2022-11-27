@@ -1,6 +1,6 @@
 use crate::codegen::function_codegen::FunctionCodegen;
 use crate::codegen::ValueT;
-use crate::parser::{ScalarType, TypedExpr};
+use crate::parser::{TypedExpr};
 use crate::printable_error::PrintableError;
 use crate::typing::BuiltinFunc;
 use gnu_libjit::Value;

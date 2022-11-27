@@ -8,10 +8,11 @@ pub use crate::parser::types::PatternAction;
 use crate::printable_error::PrintableError;
 use crate::symbolizer::Symbol;
 use crate::typing::BuiltinFunc;
-use crate::{AnalysisResults, Symbolizer};
+use crate::{AnalysisResults, PRINTF_MAX_ARGS, Symbolizer};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 pub use types::{Arg, ArgT, Expr, Function, ScalarType, Stmt, TypedExpr};
+use crate::parser::Stmt::Print;
 
 // Pattern Action Type
 // Normal eg: $1 == "a" { doSomething() }
@@ -210,6 +211,26 @@ impl<'a> Parser<'a> {
         )))
     }
 
+    // Caller guarantees that last token parsed was an ident
+    fn prior_indent_name_infallible(&mut self) -> Symbol {
+        if let Some(Token::Ident(name)) = self.previous() {
+            name.clone()
+        } else {
+            unreachable!()
+        }
+    }
+
+    fn matches_series(&mut self, tokens: &[TokenType]) -> bool {
+        for (idx, tt) in tokens.iter().enumerate() {
+            let peeked = self.peek_at(self.current + idx).ttype();
+            if peeked != *tt {
+                return false;
+            }
+        }
+        self.current += tokens.len();
+        return true;
+    }
+
     fn matches(&mut self, tokens: u64) -> bool {
         let tkn = match self.tokens.get(self.current) {
             None => return false,
@@ -328,6 +349,9 @@ impl<'a> Parser<'a> {
             let mut args = vec![];
             while self.matches(flags!(TokenType::Comma)) {
                 args.push(self.expression()?);
+            }
+            if args.len() > PRINTF_MAX_ARGS {
+                return Err(PrintableError::new(format!("printf supports a max of {} arguments. Called with {} arguments", PRINTF_MAX_ARGS, args.len())));
             }
             Stmt::Printf { fstring, args }
         } else if self.matches(flags!(TokenType::Break)) {
@@ -477,7 +501,7 @@ impl<'a> Parser<'a> {
                     indices,
                     value,
                 }
-                .into());
+                    .into());
             } else {
                 unreachable!()
             }
@@ -544,7 +568,7 @@ impl<'a> Parser<'a> {
                 name,
                 indices: vec![expr],
             }
-            .into()
+                .into()
         }
         Ok(expr)
     }
@@ -591,7 +615,7 @@ impl<'a> Parser<'a> {
                 name: ident,
                 indices: vec![expr.into()],
             }
-            .into();
+                .into();
         }
         Ok(expr)
     }
@@ -623,7 +647,7 @@ impl<'a> Parser<'a> {
                 },
                 Box::new(self.compare()?),
             )
-            .into();
+                .into();
         }
         Ok(expr)
     }
@@ -702,7 +726,7 @@ impl<'a> Parser<'a> {
         if !(self.peek().ttype() == TokenType::Minus
             && self.peek_next().ttype() == TokenType::Minus)
             && !(self.peek().ttype() == TokenType::Plus
-                && self.peek_next().ttype() == TokenType::Plus)
+            && self.peek_next().ttype() == TokenType::Plus)
             && self.matches(flags!(TokenType::Minus, TokenType::Plus, TokenType::Bang))
         {
             let p = self.previous().unwrap().ttype();
@@ -715,7 +739,7 @@ impl<'a> Parser<'a> {
                 TokenType::Minus => Expr::MathOp(Box::new(zero), MathOp::Minus, Box::new(rhs)),
                 _ => unreachable!(),
             }
-            .into());
+                .into());
         }
         self.exp()
     }
@@ -730,44 +754,29 @@ impl<'a> Parser<'a> {
     }
 
     fn pre_op(&mut self) -> Result<TypedExpr, PrintableError> {
-        if self.peek().ttype() == TokenType::Plus
-            && self.peek_next().ttype() == TokenType::Plus
-            && self.peek_next_next().ttype() == TokenType::Ident
+        if self.matches_series(&[TokenType::Plus, TokenType::Plus, TokenType::Ident])
         {
-            self.advance()?;
-            self.advance()?;
-            self.advance()?;
-
-            if let Token::Ident(name) = self.previous().unwrap() {
-                let var_expr = Expr::Variable(name.clone()).into();
-                let increment = Expr::MathOp(
-                    Box::new(var_expr),
-                    MathOp::Plus,
-                    Box::new(Expr::NumberF64(1.0).into()),
-                )
+            let name = self.prior_indent_name_infallible();
+            let var_expr = Expr::Variable(name.clone()).into();
+            let increment = Expr::MathOp(
+                Box::new(var_expr),
+                MathOp::Plus,
+                Box::new(Expr::NumberF64(1.0).into()),
+            )
                 .into();
 
-                return Ok(Expr::ScalarAssign(name, Box::new(increment)).into());
-            }
-        } else if self.peek().ttype() == TokenType::Minus
-            && self.peek_next().ttype() == TokenType::Minus
-            && self.peek_next_next().ttype() == TokenType::Ident
-        {
-            self.advance()?;
-            self.advance()?;
-            self.advance()?;
-
-            if let Token::Ident(name) = self.previous().unwrap() {
-                let var = Expr::Variable(name.clone()).into();
-                let decrement = Expr::MathOp(
-                    Box::new(var),
-                    MathOp::Minus,
-                    Box::new(Expr::NumberF64(1.0).into()),
-                )
+            return Ok(Expr::ScalarAssign(name, Box::new(increment)).into());
+        } else if self.matches_series(&[TokenType::Minus, TokenType::Minus, TokenType::Ident]) {
+            let name = self.prior_indent_name_infallible();
+            let var = Expr::Variable(name.clone()).into();
+            let decrement = Expr::MathOp(
+                Box::new(var),
+                MathOp::Minus,
+                Box::new(Expr::NumberF64(1.0).into()),
+            )
                 .into();
 
-                return Ok(Expr::ScalarAssign(name, Box::new(decrement)).into());
-            }
+            return Ok(Expr::ScalarAssign(name, Box::new(decrement)).into());
         }
 
         self.post_op()
@@ -789,14 +798,14 @@ impl<'a> Parser<'a> {
                         MathOp::Plus,
                         Box::new(Expr::NumberF64(1.0).into()),
                     )
-                    .into();
+                        .into();
                     let assign = Expr::ScalarAssign(name, Box::new(increment)).into();
                     expr = Expr::MathOp(
                         Box::new(assign),
                         MathOp::Minus,
                         Box::new(Expr::NumberF64(1.0).into()),
                     )
-                    .into();
+                        .into();
                 } else if self.peek().ttype() == TokenType::Minus
                     && self.peek_next().ttype() == TokenType::Minus
                 {
@@ -807,14 +816,14 @@ impl<'a> Parser<'a> {
                         MathOp::Minus,
                         Box::new(Expr::NumberF64(1.0).into()),
                     )
-                    .into();
+                        .into();
                     let assign = Expr::ScalarAssign(name, Box::new(decrement)).into();
                     expr = Expr::MathOp(
                         Box::new(assign),
                         MathOp::Plus,
                         Box::new(Expr::NumberF64(1.0).into()),
                     )
-                    .into();
+                        .into();
                 }
             } else {
                 unreachable!()

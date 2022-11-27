@@ -14,7 +14,7 @@ use crate::printable_error::PrintableError;
 use crate::runtime::{DebugRuntime, ReleaseRuntime, Runtime};
 use crate::symbolizer::Symbol;
 use crate::typing::{FunctionMap, TypedProgram};
-use crate::Symbolizer;
+use crate::{PRINTF_MAX_ARGS, Symbolizer};
 use gnu_libjit::{Abi, Context, Function, Value};
 use hashbrown::HashMap;
 
@@ -29,6 +29,7 @@ use hashbrown::HashMap;
 
 pub const FLOAT_TAG: i8 = 0;
 pub const STRING_TAG: i8 = 1;
+
 
 // Entry point to run a program
 pub fn compile_and_run(
@@ -102,9 +103,9 @@ impl<'a, RuntimeT: Runtime> CodeGen<'a, RuntimeT> {
             symbolizer,
         );
 
-        // printf is a variadic function. Allocate a bunch of heap space for it's args
-        // right now it could overflow. TODO: Fix overflow
-        let var_arg_scratch = unsafe { libc::malloc(100 * 8) };
+        // printf is a variadic function which isn't supported by libjit.
+        // Allocate a bunch of heap space for it's args
+        let var_arg_scratch = unsafe { libc::malloc(PRINTF_MAX_ARGS * 8 * 3) };
         let var_arg_scratch = main_function.create_void_ptr_constant(var_arg_scratch);
 
         let main_sym = symbolizer.get("main function");

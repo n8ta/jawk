@@ -33,6 +33,9 @@ mod runtime;
 mod symbolizer;
 mod typing;
 
+pub const PRINTF_MAX_ARGS: usize = 128;
+
+
 pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let args = AwkArgs::new(args)?;
 
