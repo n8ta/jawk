@@ -1,9 +1,8 @@
 use crate::global_scalars::SymbolMapping;
 use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
 use crate::symbolizer::Symbol;
-use crate::typing::analysis_results::{AnalysisResults, MapT};
 use crate::typing::structs::{Call, CallArg, FunctionMap, TypedUserFunction};
-use crate::typing::{ITypedFunction, TypedProgram};
+use crate::typing::{AnalysisResults, ITypedFunction, MapT, TypedProgram};
 use crate::{Expr, PrintableError};
 use hashbrown::{HashMap, HashSet};
 use std::rc::Rc;

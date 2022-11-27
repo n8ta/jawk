@@ -12,7 +12,7 @@ use std::ffi::c_void;
 use std::io::{BufWriter, StdoutLock, Write};
 use std::rc::Rc;
 
-use crate::runtime::float_parser::{FloatParser, string_to_float};
+use crate::runtime::float_parser::{string_to_float, FloatParser};
 use crate::{runtime_fn, runtime_fn_no_args, runtime_fn_no_ret};
 
 pub extern "C" fn print_string(data: *mut c_void, value: *mut String) {
@@ -296,7 +296,7 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
     };
 }
 
-extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const String) -> *const String {
+extern "C" fn to_lower(_data_ptr: *mut c_void, ptr: *const String) -> *const String {
     let ptr = unsafe { Rc::from_raw(ptr) };
     let str = match Rc::try_unwrap(ptr) {
         Ok(mut str) => unsafe {
@@ -308,10 +308,8 @@ extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const String) -> *const Stri
                 let lower = Rc::new(str.to_lowercase());
                 Rc::into_raw(lower)
             }
-        }
-        Err(ptr) => {
-            Rc::into_raw(Rc::new(ptr.to_lowercase()))
-        }
+        },
+        Err(ptr) => Rc::into_raw(Rc::new(ptr.to_lowercase())),
     };
     str
 }
@@ -328,10 +326,8 @@ extern "C" fn to_upper(_data_ptr: *mut c_void, ptr: *const String) -> *const Str
                 let upper = Rc::new(str.to_uppercase());
                 Rc::into_raw(upper)
             }
-        }
-        Err(ptr) => {
-            Rc::into_raw(Rc::new(ptr.to_uppercase()))
-        }
+        },
+        Err(ptr) => Rc::into_raw(Rc::new(ptr.to_uppercase())),
     };
     str
 }
@@ -428,19 +424,88 @@ impl Runtime for ReleaseRuntime {
     }
 
     runtime_fn_no_args!(call_next_line, next_line, Some(Context::float64_type()));
-    runtime_fn!(column, column, Some(Context::void_ptr_type()), tag: Value, float: Value, pointer: Value);
-    runtime_fn!(string_to_number, string_to_number, Some(Context::float64_type()), arg0: Value);
-    runtime_fn!(number_to_string, number_to_string, Some(Context::void_ptr_type()), arg0: Value);
+    runtime_fn!(
+        column,
+        column,
+        Some(Context::void_ptr_type()),
+        tag: Value,
+        float: Value,
+        pointer: Value
+    );
+    runtime_fn!(
+        string_to_number,
+        string_to_number,
+        Some(Context::float64_type()),
+        arg0: Value
+    );
+    runtime_fn!(
+        number_to_string,
+        number_to_string,
+        Some(Context::void_ptr_type()),
+        arg0: Value
+    );
     runtime_fn_no_ret!(print_string, print_string, None, arg0: Value);
     runtime_fn_no_ret!(print_float, print_float, None, arg0: Value);
-    runtime_fn!(concat, concat, Some(Context::void_ptr_type()), arg0: Value, arg1: Value);
-    runtime_fn!(concat_array_indices, concat_array_indices, Some(Context::void_ptr_type()), arg0: Value, arg1: Value);
+    runtime_fn!(
+        concat,
+        concat,
+        Some(Context::void_ptr_type()),
+        arg0: Value,
+        arg1: Value
+    );
+    runtime_fn!(
+        concat_array_indices,
+        concat_array_indices,
+        Some(Context::void_ptr_type()),
+        arg0: Value,
+        arg1: Value
+    );
     runtime_fn_no_args!(empty_string, empty_string, Some(Context::void_ptr_type()));
-    runtime_fn_no_ret!(array_access, array_access, None,array: Value,key_tag: Value,key_num: Value,key_ptr: Value,out_tag_ptr: Value,out_float_ptr: Value,out_ptr_ptr: Value);
-    runtime_fn_no_ret!(array_assign, array_assign, None,array: Value,key_tag: Value,key_num: Value,key_ptr: Value,tag: Value,float: Value,ptr: Value);
-    runtime_fn!(in_array, in_array, Some(Context::float64_type()),array: Value,key_tag: Value,key_num: Value,key_ptr: Value);
-    runtime_fn!(to_upper, to_upper, Some(Context::void_ptr_type()), ptr: Value);
-    runtime_fn!(to_lower, to_lower, Some(Context::void_ptr_type()), ptr: Value);
+    runtime_fn_no_ret!(
+        array_access,
+        array_access,
+        None,
+        array: Value,
+        key_tag: Value,
+        key_num: Value,
+        key_ptr: Value,
+        out_tag_ptr: Value,
+        out_float_ptr: Value,
+        out_ptr_ptr: Value
+    );
+    runtime_fn_no_ret!(
+        array_assign,
+        array_assign,
+        None,
+        array: Value,
+        key_tag: Value,
+        key_num: Value,
+        key_ptr: Value,
+        tag: Value,
+        float: Value,
+        ptr: Value
+    );
+    runtime_fn!(
+        in_array,
+        in_array,
+        Some(Context::float64_type()),
+        array: Value,
+        key_tag: Value,
+        key_num: Value,
+        key_ptr: Value
+    );
+    runtime_fn!(
+        to_upper,
+        to_upper,
+        Some(Context::void_ptr_type()),
+        ptr: Value
+    );
+    runtime_fn!(
+        to_lower,
+        to_lower,
+        Some(Context::void_ptr_type()),
+        ptr: Value
+    );
 
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) {
         let data_ptr = self.data_ptr(func);

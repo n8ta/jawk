@@ -1,4 +1,3 @@
-mod analysis_results;
 mod builtin_funcs;
 mod ityped_function;
 mod passes;
@@ -7,9 +6,10 @@ mod structs;
 #[cfg(test)]
 mod tests;
 
-pub use analysis_results::AnalysisResults;
 pub use builtin_funcs::BuiltinFunc;
-pub use structs::{FunctionMap, ITypedFunction, TypedProgram, TypedUserFunction};
+pub use structs::{
+    AnalysisResults, FunctionMap, ITypedFunction, MapT, TypedProgram, TypedUserFunction,
+};
 
 use crate::parser::Program;
 use crate::printable_error::PrintableError;

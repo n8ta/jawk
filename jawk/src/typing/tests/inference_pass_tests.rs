@@ -195,6 +195,37 @@ mod inference_tests {
     }
 
     #[test]
+    fn test_rev_inference_from_native() {
+        /*
+        fn main() {
+           helper(a); // infer global a is an array
+        }
+
+        fn helper(scl) {
+           toupper(scl);
+        }
+        */
+        let (prog, mut symbolizer) =
+            fully_typed_prog("function helper(scl) { toupper(scl) } BEGIN { helper(a) }");
+        let a = symbolizer.get("a");
+        let helper = symbolizer.get("helper");
+        assert_eq!(
+            prog.functions
+                .get_user_function(&helper)
+                .unwrap()
+                .args()
+                .len(),
+            1
+        );
+        assert_eq!(
+            prog.functions.get_user_function(&helper).unwrap().args()[0].typ,
+            ArgT::Scalar
+        );
+        assert!(!prog.global_analysis.global_arrays.contains_key(&a));
+        assert!(prog.global_analysis.global_scalars.contains_key(&a));
+    }
+
+    #[test]
     fn test_calls_chain_inference() {
         let (prog, mut sym) = function_pass_only_prog(
             "\
@@ -329,6 +360,53 @@ mod inference_tests {
     }
 
     #[test]
+    fn test_rev_chained_inference_from_native() {
+        /*
+        fn main() {
+           helper1(a); // infer global a is array
+        }
+
+        fn helper1(arg1) {  // infer arg1 is array
+           helper2(arg1)
+        }
+
+        fn helper2(arg2) { // arg2 is array (prior pass)
+            toupper(arg2);
+        }
+        */
+        let (prog, mut symbolizer) = fully_typed_prog(
+            "\
+        function helper1(arg1) { return helper2(arg1) }\
+        function helper2(arg2) { toupper(arg2); }\
+        BEGIN { helper1(a) }",
+        );
+        let a = symbolizer.get("a");
+        let helper1 = symbolizer.get("helper1");
+        let helper2 = symbolizer.get("helper2");
+
+        assert_eq!(prog.functions.len(), 3);
+
+        let helper1 = prog
+            .functions
+            .user_functions_iter()
+            .find(|f| *f.0 == helper1)
+            .unwrap()
+            .1;
+        assert_eq!(helper1.args()[0].typ, ArgT::Scalar);
+
+        let helper2 = prog
+            .functions
+            .user_functions_iter()
+            .find(|f| *f.0 == helper2)
+            .unwrap()
+            .1;
+        assert_eq!(helper2.args()[0].typ, ArgT::Scalar);
+
+        assert!(!prog.global_analysis.global_arrays.contains_key(&a));
+        assert!(prog.global_analysis.global_scalars.contains_key(&a));
+    }
+
+    #[test]
     fn test_rev_chained_inference_scalar() {
         /*
         fn main() {
@@ -391,5 +469,15 @@ mod inference_tests {
     #[test]
     fn test_native_func() {
         test_exception("BEGIN { arr[0] = 1; int(arr) }", "in a scalar context");
+    }
+
+    #[test]
+    fn test_to_lower() {
+        test_exception("BEGIN { arr[0] = 1; tolower(arr) }", "in a scalar context");
+    }
+
+    #[test]
+    fn test_to_upper() {
+        test_exception("BEGIN { arr[0] = 1; toupper(arr) }", "in a scalar context");
     }
 }

@@ -20,7 +20,6 @@ pub enum ErrorCode {
     Error2,
 }
 
-
 #[macro_export]
 macro_rules! runtime_fn_no_args {
     ($fn_name:ident, $native_fn_ptr: expr, $jit_ret_type:expr) => {
@@ -33,7 +32,7 @@ macro_rules! runtime_fn_no_args {
                 Abi::Cdecl,
             )
         }
-    }
+    };
 }
 #[macro_export]
 macro_rules! runtime_fn {
@@ -64,7 +63,6 @@ macro_rules! runtime_fn_no_ret {
         }
     }
 }
-
 
 pub trait Runtime {
     fn new(context: &Context, files: Vec<String>) -> Self

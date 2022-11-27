@@ -233,7 +233,8 @@ impl<'a> FunctionCodegen<'a> {
                 // Optimize print based on static knowledge of type
                 match expr.typ {
                     ScalarType::String => {
-                        self.runtime.print_string(&mut self.function, val.pointer.clone());
+                        self.runtime
+                            .print_string(&mut self.function, val.pointer.clone());
                     }
                     ScalarType::Float => {
                         self.runtime.print_float(&mut self.function, val.float);
@@ -247,7 +248,7 @@ impl<'a> FunctionCodegen<'a> {
                         self.runtime.print_string(&mut self.function, val.pointer);
                         self.function.insn_branch(&mut done_lbl);
                         self.function.insn_label(&mut float_lbl);
-                        self.runtime.print_float(&mut self.function,val.float);
+                        self.runtime.print_float(&mut self.function, val.float);
                         self.function.insn_label(&mut done_lbl);
                     }
                 }
@@ -310,7 +311,7 @@ impl<'a> FunctionCodegen<'a> {
                 args,
             } => {
                 if let Some(builtin) = BuiltinFunc::get(target_name.to_str()) {
-                    return self.compile_builtin(&builtin, args)
+                    return self.compile_builtin(&builtin, args);
                 }
                 let target = self
                     .function_map

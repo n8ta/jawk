@@ -34,22 +34,24 @@ pub enum BuiltinFunc {
 impl BuiltinFunc {
     pub fn args(&self, s: &mut Symbolizer) -> Vec<Arg> {
         match self {
+            BuiltinFunc::Sin => vec![Arg::new(s.get("sin-arg-0"), ArgT::Scalar)],
+            BuiltinFunc::Cos => vec![Arg::new(s.get("cos-arg-0"), ArgT::Scalar)],
+            BuiltinFunc::Log => vec![Arg::new(s.get("log-arg-0"), ArgT::Scalar)],
+            BuiltinFunc::Sqrt => vec![Arg::new(s.get("sqrt-arg-0"), ArgT::Scalar)],
+            BuiltinFunc::Exp => vec![Arg::new(s.get("exp-arg-0"), ArgT::Scalar)],
+            BuiltinFunc::Int => vec![Arg::new(s.get("int-arg-0"), ArgT::Scalar)],
+
+            BuiltinFunc::Rand => todo!(),
+            BuiltinFunc::Srand => todo!(),
+
             BuiltinFunc::Atan2 => todo!(),
             BuiltinFunc::Close => todo!(),
-            BuiltinFunc::Cos => todo!(),
-            BuiltinFunc::Exp => todo!(),
             BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Index => todo!(),
-            BuiltinFunc::Int => vec![Arg::new(s.get("int-arg-0"), ArgT::Scalar)],
             BuiltinFunc::Length => todo!(),
-            BuiltinFunc::Log => todo!(),
             BuiltinFunc::Matches => todo!(),
-            BuiltinFunc::Rand => todo!(),
-            BuiltinFunc::Sin => todo!(),
             BuiltinFunc::Split => todo!(),
             BuiltinFunc::Sprintf => todo!(),
-            BuiltinFunc::Sqrt => todo!(),
-            BuiltinFunc::Srand => todo!(),
             BuiltinFunc::Sub => todo!(),
             BuiltinFunc::Substr => todo!(),
             BuiltinFunc::System => todo!(),

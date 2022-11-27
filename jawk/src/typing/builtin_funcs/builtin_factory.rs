@@ -34,15 +34,13 @@ pub struct BuiltinFactory {
 
 impl BuiltinFactory {
     pub fn new(mut symbolizer: Symbolizer) -> Self {
-        let names = BuiltinFunc::names_as_symbols(&mut symbolizer);
-        let cache = [
-            None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-            None, None, None, None, None, None, None,
-        ];
         Self {
             shared: Rc::new(BuiltinShared::new()),
-            cache,
-            names,
+            cache: [
+                None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+                None, None, None, None, None, None, None,
+            ],
+            names: BuiltinFunc::names_as_symbols(&mut symbolizer),
             symbolizer,
         }
     }

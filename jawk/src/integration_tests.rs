@@ -1221,13 +1221,48 @@ mod integration_tests {
 
     test!(test_native_int_0,"BEGIN { print int(\"123\") }", ONE_LINE, "123\n");
     test!(test_native_int_1,"BEGIN { print int(\"33cc\") }", ONE_LINE, "33\n");
-    test!(test_native_int_2,"BEGIN { print int(5) }", ONE_LINE, "5\n");
-    test!(test_native_int_3,"BEGIN { print int(\"\") }", ONE_LINE, "0\n");
-    test!(test_native_int_4,"BEGIN { print int(2.999) }", ONE_LINE, "2\n");
-    test!(test_native_int_5,"BEGIN { print int(-2.999) }", ONE_LINE, "-2\n");
+    test!(test_native_int_2,"BEGIN { print int(\"1\" \"2\" \"3\" \"a\") }", ONE_LINE, "123\n");
+    test!(test_native_int_3,"BEGIN { print int(5) }", ONE_LINE, "5\n");
+    test!(test_native_int_4,"BEGIN { print int(\"\") }", ONE_LINE, "0\n");
+    test!(test_native_int_5,"BEGIN { print int(2.999) }", ONE_LINE, "2\n");
+    test!(test_native_int_6,"BEGIN { print int(-2.999) }", ONE_LINE, "-2\n");
 
     test!(test_native_lower_0, "BEGIN { print tolower(\"ABCabc\"); }", ONE_LINE, "abcabc\n");
     test!(test_native_lower_1, "BEGIN { print tolower(\"\"); }", ONE_LINE, "\n");
     test!(test_native_lower_2, "BEGIN { print tolower(\"..--=\"); }", ONE_LINE, "..--=\n");
     test!(test_native_lower_3, "BEGIN { print tolower(\"≥≥≥≥\"); }", ONE_LINE, "≥≥≥≥\n");
+
+    test!(test_native_sin_float_0, "BEGIN { print sin(0);  }", ONE_LINE, "0\n");
+    test!(test_native_sin_float_1, "BEGIN { print (sin(3.141592) < 0.0001); }", ONE_LINE, "1\n");
+    test!(test_native_sin_float_2, "BEGIN { print (sin(3.141592/2) > 0.999); }", ONE_LINE, "1\n");
+    test!(test_native_sin_float_3, "BEGIN { print (sin(3.141592/2) <= 1)  }", ONE_LINE, "1\n");
+    test!(test_native_sin_str, "BEGIN { print sin(\"0\"); } ", ONE_LINE, "0\n");
+    test!(test_native_sin_int, "BEGIN { print int(100 * sin(123)) }", ONE_LINE, "-45\n");
+    test!(test_native_sin_int_concat, "BEGIN { print int(100 * sin(\"1\" \"2\" \"3\")) }", ONE_LINE, "-45\n");
+
+    test!(test_native_cos_0, "BEGIN { print int(100*cos(1)) }", ONE_LINE, "54\n");
+    test!(test_native_cos_1, "BEGIN { print int(100*cos(0)) }", ONE_LINE, "100\n");
+    test!(test_native_cos_2, "BEGIN { print int(100*cos(3.141592)) }", ONE_LINE, "-99\n");
+    test!(test_native_cos_3, "BEGIN { print int(100*cos(3.141592/2)) }", ONE_LINE, "0\n");
+    test!(test_native_cos_4, "BEGIN { print int(100*cos(1231231231231)) }", ONE_LINE, "-97\n");
+    test!(test_native_cos_str, "BEGIN { print int(100*cos(\"3.141592\")) }", ONE_LINE, "-99\n");
+    test!(test_native_cos_str_concat, "BEGIN { print int(100*cos(\"3\" \".1415\")) }", ONE_LINE, "-99\n");
+
+    test!(test_native_log_0, "BEGIN { print int(100*log(3)) }", ONE_LINE, "109\n");
+    test!(test_native_log_1, "BEGIN { print int(100*log(0.123)) }", ONE_LINE, "-209\n");
+    test!(test_native_log_2, "BEGIN { print int(100*log(123.123)) }", ONE_LINE, "481\n");
+    test!(test_native_log_3, "BEGIN { print int(100*log(\"123.123\")) }", ONE_LINE, "481\n");
+
+    test!(test_native_sqrt_0, "BEGIN { print sqrt(100) }", ONE_LINE, "10\n");
+    test!(test_native_sqrt_1, "BEGIN { print sqrt(9) }", ONE_LINE, "3\n");
+    test!(test_native_sqrt_2, "BEGIN { print int(100*sqrt(3))}", ONE_LINE, "173\n");
+    test!(test_native_sqrt_3, "BEGIN { print sqrt(\"100\") }", ONE_LINE, "10\n");
+    test!(test_native_sqrt_4, "BEGIN { print sqrt(\"1\" \"0\" \"0\") }", ONE_LINE, "10\n");
+
+    test!(test_native_exp_0, "BEGIN { print int(100*exp(1)) }", ONE_LINE, "271\n");
+    test!(test_native_exp_1, "BEGIN { print exp(0) }", ONE_LINE, "1\n");
+    test!(test_native_exp_2, "BEGIN { print exp(\"0\") }", ONE_LINE, "1\n");
+    test!(test_native_exp_3, "BEGIN { print int(exp(\"0\" \"1\" \"2\"))}", ONE_LINE, "162754\n");
+    test!(test_native_exp_4, "BEGIN { print int(100*exp(1.1)) }", ONE_LINE, "300\n");
+    test!(test_native_exp_5, "BEGIN { print int(100*exp(-1)) }", ONE_LINE, "36\n");
 }

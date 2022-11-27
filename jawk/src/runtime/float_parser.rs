@@ -55,7 +55,8 @@ pub fn string_to_float(string: &str) -> f64 {
                 break;
             }
         }
-        string[0..digits].parse()
+        string[0..digits]
+            .parse()
             .expect(&format!("couldn't convert string to number {}", string))
     }
 }
