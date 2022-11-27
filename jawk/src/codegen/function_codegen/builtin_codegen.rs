@@ -33,18 +33,16 @@ impl<'a> FunctionCodegen<'a> {
             BuiltinFunc::Substr =>todo!(),
             BuiltinFunc::System => todo!(),
             BuiltinFunc::Tolower => {
-                todo!()
-                // let compiled = self.compile_expr(&args[0], false)?;
-                // let string = self.val_to_string(&compiled, args[0].typ);
-                // let ptr =self.runtime.to_lower(&mut self.function, string);
-                // Ok(ValueT::new(self.string_tag(), self.zero_f(), ptr))
+                let compiled = self.compile_expr(&args[0], false)?;
+                let string = self.val_to_string(&compiled, args[0].typ);
+                let ptr =self.runtime.to_lower(&mut self.function, string);
+                Ok(ValueT::new(self.string_tag(), self.zero_f(), ptr))
             },
             BuiltinFunc::Toupper => {
-                todo!()
-                // let compiled = self.compile_expr(&args[0], false)?;
-                // let string = self.val_to_string(&compiled, args[0].typ);
-                // let ptr =self.runtime.to_upper(&mut self.function, string);
-                // Ok(ValueT::new(self.string_tag(), self.zero_f(), ptr))
+                let compiled = self.compile_expr(&args[0], false)?;
+                let string = self.val_to_string(&compiled, args[0].typ);
+                let ptr =self.runtime.to_upper(&mut self.function, string);
+                Ok(ValueT::new(self.string_tag(), self.zero_f(), ptr))
             },
         }
     }

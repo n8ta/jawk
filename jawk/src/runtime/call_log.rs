@@ -17,6 +17,8 @@ pub enum Call {
     ArrayAccess,
     InArray,
     ConcatArrayIndices,
+    ToLower,
+    ToUpper,
     // Printf,
 }
 

@@ -10,7 +10,7 @@ use gnu_libjit::{Abi, Context, Function, Value};
 use hashbrown::HashMap;
 use mawk_regex::Regex;
 use std::ffi::c_void;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use crate::{runtime_fn, runtime_fn_no_args, runtime_fn_no_ret};
 
 pub const CANARY: &str = "this is the canary!";
@@ -46,6 +46,55 @@ extern "C" fn next_line(data: *mut c_void) -> f64 {
     } else {
         0.0
     }
+}
+
+extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const String) -> *const String {
+    let ptr = unsafe { Rc::from_raw(ptr) };
+    let data = cast_to_runtime_data(data_ptr);
+    data.calls.log(Call::ToLower);
+    data.string_in("to_lower", &*ptr);
+    let str = match Rc::try_unwrap(ptr) {
+        Ok(mut str) => unsafe {
+            if str.is_ascii() {
+                let bytes = str.as_bytes_mut();
+                bytes.make_ascii_lowercase();
+                Rc::into_raw(Rc::new(str))
+            } else {
+                let lowercased = Rc::new(str.to_lowercase());
+                Rc::into_raw(lowercased)
+            }
+        }
+        Err(ptr) => {
+            Rc::into_raw(Rc::new(ptr.to_lowercase()))
+        }
+    };
+    let str = unsafe{ Rc::from_raw(str) };
+    data.string_out("to_lower", &*str);
+    Rc::into_raw(str)}
+
+extern "C" fn to_upper(data_ptr: *mut c_void, ptr: *const String) -> *const String {
+    let ptr = unsafe { Rc::from_raw(ptr) };
+    let data = cast_to_runtime_data(data_ptr);
+    data.calls.log(Call::ToLower);
+    data.string_in("to_lower", &*ptr);
+    let str = match Rc::try_unwrap(ptr) {
+        Ok(mut str) => unsafe {
+            if str.is_ascii() {
+                let bytes = str.as_bytes_mut();
+                bytes.make_ascii_uppercase();
+                Rc::into_raw(Rc::new(str))
+            } else {
+                let uppercased = Rc::new(str.to_uppercase());
+                Rc::into_raw(uppercased)
+            }
+        }
+        Err(ptr) => {
+            Rc::into_raw(Rc::new(ptr.to_uppercase()))
+        }
+    };
+    let str = unsafe{ Rc::from_raw(str) };
+    data.string_out("to_upper", &*str);
+    Rc::into_raw(str)
 }
 
 extern "C" fn column(
@@ -514,6 +563,8 @@ impl Runtime for DebugRuntime {
     runtime_fn_no_ret!(array_access, array_access, None,array: Value,key_tag: Value,key_num: Value,key_ptr: Value,out_tag_ptr: Value,out_float_ptr: Value,out_ptr_ptr: Value);
     runtime_fn_no_ret!(array_assign, array_assign, None,array: Value,key_tag: Value,key_num: Value,key_ptr: Value,tag: Value,float: Value,ptr: Value);
     runtime_fn!(in_array, in_array, Some(Context::float64_type()),array: Value,key_tag: Value,key_num: Value,key_ptr: Value);
+    runtime_fn!(to_upper, to_upper, Some(Context::void_ptr_type()), ptr: Value);
+    runtime_fn!(to_lower, to_lower, Some(Context::void_ptr_type()), ptr: Value);
 
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) {
         let data_ptr = self.data_ptr(func);

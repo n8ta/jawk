@@ -53,8 +53,8 @@ impl BuiltinFunc {
             BuiltinFunc::Sub => todo!(),
             BuiltinFunc::Substr => todo!(),
             BuiltinFunc::System => todo!(),
-            BuiltinFunc::Tolower => todo!(),
-            BuiltinFunc::Toupper => todo!(),
+            BuiltinFunc::Tolower => vec![Arg::new(s.get("lower-arg-0"), ArgT::Scalar)],
+            BuiltinFunc::Toupper => vec![Arg::new(s.get("upper-arg-0"), ArgT::Scalar)],
         }
     }
     pub fn names_as_symbols(symbolizer: &mut Symbolizer) -> [Symbol; NUM_BUILTIN_VARIANTS] {

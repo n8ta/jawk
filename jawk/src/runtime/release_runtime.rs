@@ -296,6 +296,46 @@ extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: 
     };
 }
 
+extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const String) -> *const String {
+    let ptr = unsafe { Rc::from_raw(ptr) };
+    let str = match Rc::try_unwrap(ptr) {
+        Ok(mut str) => unsafe {
+            if str.is_ascii() {
+                let bytes = str.as_bytes_mut();
+                bytes.make_ascii_lowercase();
+                Rc::into_raw(Rc::new(str))
+            } else {
+                let lower = Rc::new(str.to_lowercase());
+                Rc::into_raw(lower)
+            }
+        }
+        Err(ptr) => {
+            Rc::into_raw(Rc::new(ptr.to_lowercase()))
+        }
+    };
+    str
+}
+
+extern "C" fn to_upper(_data_ptr: *mut c_void, ptr: *const String) -> *const String {
+    let ptr = unsafe { Rc::from_raw(ptr) };
+    let str = match Rc::try_unwrap(ptr) {
+        Ok(mut str) => unsafe {
+            if str.is_ascii() {
+                let bytes = str.as_bytes_mut();
+                bytes.make_ascii_uppercase();
+                Rc::into_raw(Rc::new(str))
+            } else {
+                let upper = Rc::new(str.to_uppercase());
+                Rc::into_raw(upper)
+            }
+        }
+        Err(ptr) => {
+            Rc::into_raw(Rc::new(ptr.to_uppercase()))
+        }
+    };
+    str
+}
+
 pub struct ReleaseRuntime {
     runtime_data: *mut RuntimeData,
 }
@@ -399,6 +439,8 @@ impl Runtime for ReleaseRuntime {
     runtime_fn_no_ret!(array_access, array_access, None,array: Value,key_tag: Value,key_num: Value,key_ptr: Value,out_tag_ptr: Value,out_float_ptr: Value,out_ptr_ptr: Value);
     runtime_fn_no_ret!(array_assign, array_assign, None,array: Value,key_tag: Value,key_num: Value,key_ptr: Value,tag: Value,float: Value,ptr: Value);
     runtime_fn!(in_array, in_array, Some(Context::float64_type()),array: Value,key_tag: Value,key_num: Value,key_ptr: Value);
+    runtime_fn!(to_upper, to_upper, Some(Context::void_ptr_type()), ptr: Value);
+    runtime_fn!(to_lower, to_lower, Some(Context::void_ptr_type()), ptr: Value);
 
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) {
         let data_ptr = self.data_ptr(func);

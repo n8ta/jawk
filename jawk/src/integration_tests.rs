@@ -1225,4 +1225,9 @@ mod integration_tests {
     test!(test_native_int_3,"BEGIN { print int(\"\") }", ONE_LINE, "0\n");
     test!(test_native_int_4,"BEGIN { print int(2.999) }", ONE_LINE, "2\n");
     test!(test_native_int_5,"BEGIN { print int(-2.999) }", ONE_LINE, "-2\n");
+
+    test!(test_native_lower_0, "BEGIN { print tolower(\"ABCabc\"); }", ONE_LINE, "abcabc\n");
+    test!(test_native_lower_1, "BEGIN { print tolower(\"\"); }", ONE_LINE, "\n");
+    test!(test_native_lower_2, "BEGIN { print tolower(\"..--=\"); }", ONE_LINE, "..--=\n");
+    test!(test_native_lower_3, "BEGIN { print tolower(\"≥≥≥≥\"); }", ONE_LINE, "≥≥≥≥\n");
 }
