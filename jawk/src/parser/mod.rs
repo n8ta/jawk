@@ -266,10 +266,6 @@ impl<'a> Parser<'a> {
         self.peek_at(self.current + 1)
     }
 
-    fn peek_next_next(&self) -> &Token {
-        self.peek_at(self.current + 2)
-    }
-
     fn is_at_end(&self) -> bool {
         self.tokens[self.current].ttype() == TokenType::EOF
     }
@@ -381,12 +377,11 @@ impl<'a> Parser<'a> {
                 Stmt::While(test, Box::new(Stmt::Group(vec![body, incr]))),
             ])
         } else if self.peek_next().ttype() == TokenType::Eq {
-            let str = if let Token::Ident(str) =
-                self.consume(TokenType::Ident, "Expected identifier before `=`")?
+            let str = if let Token::Ident(str) = self.consume(TokenType::Ident, "Expected identifier before `=`")?
             {
                 str
             } else {
-                panic!("Expected identifier before `=`")
+                return Err(PrintableError::new("Expected an identifier before an `=`"));
             };
             self.consume(TokenType::Eq, "Expected `=` after identifier")?;
             Stmt::Expr(TypedExpr::new(Expr::ScalarAssign(
@@ -788,42 +783,30 @@ impl<'a> Parser<'a> {
         if let Expr::Variable(_) = &expr.expr {
             // Check enum variant before cloning it since the clone is expensive
             if let Expr::Variable(name) = expr.expr.clone() {
-                if self.peek().ttype() == TokenType::Plus
-                    && self.peek_next().ttype() == TokenType::Plus
-                {
-                    self.advance()?;
-                    self.advance()?;
+                if self.matches_series(&[TokenType::Plus, TokenType::Plus]) {
                     let increment = Expr::MathOp(
                         Box::new(expr),
                         MathOp::Plus,
                         Box::new(Expr::NumberF64(1.0).into()),
-                    )
-                        .into();
+                    ).into();
                     let assign = Expr::ScalarAssign(name, Box::new(increment)).into();
                     expr = Expr::MathOp(
                         Box::new(assign),
                         MathOp::Minus,
                         Box::new(Expr::NumberF64(1.0).into()),
-                    )
-                        .into();
-                } else if self.peek().ttype() == TokenType::Minus
-                    && self.peek_next().ttype() == TokenType::Minus
-                {
-                    self.advance()?;
-                    self.advance()?;
+                    ).into();
+                } else if self.matches_series(&[TokenType::Minus, TokenType::Minus]) {
                     let decrement = Expr::MathOp(
                         Box::new(expr),
                         MathOp::Minus,
                         Box::new(Expr::NumberF64(1.0).into()),
-                    )
-                        .into();
+                    ).into();
                     let assign = Expr::ScalarAssign(name, Box::new(decrement)).into();
                     expr = Expr::MathOp(
                         Box::new(assign),
                         MathOp::Plus,
                         Box::new(Expr::NumberF64(1.0).into()),
-                    )
-                        .into();
+                    ).into();
                 }
             } else {
                 unreachable!()
@@ -879,7 +862,7 @@ impl<'a> Parser<'a> {
                 self.consume(TokenType::Regex, "Expected to parse a string here")?;
                 Expr::Regex(self.symbolizer.get_from_string(string)).into()
             }
-            t => panic!("Unexpected token {:?} {}", t, TokenType::name(t.ttype())),
+            t => return Err(PrintableError::new(format!("Unexpected token {:?} {}", t, TokenType::name(t.ttype()))))
         })
     }
 
@@ -890,7 +873,7 @@ impl<'a> Parser<'a> {
                 break;
             }
             if self.peek().ttype() == TokenType::EOF {
-                panic!("Hit EOF while parsing function args")
+                return Err(PrintableError::new("Hit EOF while parsing function args"))
             }
             args.push(self.expression()?);
             if self.matches(flags!(TokenType::Comma)) {
