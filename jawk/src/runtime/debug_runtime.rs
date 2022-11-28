@@ -74,7 +74,7 @@ extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const String) -> *const Stri
 extern "C" fn srand(data_ptr: *mut c_void, seed: f64) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     let prior = data.srand_seed;
-    let seed_int = seed as std::os::raw::c_uint;
+    let seed_int = (seed % (std::os::raw::c_uint::MAX as f64)) as std::os::raw::c_uint;
     unsafe { libc::srand(seed_int) }
     data.srand_seed = seed;
     prior
@@ -467,7 +467,7 @@ impl RuntimeData {
         self.strings_in += 1;
     }
     pub fn new(files: Vec<String>) -> RuntimeData {
-        unsafe { libc::srand(091998) }
+        unsafe { libc::srand(09171998) }
         RuntimeData {
             canary: String::from(CANARY),
             columns: Columns::new(files),
@@ -477,7 +477,7 @@ impl RuntimeData {
             strings_in: 0,
             arrays: Arrays::new(),
             float_parser: FloatParser::new(),
-            srand_seed: 091998.0,
+            srand_seed: 09171998.0,
         }
     }
 }

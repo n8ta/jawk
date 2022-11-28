@@ -335,7 +335,7 @@ extern "C" fn to_upper(_data_ptr: *mut c_void, ptr: *const String) -> *const Str
 extern "C" fn srand(data_ptr: *mut c_void, seed: f64) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     let prior = data.srand_seed;
-    let seed_int = seed as std::os::raw::c_uint;
+    let seed_int = (seed % (std::os::raw::c_uint::MAX as f64)) as std::os::raw::c_uint;
     unsafe { libc::srand(seed_int) }
     data.srand_seed = seed;
     prior
@@ -374,9 +374,9 @@ pub struct RuntimeData {
 
 impl RuntimeData {
     pub fn new(files: Vec<String>) -> RuntimeData {
-        unsafe { libc::srand(091998) }
+        unsafe { libc::srand(09171998) }
         RuntimeData {
-            srand_seed: 091998.0,
+            srand_seed: 09171998.0,
             columns: Columns::new(files),
             stdout: BufWriter::new(std::io::stdout().lock()),
             regex_cache: LruCache::new(8),
