@@ -346,7 +346,7 @@ impl FunctionAnalysis {
             .map(|map| map.into_iter().map(|(k, _value)| k.clone()))
             .flatten() {
 
-            if merged.iter().find(|(k,v)| *k == var).is_some() { continue };
+            if merged.iter().find(|(var_name,_v)| *var_name == var).is_some() { continue };
             // Invariant: at least one map contains `var` and thus typ will be assigned a non-0
             // value at least one in the loop leaving it as a valid ScalarType enum.
             let mut typ: i32 = 0;

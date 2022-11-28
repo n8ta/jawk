@@ -21,20 +21,6 @@ pub enum ErrorCode {
 }
 
 #[macro_export]
-macro_rules! runtime_fn_no_args {
-    ($fn_name:ident, $native_fn_ptr: expr, $jit_ret_type:expr) => {
-        fn $fn_name(&mut self, func: &mut Function) -> Value {
-            let data_ptr = self.data_ptr(func);
-            func.insn_call_native(
-                $native_fn_ptr as *mut c_void,
-                vec![data_ptr],
-                $jit_ret_type,
-                Abi::Cdecl,
-            )
-        }
-    };
-}
-#[macro_export]
 macro_rules! runtime_fn {
     ($fn_name:ident, $native_fn_ptr: expr, $jit_ret_type:expr, $($v:ident: $t:ty),*) => {
         fn $fn_name(&mut self, func: &mut Function, $($v: $t),*) -> Value {

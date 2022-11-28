@@ -6,7 +6,7 @@ use crate::runtime::arrays::Arrays;
 use crate::runtime::call_log::{Call, CallLog};
 use crate::runtime::float_parser::{string_to_float, FloatParser};
 use crate::runtime::{ErrorCode, Runtime};
-use crate::{runtime_fn, runtime_fn_no_args, runtime_fn_no_ret};
+use crate::{runtime_fn, runtime_fn_no_ret};
 use gnu_libjit::{Abi, Context, Function, Value};
 use hashbrown::HashMap;
 use mawk_regex::Regex;

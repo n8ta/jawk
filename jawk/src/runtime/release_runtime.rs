@@ -13,7 +13,7 @@ use std::io::{BufWriter, StdoutLock, Write};
 use std::rc::Rc;
 
 use crate::runtime::float_parser::{string_to_float, FloatParser};
-use crate::{runtime_fn, runtime_fn_no_args, runtime_fn_no_ret};
+use crate::{runtime_fn, runtime_fn_no_ret};
 
 pub extern "C" fn print_string(data: *mut c_void, value: *mut String) {
     let data = cast_to_runtime_data(data);
