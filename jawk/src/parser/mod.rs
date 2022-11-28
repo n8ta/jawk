@@ -12,7 +12,6 @@ use crate::{AnalysisResults, PRINTF_MAX_ARGS, Symbolizer};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 pub use types::{Arg, ArgT, Expr, Function, ScalarType, Stmt, TypedExpr};
-use crate::parser::Stmt::Print;
 
 // Pattern Action Type
 // Normal eg: $1 == "a" { doSomething() }
@@ -220,6 +219,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // The next N tokens type's match tokens arg
     fn matches_series(&mut self, tokens: &[TokenType]) -> bool {
         for (idx, tt) in tokens.iter().enumerate() {
             let peeked = self.peek_at(self.current + idx).ttype();
@@ -231,6 +231,7 @@ impl<'a> Parser<'a> {
         return true;
     }
 
+    // The current token is present in the tokens bitflags
     fn matches(&mut self, tokens: u64) -> bool {
         let tkn = match self.tokens.get(self.current) {
             None => return false,

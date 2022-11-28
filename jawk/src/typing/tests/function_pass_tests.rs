@@ -1,8 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::printable_error::PrintableError;
     use crate::typing::tests::tests::{gen_ast, test_exception};
-    use crate::typing::TypedProgram;
     use crate::{analyze, Symbolizer};
 
     fn strip(data: &str) -> String {

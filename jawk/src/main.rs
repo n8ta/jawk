@@ -1,4 +1,5 @@
-#![deny(unused_must_use)]
+// #![feature(test)]
+// extern crate test;
 
 // Jemalloc showed huge perf gains on malloc/free bound programs
 // like evaluating a regex in a tight loop.
@@ -34,7 +35,6 @@ mod symbolizer;
 mod typing;
 
 pub const PRINTF_MAX_ARGS: usize = 128;
-
 
 pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let args = AwkArgs::new(args)?;

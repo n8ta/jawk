@@ -71,7 +71,7 @@ impl FunctionAnalysis {
                     return Err(PrintableError::new(format!(
                         "fatal: attempt to use array `{}` in a scalar context",
                         var
-                    )))
+                    )));
                 }
                 ArgT::Unknown => {
                     function.set_arg_type(var, ArgT::Scalar)?;
@@ -106,7 +106,7 @@ impl FunctionAnalysis {
                     return Err(PrintableError::new(format!(
                         "fatal: attempt to use scalar `{}` in a array context",
                         var
-                    )))
+                    )));
                 }
                 ArgT::Array => {}
                 ArgT::Unknown => {
@@ -210,8 +210,7 @@ impl FunctionAnalysis {
         match &mut expr.expr {
             Expr::Call { args, target } => {
                 for arg in args.iter_mut() {
-                    if let Expr::Variable(_str) = &arg.expr {
-                    } else {
+                    if let Expr::Variable(_str) = &arg.expr {} else {
                         self.analyze_expr(arg, function, false)?;
                     }
                 }
@@ -228,7 +227,7 @@ impl FunctionAnalysis {
                             "Function `{}` does not exist. Called from function `{}`",
                             target,
                             function.name()
-                        )))
+                        )));
                     }
                     Some(f) => f.clone(),
                 };
@@ -341,36 +340,237 @@ impl FunctionAnalysis {
     }
 
     fn merge_maps(children: &[&MapT]) -> MapT {
-        let mut merged = MapT::new();
-        let mut all_vars = HashSet::new();
-        for map in children {
-            for (name, _typ) in map.into_iter() {
-                all_vars.insert(name.clone());
-            }
-        }
-        for var in &all_vars {
-            let mut typ = None;
+        let mut merged = vec![];
+        for var in  children.into_iter()
+            .map(|map| map.into_iter().map(|(k, _value)| k.clone()))
+            .flatten() {
+
+            if merged.iter().find(|(k,v)| *k == var).is_some() { continue };
+            // Invariant: at least one map contains `var` and thus typ will be assigned a non-0
+            // value at least one in the loop leaving it as a valid ScalarType enum.
+            let mut typ: i32 = 0;
             for map in children {
-                if let Some(typ_in_map) = map.get(var) {
-                    if let Some(prior_type) = typ {
-                        typ = Some(FunctionAnalysis::merge_types(&prior_type, typ_in_map));
-                    } else {
-                        typ = Some(*typ_in_map);
-                    }
-                } else {
-                    typ = Some(ScalarType::Variable);
-                }
+                let map_typ = match map.get(&var) {
+                    None => ScalarType::Variable,
+                    Some(typ) => *typ,
+                };
+                typ = map_typ as i32 | typ;
             }
-            let typ = typ.unwrap();
-            merged = merged.insert(var.clone(), typ).0;
+            let scalar_type = unsafe { std::mem::transmute::<i32, ScalarType>(typ) };
+            debug_assert!(scalar_type == ScalarType::Variable || scalar_type == ScalarType::String || scalar_type == ScalarType::Float);
+
+            // let pos = binary.unwrap_or_else(|e| e);
+            merged.push((var, scalar_type));
         }
-        merged
+        let merged_immutable = MapT::new();
+        let map = merged_immutable.insert_many(merged.into_iter());
+        map
     }
     fn merge_types(a: &ScalarType, b: &ScalarType) -> ScalarType {
-        match (a, b) {
-            (ScalarType::Float, ScalarType::Float) => ScalarType::Float,
-            (ScalarType::String, ScalarType::String) => ScalarType::String,
-            _ => ScalarType::Variable,
-        }
+        unsafe { std::mem::transmute::<i32, ScalarType>(*a as i32 | *b as i32 )}
     }
 }
+//
+// #[cfg(test)]
+// mod bench_mod {
+//     use super::*;
+//     use test::Bencher;
+//     use crate::parser::ArgT::Scalar;
+//     use crate::Symbolizer;
+//
+//
+//     fn merge_maps(children: &[&MapT]) -> MapT {
+//         let mut merged = vec![];
+//         let all_vars: HashSet<Symbol> = children.into_iter()
+//             .map(|map| map.into_iter().map(|(k, _value)| k.clone()))
+//             .flatten()
+//             .collect::<HashSet<Symbol>>();
+//         for var in all_vars {
+//             // Invariant: at least one map contains `var` and thus typ will be assigned a non-0
+//             // value at least one in the loop leaving it as a valid ScalarType enum.
+//             let mut typ: i32 = 0;
+//             for map in children {
+//                 let map_typ = match map.get(&var) {
+//                     None => ScalarType::Variable,
+//                     Some(typ) => *typ,
+//                 };
+//                 typ = map_typ as i32 | typ;
+//             }
+//             let scalar_type = unsafe { std::mem::transmute::<i32, ScalarType>(typ) };
+//             debug_assert!(scalar_type == ScalarType::Variable || scalar_type == ScalarType::String || scalar_type == ScalarType::Float);
+//             merged.push((var, scalar_type));
+//         }
+//         let merged_immutable = MapT::new();
+//         let map = merged_immutable.insert_many(merged.into_iter());
+//         map
+//     }
+//
+//     fn merge_newer(children: &[&MapT]) -> MapT {
+//         let mut merged = vec![];
+//         for var in  children.into_iter()
+//             .map(|map| map.into_iter().map(|(k, _value)| k.clone()))
+//             .flatten() {
+//
+//             if merged.iter().find(|(k,v)| *k == var).is_some() { continue };
+//             // Invariant: at least one map contains `var` and thus typ will be assigned a non-0
+//             // value at least one in the loop leaving it as a valid ScalarType enum.
+//             let mut typ: i32 = 0;
+//             for map in children {
+//                 let map_typ = match map.get(&var) {
+//                     None => ScalarType::Variable,
+//                     Some(typ) => *typ,
+//                 };
+//                 typ = map_typ as i32 | typ;
+//             }
+//             let scalar_type = unsafe { std::mem::transmute::<i32, ScalarType>(typ) };
+//             debug_assert!(scalar_type == ScalarType::Variable || scalar_type == ScalarType::String || scalar_type == ScalarType::Float);
+//
+//             // let pos = binary.unwrap_or_else(|e| e);
+//             merged.push((var, scalar_type));
+//         }
+//         let merged_immutable = MapT::new();
+//         let map = merged_immutable.insert_many(merged.into_iter());
+//         map
+//     }
+//
+//     fn merge_binary_search(children: &[&MapT]) -> MapT {
+//         let mut merged: Vec<(Symbol, ScalarType)> = vec![];
+//         for var in  children.into_iter()
+//             .map(|map| map.into_iter().map(|(k, _value)| k))
+//             .flatten() {
+//
+//             let binary = merged.binary_search_by(|(name, _typ)| name.cmp(var));
+//             if binary.is_ok() { continue }
+//             // if merged.iter().find(|(k,v)| *k == var).is_some() { continue };
+//             // Invariant: at least one map contains `var` and thus typ will be assigned a non-0
+//             // value at least one in the loop leaving it as a valid ScalarType enum.
+//
+//             let mut typ: i32 = 0;
+//             for map in children {
+//                 let map_typ = match map.get(var) {
+//                     None => ScalarType::Variable,
+//                     Some(typ) => *typ,
+//                 };
+//                 typ = map_typ as i32 | typ;
+//             }
+//             let scalar_type = unsafe { std::mem::transmute::<i32, ScalarType>(typ) };
+//             debug_assert!(scalar_type == ScalarType::Variable || scalar_type == ScalarType::String || scalar_type == ScalarType::Float);
+//
+//             let pos = binary.unwrap_or_else(|e| e);
+//             merged.insert(pos, (var.clone(), scalar_type));
+//         }
+//         let merged_immutable = MapT::new();
+//         let map = merged_immutable.insert_many(merged.into_iter());
+//         map
+//     }
+//
+//
+//
+//
+//     fn gen_map1(s: &mut Symbolizer) -> MapT {
+//         MapT::new()
+//             .insert(s.get("a"), ScalarType::Float)
+//             .0
+//             .insert(s.get("b"), ScalarType::String)
+//             .0
+//             .insert(s.get("cccc"), ScalarType::Variable)
+//             .0
+//             .insert(s.get("ccccc"), ScalarType::Variable)
+//             .0
+//             .insert(s.get("cccCc"), ScalarType::Variable)
+//             .0
+//             .insert(s.get("ccZcc"), ScalarType::String)
+//             .0
+//             .insert(s.get("cccCZZc"), ScalarType::Variable)
+//             .0
+//             .insert(s.get("cc12311Zcc"), ScalarType::String)
+//             .0
+//             .insert(s.get("cc12311Zcc1"), ScalarType::String)
+//             .0
+//             .insert(s.get("cc12311Zcc2"), ScalarType::String)
+//             .0
+//             .insert(s.get("cc12311Zcc3"), ScalarType::String)
+//             .0
+//             .insert(s.get("cc12311Zcc4"), ScalarType::String)
+//             .0
+//             .insert(s.get("cc12311Zcc5"), ScalarType::String)
+//             .0
+//     }
+//
+//     fn gen_map3(s: &mut Symbolizer) -> MapT {
+//         MapT::new()
+//             .insert(s.get("a"), ScalarType::String)
+//             .0
+//             .insert(s.get("b"), ScalarType::Variable)
+//             .0
+//             .insert(s.get("cccc"), ScalarType::Variable)
+//             .0
+//             .insert(s.get("123cccc"), ScalarType::Variable)
+//             .0
+//             .insert(s.get("c333ccc"), ScalarType::Variable)
+//             .0
+//             .insert(s.get("ccccc"), ScalarType::Float)
+//             .0
+//             .insert(s.get("cccCc"), ScalarType::Float)
+//             .0
+//             .insert(s.get("ccZcc"), ScalarType::String)
+//             .0
+//             .insert(s.get("cccCZ11Zc"), ScalarType::Float)
+//             .0
+//             .insert(s.get("cc12311Zcc"), ScalarType::String)
+//             .0
+//             .insert(s.get("cc12311Zcc1"), ScalarType::String)
+//             .0
+//             .insert(s.get("cc12311Zcc2"), ScalarType::String)
+//             .0
+//             .insert(s.get("cc12311Zcc3"), ScalarType::String)
+//             .0
+//             .insert(s.get("cc12311Zcc4"), ScalarType::String)
+//             .0
+//             .insert(s.get("cc12311Zcc5"), ScalarType::String)
+//             .0
+//     }
+//
+//     fn gen_map2(s: &mut Symbolizer) -> MapT {
+//         MapT::new()
+//             .insert(s.get("b"), ScalarType::String)
+//             .0
+//             .insert(s.get("a"), ScalarType::Float)
+//             .0
+//             .insert(s.get("azzz"), ScalarType::Float)
+//             .0
+//             .insert(s.get("sfdsda"), ScalarType::Float)
+//             .0
+//             .insert(s.get("cccc"), ScalarType::String)
+//             .0
+//     }
+//
+//     #[bench]
+//     fn merge_init(b: &mut Bencher) {
+//         let mut s = Symbolizer::new();
+//         let map1 = gen_map1(&mut s);
+//         let map2 = gen_map2(&mut s);
+//         let map3 = gen_map3(&mut s);
+//         b.iter(|| merge_maps(&[&map1, &map2, &map3]));
+//     }
+//
+//     #[bench]
+//     fn merged_newer(b: &mut Bencher) {
+//         let mut s = Symbolizer::new();
+//         let map1 = gen_map1(&mut s);
+//         let map2 = gen_map2(&mut s);
+//         let map3 = gen_map3(&mut s);
+//
+//         b.iter(|| merge_newer(&[&map1, &map2, &map3]));
+//     }
+//
+//     #[bench]
+//     fn merged_binary(b: &mut Bencher) {
+//         let mut s = Symbolizer::new();
+//         let map1 = gen_map1(&mut s);
+//         let map2 = gen_map2(&mut s);
+//         let map3 = gen_map3(&mut s);
+//
+//         b.iter(|| merge_binary_search(&[&map1, &map2, &map3]));
+//     }
+// }

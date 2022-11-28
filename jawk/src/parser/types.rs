@@ -3,10 +3,13 @@ use crate::symbolizer::Symbol;
 use std::fmt::{Display, Formatter};
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
+#[repr(i32)]
 pub enum ScalarType {
-    String,
-    Float,
-    Variable,
+    // This form is useful b/c String | Float == Variable
+    // See merge_types_function
+    String = 0b0000_0001,
+    Float = 0b0000_0010,
+    Variable = 0b0000_0011,
 }
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
