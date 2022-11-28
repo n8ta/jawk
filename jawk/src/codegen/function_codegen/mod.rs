@@ -761,14 +761,11 @@ impl<'a> FunctionCodegen<'a> {
 
         let zero = self.function.create_sbyte_constant(0);
         let mut done_lbl = Label::new();
-        self.function
-            .insn_store(&&self.binop_scratch.float, &value.float);
+        self.function.insn_store(&&self.binop_scratch.float, &value.float);
         let is_float = self.function.insn_eq(&value.tag, &zero);
         self.function.insn_branch_if(&is_float, &mut done_lbl);
 
-        let res = self
-            .runtime
-            .string_to_number(&mut self.function, value.pointer.clone());
+        let res = self.runtime.string_to_number(&mut self.function, value.pointer.clone());
         self.function.insn_store(&&self.binop_scratch.float, &res);
 
         self.function.insn_label(&mut done_lbl);

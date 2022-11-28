@@ -6,10 +6,10 @@ use crate::typing::BuiltinFunc;
 use gnu_libjit::Value;
 
 impl<'a> FunctionCodegen<'a> {
-    fn arg0_to_float(&mut self, args: &Vec<TypedExpr>) -> Result<Value, PrintableError> {
-        let arg = self.compile_expr(&args[0], false)?;
-        let float = self.val_to_float(&arg, args[0].typ);
-        self.drop_if_str(arg, args[0].typ);
+    fn arg_to_float(&mut self, args: &Vec<TypedExpr>, idx: usize) -> Result<Value, PrintableError> {
+        let arg = self.compile_expr(&args[idx], false)?;
+        let float = self.val_to_float(&arg, args[idx].typ);
+        self.drop_if_str(arg, args[idx].typ);
         Ok(float)
     }
     fn mk_float(&self, flt: Value) -> ValueT {
@@ -22,27 +22,27 @@ impl<'a> FunctionCodegen<'a> {
     ) -> Result<ValueT, PrintableError> {
         match builtin {
             BuiltinFunc::Sin => {
-                let float = self.arg0_to_float(args)?;
+                let float = self.arg_to_float(args, 0)?;
                 let sin = self.function.insn_sin(&float);
                 Ok(self.mk_float(sin))
             }
             BuiltinFunc::Cos => {
-                let float = self.arg0_to_float(args)?;
+                let float = self.arg_to_float(args, 0)?;
                 let cos = self.function.insn_cos(&float);
                 Ok(self.mk_float(cos))
             }
             BuiltinFunc::Log => {
-                let float = self.arg0_to_float(args)?;
+                let float = self.arg_to_float(args, 0)?;
                 let exp = self.function.insn_log(&float);
                 Ok(self.mk_float(exp))
             }
             BuiltinFunc::Exp => {
-                let float = self.arg0_to_float(args)?;
+                let float = self.arg_to_float(args, 0)?;
                 let exp = self.function.insn_exp(&float);
                 Ok(self.mk_float(exp))
             }
             BuiltinFunc::Sqrt => {
-                let float = self.arg0_to_float(args)?;
+                let float = self.arg_to_float(args, 0)?;
                 let sqrt = self.function.insn_sqrt(&float);
                 Ok(self.mk_float(sqrt))
             }
@@ -58,15 +58,22 @@ impl<'a> FunctionCodegen<'a> {
                 Ok(self.mk_float(rnd))
             }
             BuiltinFunc::Srand => {
-                let float = self.arg0_to_float(args)?;
+                let float = self.arg_to_float(args, 0)?;
                 let prior_seed = self.runtime.srand(&mut self.function, float);
                 Ok(self.mk_float(prior_seed))
             }
-            BuiltinFunc::Atan2 => todo!(),
+            BuiltinFunc::Atan2 => {
+                let f0 = self.arg_to_float(args, 0)?;
+                let f1 = self.arg_to_float(args, 1)?;
+                let atan2 = self.function.insn_atan2(&f0, &f1);
+                Ok(self.mk_float(atan2))
+            }
+            BuiltinFunc::Length => {
+
+            }
             BuiltinFunc::Close => todo!(),
             BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Index => todo!(),
-            BuiltinFunc::Length => todo!(),
             BuiltinFunc::Matches => todo!(),
             BuiltinFunc::Split => todo!(),
             BuiltinFunc::Sprintf => todo!(),

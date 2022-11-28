@@ -40,11 +40,10 @@ impl BuiltinFunc {
             BuiltinFunc::Sqrt => vec![Arg::new(s.get("sqrt-arg-0"), ArgT::Scalar)],
             BuiltinFunc::Exp => vec![Arg::new(s.get("exp-arg-0"), ArgT::Scalar)],
             BuiltinFunc::Int => vec![Arg::new(s.get("int-arg-0"), ArgT::Scalar)],
-
             BuiltinFunc::Rand => vec![],
             BuiltinFunc::Srand => vec![Arg::new(s.get("rand-arg-0"), ArgT::Scalar)],
+            BuiltinFunc::Atan2 => vec![Arg::new(s.get("atan2-arg-0"), ArgT::Scalar), Arg::new(s.get("atan2-arg-1"), ArgT::Scalar)],
 
-            BuiltinFunc::Atan2 => todo!(),
             BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Index => todo!(),
             BuiltinFunc::Length => todo!(),

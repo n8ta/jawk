@@ -1269,4 +1269,11 @@ mod integration_tests {
     test!(test_s_rand_0, "BEGIN { srand(123); print srand(5);}", ONE_LINE, "123\n");
     test!(test_s_rand_1, "BEGIN { srand(123); print srand(5); print srand(6);}", ONE_LINE, "123\n5\n");
     test!(test_s_rand_2, "BEGIN { srand(123); x0 = rand(); x00 = rand(); srand(123); x1 = rand(); x11=rand(); print (x0 == x1); print (x00 == x11); print (x0 != x00)}", ONE_LINE, "1\n1\n1\n");
+
+    test!(test_atan2_0, "BEGIN { print int(1000*atan2(1, 1)) }", ONE_LINE, "785\n");
+    test!(test_atan2_1, "BEGIN { print atan2(0, 1) }", ONE_LINE, "0\n");
+    test!(test_atan2_2, "BEGIN { print atan2(\"\", 1) }", ONE_LINE, "0\n");
+    test!(test_atan2_3, "BEGIN { a = \"\"; print atan2(a, 1) }", ONE_LINE, "0\n");
+    test!(test_atan2_4, "BEGIN { print int(1000*atan2(\"0.3\", 0.1)) }", ONE_LINE, "1249\n");
+    test!(test_atan2_5, "BEGIN { print int(1000*atan2(\"2\", \"3\")) }", ONE_LINE, "588\n");
 }
