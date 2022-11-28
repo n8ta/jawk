@@ -71,6 +71,20 @@ extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const String) -> *const Stri
     Rc::into_raw(str)
 }
 
+extern "C" fn srand(data_ptr: *mut c_void, seed: f64) -> f64 {
+    let data = cast_to_runtime_data(data_ptr);
+    let prior = data.srand_seed;
+    let seed_int = seed as std::os::raw::c_uint;
+    unsafe { libc::srand(seed_int) }
+    data.srand_seed = seed;
+    prior
+}
+extern "C" fn rand(_data_ptr: *mut c_void) -> f64 {
+    let rand = unsafe { libc::rand() } as f64;
+    // float [0, 1)
+    rand / libc::RAND_MAX as f64
+}
+
 extern "C" fn to_upper(data_ptr: *mut c_void, ptr: *const String) -> *const String {
     let ptr = unsafe { Rc::from_raw(ptr) };
     let data = cast_to_runtime_data(data_ptr);
@@ -432,6 +446,7 @@ pub struct DebugRuntime {
 }
 
 pub struct RuntimeData {
+    srand_seed: f64,
     columns: Columns,
     canary: String,
     output: String,
@@ -452,6 +467,7 @@ impl RuntimeData {
         self.strings_in += 1;
     }
     pub fn new(files: Vec<String>) -> RuntimeData {
+        unsafe { libc::srand(091998) }
         RuntimeData {
             canary: String::from(CANARY),
             columns: Columns::new(files),
@@ -461,6 +477,7 @@ impl RuntimeData {
             strings_in: 0,
             arrays: Arrays::new(),
             float_parser: FloatParser::new(),
+            srand_seed: 091998.0,
         }
     }
 }
@@ -546,89 +563,22 @@ impl Runtime for DebugRuntime {
         );
     }
 
-    runtime_fn_no_args!(call_next_line, next_line, Some(Context::float64_type()));
-    runtime_fn!(
-        column,
-        column,
-        Some(Context::void_ptr_type()),
-        tag: Value,
-        float: Value,
-        pointer: Value
-    );
-    runtime_fn!(
-        string_to_number,
-        string_to_number,
-        Some(Context::float64_type()),
-        arg0: Value
-    );
-    runtime_fn!(
-        number_to_string,
-        number_to_string,
-        Some(Context::void_ptr_type()),
-        arg0: Value
-    );
+    runtime_fn!(call_next_line, next_line, Some(Context::float64_type()),);
+    runtime_fn!(column,column,Some(Context::void_ptr_type()),tag: Value,float: Value,pointer: Value);
+    runtime_fn!(string_to_number,string_to_number,Some(Context::float64_type()),arg0: Value);
+    runtime_fn!(number_to_string,number_to_string,Some(Context::void_ptr_type()),arg0: Value);
     runtime_fn_no_ret!(print_string, print_string, None, arg0: Value);
     runtime_fn_no_ret!(print_float, print_float, None, arg0: Value);
-    runtime_fn!(
-        concat,
-        concat,
-        Some(Context::void_ptr_type()),
-        arg0: Value,
-        arg1: Value
-    );
-    runtime_fn!(
-        concat_array_indices,
-        concat_array_indices,
-        Some(Context::void_ptr_type()),
-        arg0: Value,
-        arg1: Value
-    );
-    runtime_fn_no_args!(empty_string, empty_string, Some(Context::void_ptr_type()));
-    runtime_fn_no_ret!(
-        array_access,
-        array_access,
-        None,
-        array: Value,
-        key_tag: Value,
-        key_num: Value,
-        key_ptr: Value,
-        out_tag_ptr: Value,
-        out_float_ptr: Value,
-        out_ptr_ptr: Value
-    );
-    runtime_fn_no_ret!(
-        array_assign,
-        array_assign,
-        None,
-        array: Value,
-        key_tag: Value,
-        key_num: Value,
-        key_ptr: Value,
-        tag: Value,
-        float: Value,
-        ptr: Value
-    );
-    runtime_fn!(
-        in_array,
-        in_array,
-        Some(Context::float64_type()),
-        array: Value,
-        key_tag: Value,
-        key_num: Value,
-        key_ptr: Value
-    );
-    runtime_fn!(
-        to_upper,
-        to_upper,
-        Some(Context::void_ptr_type()),
-        ptr: Value
-    );
-    runtime_fn!(
-        to_lower,
-        to_lower,
-        Some(Context::void_ptr_type()),
-        ptr: Value
-    );
+    runtime_fn!(concat,concat,Some(Context::void_ptr_type()),arg0: Value,arg1: Value);
+    runtime_fn!(concat_array_indices,concat_array_indices,Some(Context::void_ptr_type()),arg0: Value,arg1: Value);
+    runtime_fn!(empty_string, empty_string, Some(Context::void_ptr_type()),);
+    runtime_fn_no_ret!(array_access,array_access,None,array: Value,key_tag: Value,key_num: Value,key_ptr: Value,out_tag_ptr: Value,out_float_ptr: Value,out_ptr_ptr: Value);
+    runtime_fn_no_ret!(array_assign,array_assign,None,array: Value,key_tag: Value,key_num: Value,key_ptr: Value,tag: Value,float: Value,ptr: Value);
+    runtime_fn!(in_array,in_array,Some(Context::float64_type()),array: Value,key_tag: Value,key_num: Value,key_ptr: Value);
+    runtime_fn!(to_upper,to_upper,Some(Context::void_ptr_type()),ptr: Value);
+    runtime_fn!(to_lower,to_lower,Some(Context::void_ptr_type()),ptr: Value);
+    runtime_fn!(rand, rand, Some(Context::float64_type()),);
+    runtime_fn!(srand, srand, Some(Context::float64_type()), seed: Value);
 
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) {
         let data_ptr = self.data_ptr(func);

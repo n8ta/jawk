@@ -1265,4 +1265,8 @@ mod integration_tests {
     test!(test_native_exp_3, "BEGIN { print int(exp(\"0\" \"1\" \"2\"))}", ONE_LINE, "162754\n");
     test!(test_native_exp_4, "BEGIN { print int(100*exp(1.1)) }", ONE_LINE, "300\n");
     test!(test_native_exp_5, "BEGIN { print int(100*exp(-1)) }", ONE_LINE, "36\n");
+
+    test!(test_s_rand_0, "BEGIN { srand(123); print srand(5);}", ONE_LINE, "123\n");
+    test!(test_s_rand_1, "BEGIN { srand(123); print srand(5); print srand(6);}", ONE_LINE, "123\n5\n");
+    test!(test_s_rand_2, "BEGIN { srand(123); x0 = rand(); x00 = rand(); srand(123); x1 = rand(); x11=rand(); print (x0 == x1); print (x00 == x11); print (x0 != x00)}", ONE_LINE, "1\n1\n1\n");
 }

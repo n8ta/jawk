@@ -10,23 +10,19 @@ use std::rc::Rc;
 pub struct FunctionAnalysis {
     global_scalars: MapT,
     global_arrays: SymbolMapping,
-    func_names: HashSet<Symbol>,
     str_consts: HashSet<Symbol>,
     functions: FunctionMap,
 }
 
 pub fn function_pass(prog: Program) -> Result<TypedProgram, PrintableError> {
-    let mut func_names: HashSet<Symbol> = Default::default();
     let mut functions = HashMap::new();
     for (name, function) in prog.functions {
-        func_names.insert(name.clone());
         functions.insert(name, Rc::new(TypedUserFunction::new(function)));
     }
 
     let analysis = FunctionAnalysis {
         global_scalars: MapT::new(),
         global_arrays: SymbolMapping::new(),
-        func_names,
         str_consts: Default::default(),
         functions: FunctionMap::new(functions, &prog.symbolizer),
     };
@@ -58,6 +54,11 @@ impl FunctionAnalysis {
 
         Ok(TypedProgram::new(self.functions, results))
     }
+
+    fn is_func_name(&mut self, sym: &Symbol) -> bool  {
+        self.functions.get(sym).is_some()
+    }
+
     fn use_as_scalar(
         &mut self,
         var: &Symbol,
@@ -79,7 +80,7 @@ impl FunctionAnalysis {
             }
             return Ok(());
         }
-        if self.func_names.contains(var) {
+        if self.is_func_name(var) {
             return Err(PrintableError::new(format!(
                 "fatal: attempt to use function `{}` in a scalar context",
                 var
@@ -115,7 +116,7 @@ impl FunctionAnalysis {
             }
             return Ok(());
         }
-        if self.func_names.contains(var) {
+        if self.is_func_name(var) {
             return Err(PrintableError::new(format!(
                 "fatal: attempt to use function `{}` in a scalar context",
                 var

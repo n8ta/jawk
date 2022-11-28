@@ -41,11 +41,10 @@ impl BuiltinFunc {
             BuiltinFunc::Exp => vec![Arg::new(s.get("exp-arg-0"), ArgT::Scalar)],
             BuiltinFunc::Int => vec![Arg::new(s.get("int-arg-0"), ArgT::Scalar)],
 
-            BuiltinFunc::Rand => todo!(),
-            BuiltinFunc::Srand => todo!(),
+            BuiltinFunc::Rand => vec![],
+            BuiltinFunc::Srand => vec![Arg::new(s.get("rand-arg-0"), ArgT::Scalar)],
 
             BuiltinFunc::Atan2 => todo!(),
-            BuiltinFunc::Close => todo!(),
             BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Index => todo!(),
             BuiltinFunc::Length => todo!(),
@@ -54,6 +53,7 @@ impl BuiltinFunc {
             BuiltinFunc::Sprintf => todo!(),
             BuiltinFunc::Sub => todo!(),
             BuiltinFunc::Substr => todo!(),
+            BuiltinFunc::Close => todo!(),
             BuiltinFunc::System => todo!(),
             BuiltinFunc::Tolower => vec![Arg::new(s.get("lower-arg-0"), ArgT::Scalar)],
             BuiltinFunc::Toupper => vec![Arg::new(s.get("upper-arg-0"), ArgT::Scalar)],

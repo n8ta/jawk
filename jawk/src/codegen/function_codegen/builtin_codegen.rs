@@ -53,16 +53,23 @@ impl<'a> FunctionCodegen<'a> {
                 self.drop_if_str(compiled, args[0].typ);
                 Ok(self.mk_float(floored))
             }
+            BuiltinFunc::Rand => {
+                let rnd = self.runtime.rand(&mut self.function);
+                Ok(self.mk_float(rnd))
+            }
+            BuiltinFunc::Srand => {
+                let float = self.arg0_to_float(args)?;
+                let prior_seed = self.runtime.srand(&mut self.function, float);
+                Ok(self.mk_float(prior_seed))
+            }
             BuiltinFunc::Atan2 => todo!(),
             BuiltinFunc::Close => todo!(),
             BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Index => todo!(),
             BuiltinFunc::Length => todo!(),
             BuiltinFunc::Matches => todo!(),
-            BuiltinFunc::Rand => todo!(),
             BuiltinFunc::Split => todo!(),
             BuiltinFunc::Sprintf => todo!(),
-            BuiltinFunc::Srand => todo!(),
             BuiltinFunc::Sub => todo!(),
             BuiltinFunc::Substr => todo!(),
             BuiltinFunc::System => todo!(),
