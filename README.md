@@ -56,26 +56,16 @@ cargo run -- --debug 'BEGIN { print "this will print debug info including the AS
 ## Todo:
 
 1. Reading from stdin
-2. Support for awk functions
-    - Functions are mutually recursive but not first class. Global too. 
-    - Cannot be declared within each other.
-    - `function a() { b() }; function b() { a () };` is fine
-3. Native math functions like sin, cos, etc, rand, srand (libjit supports many of these)
-4. Native string functions gsub, index, length, match, split, sprintf, sub, substr, tolower, toupper
-5. Regex expressions matched/not-matched (in JIT or runtime)
-6. Array support
-7. Redirect output to file
+2. Native string functions gsub, index, length, match, split, sprintf, sub, substr, tolower, toupper
+3. Redirect output to file
    - close() function
-8. Missing Operators
-   - expr in array a in b
-9. Parsing / Lexing negative numbers
-10. ARGV / ARGC and other ENV vars
-11. Pattern Ranges 
-13. Parser need to be able to print the where it was when shit went wrong and what happened
-14. Do we actually need numeric strings???
-15. The columns runtime needs to be much faster and lazier.
-16. Make this compile on Windows!
-17. Divide by 0 needs to print an error (tests for this will probably need to be bespoke)
+4. ARGV / ARGC and other ENV vars
+Pattern Ranges 
+5. Parser need to be able to print the where it was when shit went wrong and what happened
+6. Do we actually need numeric strings??? (Yes there are now commented tests for them)
+7. The columns runtime needs to be much faster and lazier.
+7. Make this compile on Windows!
+8. Divide by 0 needs to print an error (tests for this will probably need to be bespoke)
 
 ## License
 GNU Libjit is GPLv2. 
