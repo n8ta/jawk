@@ -4,8 +4,8 @@ An (INCOMPLETE) jit compiled awk (jawk) implementation leveraging GNU libjit. Th
 ## Performance
 
 ### Best case scenario for jawk
-A long running purely mostly numeric program with little io. Not a great example for awk since awk program usually do a lot of IO. 
-JIT provides the most benefit since JIT'ed math is vastly faster than interpreted. For this we use generating mandelbrot set as ascii art (see tt.x1 in the repo). This is highly numeric followed by a few quick prints.
+A long running mostly numeric program with little io. Not very representation of most awk programs since awk program usually do a lot of IO. 
+JIT provides the most benefit here since JIT'ed math is vastly faster than interpreted. For this we use generating mandelbrot set as ascii art (see tt.x1 in the repo). This is highly numeric followed by a few quick prints.
 
 ![A histogram showing jawk is the vastly the fastest for this program](./assets/tt.x1.png)
 ![Mandelbrot set in ascii art style. Output of jawk](./assets/mandel.png)
