@@ -22,7 +22,7 @@ fn propogate(
             link.src.name()
         )));
     }
-
+    
     let updated_in_dest = dest.receive_call(&caller_arg_types)?;
     let updated_in_src = src.reverse_call(link, &dest.args(), &mut program.global_analysis)?;
     Ok((updated_in_dest, updated_in_src))

@@ -12,6 +12,11 @@ impl<'a> FunctionCodegen<'a> {
         self.drop_if_str(arg, args[idx].typ);
         Ok(float)
     }
+    fn arg_to_str(&mut self, args: &Vec<TypedExpr>, idx: usize) -> Result<Value, PrintableError> {
+        let arg = self.compile_expr(&args[idx], false)?;
+        let float = self.val_to_string(&arg, args[idx].typ);
+        Ok(float)
+    }
     fn mk_float(&self, flt: Value) -> ValueT {
         ValueT::new(self.float_tag(), flt, self.zero_ptr())
     }
@@ -69,13 +74,15 @@ impl<'a> FunctionCodegen<'a> {
                 Ok(self.mk_float(atan2))
             }
             BuiltinFunc::Length => {
-
+                let str = self.arg_to_str(args, 0)?;
+                let len = self.runtime.length(&mut self.function, str); //drops str
+                Ok(self.mk_float(len))
             }
+            BuiltinFunc::Split => todo!(),
             BuiltinFunc::Close => todo!(),
             BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Index => todo!(),
             BuiltinFunc::Matches => todo!(),
-            BuiltinFunc::Split => todo!(),
             BuiltinFunc::Sprintf => todo!(),
             BuiltinFunc::Sub => todo!(),
             BuiltinFunc::Substr => todo!(),

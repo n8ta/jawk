@@ -23,7 +23,7 @@ pub trait ITypedFunction: Debug + Display {
     fn reverse_call(
         &self,
         link: &Call,
-        args: &[Arg],
+        args: &Vec<Arg>,
         analysis: &mut AnalysisResults,
     ) -> Result<HashSet<Symbol>, PrintableError>;
 

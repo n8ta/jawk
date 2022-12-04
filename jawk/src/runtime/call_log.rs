@@ -19,6 +19,9 @@ pub enum Call {
     ConcatArrayIndices,
     ToLower,
     ToUpper,
+    Rand,
+    Srand,
+    Length,
     // Printf,
 }
 

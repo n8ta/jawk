@@ -46,7 +46,6 @@ impl BuiltinFunc {
 
             BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Index => todo!(),
-            BuiltinFunc::Length => todo!(),
             BuiltinFunc::Matches => todo!(),
             BuiltinFunc::Split => todo!(),
             BuiltinFunc::Sprintf => todo!(),
@@ -54,6 +53,7 @@ impl BuiltinFunc {
             BuiltinFunc::Substr => todo!(),
             BuiltinFunc::Close => todo!(),
             BuiltinFunc::System => todo!(),
+            BuiltinFunc::Length => vec![Arg::new(s.get("length-arg-0"), ArgT::Scalar)],
             BuiltinFunc::Tolower => vec![Arg::new(s.get("lower-arg-0"), ArgT::Scalar)],
             BuiltinFunc::Toupper => vec![Arg::new(s.get("upper-arg-0"), ArgT::Scalar)],
         }

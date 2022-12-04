@@ -1276,4 +1276,8 @@ mod integration_tests {
     test!(test_atan2_3, "BEGIN { a = \"\"; print atan2(a, 1) }", ONE_LINE, "0\n");
     test!(test_atan2_4, "BEGIN { print int(1000*atan2(\"0.3\", 0.1)) }", ONE_LINE, "1249\n");
     test!(test_atan2_5, "BEGIN { print int(1000*atan2(\"2\", \"3\")) }", ONE_LINE, "588\n");
+
+    test!(test_length_0, "BEGIN { print length(1111); print length(\"1234\"); print length(\"\") }", ONE_LINE, "4\n4\n0\n");
+    test!(test_length_1, "BEGIN { print length(1) + length(12); }", ONE_LINE, "3\n");
+    test!(test_length_2, "{ a += length($2); } END { print a }", "1 22 333\n4444 55555 666666\n7777777 88888888 999999999", "15\n");
 }

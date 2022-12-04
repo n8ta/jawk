@@ -73,13 +73,14 @@ impl ITypedFunction for TypedBuiltin {
     fn reverse_call(
         &self,
         _link: &Call,
-        _args: &[Arg],
+        _args: &Vec<Arg>,
         _analysis: &mut AnalysisResults,
     ) -> Result<HashSet<Symbol>, PrintableError> {
         Ok(HashSet::new())
     }
 
     fn receive_call(&self, call: &Vec<ArgT>) -> Result<HashSet<Symbol>, PrintableError> {
+        println!("Call is {:?}", call);
         let mut builtin_args = self.args.borrow_mut();
         reconcile(
             call.as_slice(),

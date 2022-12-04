@@ -1,6 +1,6 @@
 use crate::parser::{Arg, ArgT, Function, ScalarType};
 use crate::symbolizer::Symbol;
-use crate::typing::ityped_function::ITypedFunction;
+use crate::typing::ityped_function::{ITypedFunction};
 use crate::typing::reconcile::reconcile;
 use crate::typing::structs::{Call, CallArg};
 use crate::{AnalysisResults, PrintableError};
@@ -77,7 +77,7 @@ impl ITypedFunction for TypedUserFunction {
     fn reverse_call(
         &self,
         link: &Call,
-        args: &[Arg],
+        args: &Vec<Arg>,
         analysis: &mut AnalysisResults,
     ) -> Result<HashSet<Symbol>, PrintableError> {
         // Used in this case:
@@ -86,7 +86,7 @@ impl ITypedFunction for TypedUserFunction {
         // reverse_call is called on main_function with call_arg: vec![CallArg::Variable(a)], args: &[ArgT::Array]
         // main_function can then mark the global a as an array (or scalar depending)
         let mut updated = HashSet::new();
-        for (call_arg, function_arg) in link.args.iter().zip(args.iter()) {
+        for (call_arg, function_arg) in link.args.iter().zip(args) {
             if let CallArg::Variable(name) = call_arg {
                 let updated_sym = match function_arg.typ {
                     ArgT::Scalar => self.use_as_scalar(&name, analysis)?,
@@ -139,6 +139,10 @@ impl TypedUserFunction {
         }
     }
 
+    pub fn user_func_args(&self) -> Ref<'_, Vec<Arg>> {
+        self.args.borrow()
+    }
+
     fn get_type(
         global_analysis: &AnalysisResults,
         func: &TypedUserFunction,
@@ -180,7 +184,7 @@ impl TypedUserFunction {
                     return Err(PrintableError::new(format!(
                         "fatal: attempt to use scalar `{}` in a array context",
                         var
-                    )))
+                    )));
                 }
                 ArgT::Array => {} // No-op type matches
                 ArgT::Unknown => {
@@ -209,7 +213,7 @@ impl TypedUserFunction {
                     return Err(PrintableError::new(format!(
                         "fatal: attempt to use array `{}` in a scalar context",
                         var
-                    )))
+                    )));
                 }
                 ArgT::Unknown => {
                     self.set_arg_type(var, ArgT::Scalar)?;

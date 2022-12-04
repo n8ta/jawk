@@ -73,16 +73,28 @@ extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const String) -> *const Stri
 
 extern "C" fn srand(data_ptr: *mut c_void, seed: f64) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
+    data.calls.log(Call::Srand);
     let prior = data.srand_seed;
     let seed_int = (seed % (std::os::raw::c_uint::MAX as f64)) as std::os::raw::c_uint;
     unsafe { libc::srand(seed_int) }
     data.srand_seed = seed;
     prior
 }
-extern "C" fn rand(_data_ptr: *mut c_void) -> f64 {
+extern "C" fn rand(data_ptr: *mut c_void) -> f64 {
+    let data = cast_to_runtime_data(data_ptr);
+    data.calls.log(Call::Rand);
     let rand = unsafe { libc::rand() } as f64;
     // float [0, 1)
     rand / libc::RAND_MAX as f64
+}
+
+extern "C" fn length(data_ptr: *mut c_void, str: *const String) -> f64 {
+    let data = cast_to_runtime_data(data_ptr);
+    data.calls.log(Call::Length);
+    let str = unsafe { Rc::from_raw(str) };
+    data.string_in("length ptr", &*str);
+    str.chars().count() as f64
+    // Drop str
 }
 
 extern "C" fn to_upper(data_ptr: *mut c_void, ptr: *const String) -> *const String {
@@ -579,6 +591,7 @@ impl Runtime for DebugRuntime {
     runtime_fn!(to_lower,to_lower,Some(Context::void_ptr_type()),ptr: Value);
     runtime_fn!(rand, rand, Some(Context::float64_type()),);
     runtime_fn!(srand, srand, Some(Context::float64_type()), seed: Value);
+    runtime_fn!(length, length, Some(Context::float64_type()), string: Value);
 
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) {
         let data_ptr = self.data_ptr(func);
