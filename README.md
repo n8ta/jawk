@@ -1,8 +1,33 @@
 ## What is it?
 An (INCOMPLETE) jit compiled awk (jawk) implementation leveraging GNU libjit. The goal is the to be the fastest awk for all programs.
 
-In reality, it will never be faster for programs like `BEGIN { print "A" }` since an interpreter has less overhead. 
-But for all programs >5ms (in say gawk or mawk) jawk aims to be faster.
+## Performance
+
+### Best case scenario for jawk
+A long running purely mostly numeric program with little io. Not a great example for awk since awk program usually do a lot of IO. 
+JIT provides the most benefit since JIT'ed math is vastly faster than interpreted. For this we use generating mandelbrot set as ascii art (see tt.x1 in the repo). This is highly numeric followed by a few quick prints.
+
+![A histogram showing jawk is the vastly the fastest for this program](./assets/tt.x1.png)
+![Mandelbrot set in ascii art style. Output of jawk](./assets/mandel.png)
+
+That chart is not a mistake. A normal run of this program for jawk (on my 2015 laptop) is 170ms vs >2s for all other awks. 
+
+### Worse case scenario for jawk (short program, JIT provides no benefit)
+![A histogram showing onetrueawk as the fastest followed by jawk](./assets/begin.png)
+
+Here we see jawk is doing okay but the interpreters are much closer and onetrueawk the lightest of the interpreter is generally slightly faster.
+
+### Practical example
+
+(TODO)
+
+## Limitations
+
+jawk doesn't support all of awk yet. Lots of builtins are missing and IO other than print is barely optimized. Files are read in there 
+entirety up front (they should be streamed as needed). 
+
+If gnu-lightjib the backing jit compiler doesn't have a backend for your system jawk will fallback to an interpreter
+and lose most performance gains.
 
 ## How to use
 
