@@ -15,7 +15,7 @@ That chart is not a mistake. A normal run of this program for jawk (on my 2015 l
 ### Worse case scenario for jawk (short program, JIT provides no benefit)
 ![A histogram showing onetrueawk as the fastest followed by jawk](./assets/begin.png)
 
-Here we see jawk is doing okay but the interpreters are much closer and onetrueawk the lightest of the interpreter is generally slightly faster.
+Here we see jawk is doing okay but the interpreters are much closer and onetrueawk, the lightest of the interpreter, is generally slightly faster.
 
 ### Practical example
 
