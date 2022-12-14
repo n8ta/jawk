@@ -1,150 +1,85 @@
-use hashbrown::HashMap;
-use std::path::PathBuf;
-use std::vec::IntoIter;
+mod lazily_split_line;
+mod index_of;
+mod borrrowing_split;
+mod file_reader;
 
-type Line = HashMap<usize, String>;
+use std::fs::File;
+use crate::columns::file_reader::FileReader;
+use crate::columns::lazily_split_line::LazilySplitLine;
+use crate::printable_error::PrintableError;
 
 pub struct Columns {
-    rs: &'static str,
-    fs: &'static str,
-    files: IntoIter<String>,
-    current_path: Option<String>,
-    lines: HashMap<usize, Line>,
-    line_number: Option<usize>,
+    files: Vec<String>,
+    current_record: LazilySplitLine,
+    file_reader: Option<FileReader>,
+    rs: String,
 }
 
 impl Columns {
-    pub fn new(files: Vec<String>) -> Self {
+    pub fn new(mut files: Vec<String>) -> Self {
+        files.reverse();
         Columns {
-            rs: "\n",
-            fs: " ",
-            files: files.into_iter(), // Collecting could be mean allocating. Instead just pull from the iterator
-            line_number: None,
-            lines: HashMap::new(),
-            current_path: None,
-        }
-    }
-
-    fn get_line_number(&self) -> usize {
-        if let Some(line) = self.line_number {
-            line
-        } else {
-            0
+            files,
+            current_record: LazilySplitLine::new(),
+            file_reader: None,
+            rs: String::from("\n"),
         }
     }
 
     pub fn get(&mut self, column: usize) -> String {
-        if let Some(line) = self.lines.get(&self.get_line_number()) {
-            if let Some(field) = line.get(&column) {
-                return field.to_string();
+        match self.current_record.get(column) {
+            None => "".to_string(),
+            Some(bytes) => {
+                match String::from_utf8(bytes.to_vec()) {
+                    Ok(str) => str,
+                    Err(_err) => {
+                        todo!("gawk prints to stderr maybe we should do that?")
+                    }
+                }
             }
         }
-        "".to_string()
     }
 
-    fn parse_input_file(fs: &str, rs: &str, contents: String) -> HashMap<usize, Line> {
-        let mut lines = HashMap::new();
-        for (line_idx, line) in contents.split(rs).enumerate() {
-            if line.len() == 0 {
-                continue;
+    fn next_file(&mut self) -> Result<bool, PrintableError> {
+        if let Some(next_file) = self.files.pop() {
+            let file = match File::open(&next_file) {
+                Ok(f) => f,
+                Err(err) => return Err(PrintableError::new(format!("Failed to open file {}\n{}", next_file, err))),
+            };
+            if let Some(reader) = &mut self.file_reader {
+                reader.next_file(file, next_file);
+            } else {
+                let rs = self.rs.as_bytes().to_vec();
+                self.file_reader = Some(FileReader::new(rs, file, next_file));
             }
-
-            let mut map = HashMap::new();
-            map.insert(0, line.to_string());
-            for (field_idx, field) in line.split(fs).enumerate() {
-                map.insert(field_idx + 1, field.to_string());
-            }
-            lines.insert(line_idx, map);
+            Ok(true)
+        } else {
+            Ok(false)
         }
-        lines
     }
 
-    fn advance_file(&mut self) -> bool {
-        if let Some(next_file) = self.files.next() {
-            let contents = match std::fs::read_to_string(PathBuf::from(next_file.clone())) {
-                Ok(s) => s,
-                Err(err) => {
-                    eprintln!("Unable to load file @ `{}`\nErr: {}", next_file, err);
-                    std::process::exit(-1);
+    pub fn next_line(&mut self) -> Result<bool, PrintableError> {
+        loop {
+            if let Some(reader) = &mut self.file_reader {
+                if reader.try_read_record_into_buf(self.current_record.content_buffer())? {
+                    self.current_record.calculate_columns();
+                    return Ok(true);
                 }
             };
-            self.current_path = Some(next_file);
-            self.lines = Columns::parse_input_file(&self.fs, &self.rs, contents);
-            true
-        } else {
-            false
+            if self.next_file()? { continue; } else { return Ok(false); }
         }
     }
 
-    pub fn next_line(&mut self) -> bool {
-        if self.current_path.is_none() && !self.advance_file() {
-            return false;
-        }
-        loop {
-            let line_number = if let Some(line_num) = self.line_number {
-                line_num
-            } else {
-                self.line_number = Some(0);
-                return self.lines.get(&0).is_some();
-            };
-            if let Some(_next_line) = self.lines.get(&(line_number + 1)) {
-                self.line_number = Some(line_number + 1);
-                return true;
-            }
-            if self.advance_file() {
-                self.line_number = None;
-            } else {
-                return false;
-            }
-        }
-    }
-
-    #[allow(dead_code)]
     pub fn set_record_sep(&mut self, value: String) {
-        if self.current_path.is_some() {
-            panic!("must set fs/rs before reading lines")
-        }
-        let boxed = Box::new(value);
-        let leaked: &'static str = Box::leak(boxed);
-        self.rs = leaked;
+        self.rs = value;
     }
 
-    #[allow(dead_code)]
     pub fn set_field_sep(&mut self, value: String) {
-        if self.current_path.is_some() {
-            panic!("must set fs/rs before reading lines")
-        }
-        let boxed = Box::new(value);
-        let leaked: &'static str = Box::leak(boxed);
-        self.fs = leaked;
+        let bytes = value.as_bytes().to_vec();
+        self.current_record.set_fs(bytes)
     }
 }
 
-#[test]
-fn test_parse_input_file() {
-    let actual = Columns::parse_input_file(" ", "\n", "a b c\nd e f\ng h i".to_string());
-    let mut map: HashMap<usize, Line> = HashMap::new();
-    let mut line1: Line = HashMap::new();
-    line1.insert(0, "a b c".to_string());
-    line1.insert(1, "a".to_string());
-    line1.insert(2, "b".to_string());
-    line1.insert(3, "c".to_string());
-    let mut line2: Line = HashMap::new();
-    line2.insert(0, "d e f".to_string());
-    line2.insert(1, "d".to_string());
-    line2.insert(2, "e".to_string());
-    line2.insert(3, "f".to_string());
-    let mut line3: Line = HashMap::new();
-    line3.insert(0, "g h i".to_string());
-    line3.insert(1, "g".to_string());
-    line3.insert(2, "h".to_string());
-    line3.insert(3, "i".to_string());
-
-    map.insert(0, line1);
-    map.insert(1, line2);
-    map.insert(2, line3);
-    assert_eq!(actual, map)
-}
 
 #[test]
 fn test_files() {
@@ -161,36 +96,36 @@ fn test_files() {
         file_path_2.to_str().unwrap().to_string(),
     ]);
 
-    assert!(cols.next_line());
+    assert!(cols.next_line().unwrap());
     assert_eq!(cols.get(0), "a b c");
     assert_eq!(cols.get(1), "a");
     assert_eq!(cols.get(2), "b");
     assert_eq!(cols.get(3), "c");
-    assert!(cols.next_line());
+    assert!(cols.next_line().unwrap());
     assert_eq!(cols.get(3), "f");
     assert_eq!(cols.get(2), "e");
     assert_eq!(cols.get(1), "d");
     assert_eq!(cols.get(0), "d e f");
-    assert!(cols.next_line());
+    assert!(cols.next_line().unwrap());
     assert_eq!(cols.get(3), "i");
     assert_eq!(cols.get(2), "h");
     assert_eq!(cols.get(1), "g");
     assert_eq!(cols.get(0), "g h i");
-    assert!(cols.next_line());
+    assert!(cols.next_line().unwrap());
     assert_eq!(cols.get(0), "1 2 3");
     assert_eq!(cols.get(3), "3");
     assert_eq!(cols.get(2), "2");
     assert_eq!(cols.get(1), "1");
-    assert!(cols.next_line());
+    assert!(cols.next_line().unwrap());
     assert_eq!(cols.get(3), "6");
     assert_eq!(cols.get(2), "5");
     assert_eq!(cols.get(1), "4");
     assert_eq!(cols.get(0), "4 5 6");
-    assert!(cols.next_line());
+    assert!(cols.next_line().unwrap());
     assert_eq!(cols.get(3), "9");
     assert_eq!(cols.get(2), "8");
     assert_eq!(cols.get(1), "7");
     assert_eq!(cols.get(0), "7 8 9");
-    assert_eq!(cols.next_line(), false);
-    assert_eq!(cols.next_line(), false);
+    assert_eq!(cols.next_line().unwrap(), false);
+    assert_eq!(cols.next_line().unwrap(), false);
 }

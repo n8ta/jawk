@@ -14,6 +14,7 @@ mod integration_tests {
     const NUMBERS2: &'static str = "1 2 3 4\n4 5 6 4\n7 8 9 7";
     const FLOAT_NUMBERS: &'static str = "1.1 2.2 3.3\n4.4 5.5 6.6\n7.7 8.8 9.9";
     const NUMERIC_STRING: &'static str = "1 2 3\n04 005 6\n07 8 9";
+    const ABC: &'static str = "abc\nabc\nabc";
 
     fn test_once(interpreter: &str, prog: &str, file: &PathBuf) -> (String, Duration) {
         // Run a single awk once and capture the output
@@ -1280,4 +1281,8 @@ mod integration_tests {
     test!(test_length_0, "BEGIN { print length(1111); print length(\"1234\"); print length(\"\") }", ONE_LINE, "4\n4\n0\n");
     test!(test_length_1, "BEGIN { print length(1) + length(12); }", ONE_LINE, "3\n");
     test!(test_length_2, "{ a += length($2); } END { print a }", "1 22 333\n4444 55555 666666\n7777777 88888888 999999999", "15\n");
+
+    test!(test_fs_0, "{ print $2; FS = \"b\"; }", ABC, "\nc\n");
+    test!(test_fs_1, "{ print $2; FS = \"a\"; }", ABC, "\nbc\n");
+
 }

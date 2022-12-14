@@ -1,6 +1,8 @@
 // #![feature(test)]
 // extern crate test;
 
+extern crate core;
+
 // Jemalloc showed huge perf gains on malloc/free bound programs
 // like evaluating a regex in a tight loop.
 #[cfg(not(target_env = "msvc"))]

@@ -1,4 +1,5 @@
 mod types;
+mod escaped_string_reader;
 
 use crate::{PrintableError, Symbolizer};
 use std::iter::Peekable;

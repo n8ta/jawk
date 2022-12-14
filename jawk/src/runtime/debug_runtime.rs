@@ -41,7 +41,9 @@ pub extern "C" fn print_float(data: *mut c_void, value: f64) {
 extern "C" fn next_line(data: *mut c_void) -> f64 {
     let data = cast_to_runtime_data(data);
     data.calls.log(Call::NextLine);
-    if data.columns.next_line() {
+
+    // TODO: remove unwrap
+    if data.columns.next_line().unwrap() {
         1.0
     } else {
         0.0

@@ -80,7 +80,6 @@ impl ITypedFunction for TypedBuiltin {
     }
 
     fn receive_call(&self, call: &Vec<ArgT>) -> Result<HashSet<Symbol>, PrintableError> {
-        println!("Call is {:?}", call);
         let mut builtin_args = self.args.borrow_mut();
         reconcile(
             call.as_slice(),

@@ -38,7 +38,6 @@ impl FloatParser {
 }
 
 pub fn string_to_float(string: &str) -> f64 {
-    // TODO: Should never fail
     if string.len() == 0 {
         0.0
     } else {
@@ -55,8 +54,9 @@ pub fn string_to_float(string: &str) -> f64 {
                 break;
             }
         }
-        string[0..digits]
-            .parse()
-            .expect(&format!("couldn't convert string to number {}", string))
+        match string[0..digits].parse() {
+            Ok(flt) => flt,
+            Err(_err) => 0.0, // TODO: Is this right?
+        }
     }
 }
