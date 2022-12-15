@@ -1,6 +1,6 @@
 mod lazily_split_line;
 mod index_of;
-mod borrrowing_split;
+mod borrowing_split;
 mod file_reader;
 
 use std::fs::File;
@@ -11,8 +11,7 @@ use crate::printable_error::PrintableError;
 pub struct Columns {
     files: Vec<String>,
     current_record: LazilySplitLine,
-    file_reader: Option<FileReader>,
-    rs: String,
+    file_reader: FileReader,
 }
 
 impl Columns {
@@ -21,8 +20,7 @@ impl Columns {
         Columns {
             files,
             current_record: LazilySplitLine::new(),
-            file_reader: None,
-            rs: String::from("\n"),
+            file_reader: FileReader::new(),
         }
     }
 
@@ -41,17 +39,12 @@ impl Columns {
     }
 
     fn next_file(&mut self) -> Result<bool, PrintableError> {
-        if let Some(next_file) = self.files.pop() {
-            let file = match File::open(&next_file) {
+        if let Some(file_path) = self.files.pop() {
+            let file = match File::open(&file_path) {
                 Ok(f) => f,
-                Err(err) => return Err(PrintableError::new(format!("Failed to open file {}\n{}", next_file, err))),
+                Err(err) => return Err(PrintableError::new(format!("Failed to open file {}\n{}", file_path, err))),
             };
-            if let Some(reader) = &mut self.file_reader {
-                reader.next_file(file, next_file);
-            } else {
-                let rs = self.rs.as_bytes().to_vec();
-                self.file_reader = Some(FileReader::new(rs, file, next_file));
-            }
+            self.file_reader.next_file(file, file_path);
             Ok(true)
         } else {
             Ok(false)
@@ -60,18 +53,16 @@ impl Columns {
 
     pub fn next_line(&mut self) -> Result<bool, PrintableError> {
         loop {
-            if let Some(reader) = &mut self.file_reader {
-                if reader.try_read_record_into_buf(self.current_record.content_buffer())? {
-                    self.current_record.calculate_columns();
-                    return Ok(true);
-                }
+            if self.file_reader.try_read_record_into_buf(self.current_record.content_buffer())? {
+                self.current_record.calculate_columns();
+                return Ok(true);
             };
             if self.next_file()? { continue; } else { return Ok(false); }
         }
     }
 
     pub fn set_record_sep(&mut self, value: String) {
-        self.rs = value;
+        self.file_reader.set_rs(value.as_bytes().to_vec())
     }
 
     pub fn set_field_sep(&mut self, value: String) {

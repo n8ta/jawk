@@ -1,4 +1,4 @@
-use crate::columns::borrrowing_split::{borrowing_split, Split};
+use crate::columns::borrowing_split::{borrowing_split, Split};
 
 pub struct LazilySplitLine {
     contents: Vec<u8>,

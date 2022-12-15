@@ -4,22 +4,25 @@ use std::io::Read;
 use crate::columns::index_of::{index_in_dq};
 use crate::printable_error::PrintableError;
 
-pub struct FileReader {
-    file: File,
+struct FileWithPath {
     path: String,
+    file: File
+}
+
+pub struct FileReader {
+    file: Option<FileWithPath>,
     rs: Vec<u8>,
     slop: VecDeque<u8>,
     read_buf: [u8; 2048],
 }
 
 impl FileReader {
-    pub fn new(rs: Vec<u8>, file: File, path: String) -> Self {
+    pub fn new() -> Self {
         Self {
-            rs,
-            file,
+            rs: vec![10],
             slop: VecDeque::with_capacity(2048),
             read_buf: [0; 2048],
-            path,
+            file: None,
         }
     }
     pub fn set_rs(&mut self, rs: Vec<u8>) {
@@ -27,22 +30,28 @@ impl FileReader {
     }
 
     pub fn next_file(&mut self, file: File, path: String) {
-        self.file = file;
-        self.path = path;
+        self.file = Some(FileWithPath { file, path });
         self.slop.clear();
     }
 
-    fn read_into_buf(&mut self) -> Result<usize, PrintableError> {
-        match self.file.read(&mut self.read_buf) {
+    fn read_into_buf(file: &mut FileWithPath, buf: &mut [u8; 2048]) -> Result<usize, PrintableError> {
+        match file.file.read(buf) {
             Ok(bytes_read) => Ok(bytes_read),
-            Err(err) => Err(PrintableError::new(format!("Error reading from file {}\n{}", self.path, err)))
+            Err(err) => Err(PrintableError::new(format!("Error reading from file {}\n{}", file.path, err)))
         }
     }
 
     pub fn try_read_record_into_buf(&mut self, dest_buffer: &mut Vec<u8>) -> Result<bool, PrintableError> {
         dest_buffer.clear();
 
+
         loop {
+            let file = if let Some(file) = &mut self.file {
+              file
+            } else {
+                return Ok(false)
+            };
+
             // Check if our last read grabbed more than 1 record
             if let Some(idx) = index_in_dq(&self.rs, &self.slop) {
                 let drain = self.slop.drain(0..idx);
@@ -52,7 +61,7 @@ impl FileReader {
             }
 
             // Nope, then read some bytes into buf then copy to slop
-            let bytes_read = self.read_into_buf()?;
+            let bytes_read = FileReader::read_into_buf(file, &mut self.read_buf)?;
 
             if bytes_read == 0 {
                 // No new data!

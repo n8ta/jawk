@@ -41,7 +41,7 @@ pub fn borrowing_split<T: PartialEq>(content: &[T], split: &[T]) -> Vec<Split> {
 
 #[cfg(test)]
 mod index_splitter_tests {
-    use crate::columns::borrrowing_split::{borrowing_split, Split};
+    use crate::columns::borrowing_split::{borrowing_split, Split};
 
     #[test]
     fn test_index_splitting_normal_case() {
