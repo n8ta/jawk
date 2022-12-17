@@ -10,8 +10,8 @@ impl LazilySplitLine {
     pub fn new() -> Self {
         Self {
             contents: vec![],
-            // fs: vec![32], // space
-            fs: vec![44], // comma
+            fs: vec![32], // space
+            // fs: vec![44], // comma
             splits: vec![],
         }
     }
@@ -19,8 +19,8 @@ impl LazilySplitLine {
         &mut self.contents
     }
     pub fn calculate_columns(&mut self) {
-        return;
-        // borrowing_split(&self.contents, &*self.fs, &mut self.splits);
+        // return;
+        borrowing_split(&self.contents, &*self.fs, &mut self.splits);
     }
 
     pub fn set_fs(&mut self, fs: Vec<u8>) {

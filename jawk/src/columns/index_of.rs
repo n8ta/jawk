@@ -8,7 +8,14 @@ pub fn index_of<T: PartialEq>(needle: &[T], haystack: &[T]) -> Option<usize> {
 }
 
 
-pub fn index_in_dq<T: PartialEq>(needle: &[T], haystack: &VecDeque<T>) -> Option<usize> {
+pub fn index_in_dq<T: PartialEq + Copy>(needle: &[T], haystack: &VecDeque<T>) -> Option<usize> {
+    if needle.len() == 1 {
+        let zero = needle[0];
+        return match haystack.into_iter().enumerate().find(|elem| *(elem.1) == zero) {
+            None => None,
+            Some(idx) => Some(idx.0),
+        }
+    }
     if needle.len() > haystack.len() {
         return None;
     }
