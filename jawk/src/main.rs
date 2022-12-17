@@ -63,6 +63,7 @@ fn main() {
     if let Err(err) = runner(args) {
         eprintln!("{}", err);
     }
+
     // Fuck cleanup just sys call out so it's faster
     unsafe { libc::exit(0 as libc::c_int) }
 }

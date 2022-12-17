@@ -28,12 +28,8 @@ impl Columns {
         match self.current_record.get(column) {
             None => "".to_string(),
             Some(bytes) => {
-                match String::from_utf8(bytes.to_vec()) {
-                    Ok(str) => str,
-                    Err(_err) => {
-                        todo!("gawk prints to stderr maybe we should do that?")
-                    }
-                }
+                // TODO: check utf8
+                unsafe { String::from_utf8_unchecked(bytes.to_vec()) }
             }
         }
     }

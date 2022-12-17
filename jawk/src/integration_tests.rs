@@ -319,7 +319,7 @@ mod integration_tests {
     test!(test_str_truthyness4, "{if (\"aaaklasdjksfdakljfadskljafsdkljfasaaaaklasdjksfdakljfadskljafsdkljfasaaaaklasdjksfdakljfadskljafsdkljfasaaaaklasdjksfdakljfadskljafsdkljfasaaaaklasdjksfdakljfadskljafsdkljfasaaaaklasdjksfdakljfadskljafsdkljfasaaaaklasdjksfdakljfadskljafsdkljfasaaaaklasdjksfdakljfadskljafsdkljfasaaaaklasdjksfdakljfadskljafsdkljfasaaaaklasdjksfdakljfadskljafsdkljfasaaaaklasdjksfdakljfadskljafsdkljfas\") { print \"abc\" } else { print \"cde\" }}", ONE_LINE, "abc\n");
 
     test!(
-        test_assign_then_print,
+        test_assign_then_print_simple,
         "{ a = 1.1; print a }",
         ONE_LINE,
         "1.1\n"
