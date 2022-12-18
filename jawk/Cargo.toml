@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 # JIT compiler
 gnu-libjit = { path = "../gnu-libjit" }
+# A fast dropping deque
+quick-drop-deque = { path = "../quick-drop-deque" }
 # Mawk regex is very fast just steal it
 mawk-regex = { path = "../mawk-regex" }
 # Immutable map very helpful for typechecking scopes
@@ -16,7 +18,7 @@ libc = "0.2.127"
 lru-cache = "0.1.2"
 # Default rust hashmap is resistant against DOS we don't need that
 hashbrown = {version = "0.13.1", features = []}
-# 50% perf improvement over default allocated
+# 50% perf improvement over default allocator
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 jemallocator = { version = "^0.5.0", default-features = false }
 # Faster than stdlib convert float to string

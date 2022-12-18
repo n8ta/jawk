@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-
+use quick_drop_deque::QuickDropDeque;
 pub fn index_of<T: PartialEq>(needle: &[T], haystack: &[T]) -> Option<usize> {
     if needle.is_empty() {
         return Some(0);
@@ -8,13 +8,19 @@ pub fn index_of<T: PartialEq>(needle: &[T], haystack: &[T]) -> Option<usize> {
 }
 
 
-pub fn index_in_dq<T: PartialEq + Copy>(needle: &[T], haystack: &VecDeque<T>) -> Option<usize> {
+#[inline(never)]
+pub fn index_in_dq(needle: &[u8], haystack: &QuickDropDeque) -> Option<usize> {
     if needle.len() == 1 {
-        let zero = needle[0];
-        return match haystack.into_iter().enumerate().find(|elem| *(elem.1) == zero) {
-            None => None,
-            Some(idx) => Some(idx.0),
+        let needle = needle[0];
+        let slices = haystack.as_slices();
+        let left_len = slices.0.len();
+        for (idx, elem) in slices.0.iter().enumerate() {
+            if *elem == needle { return Some(idx) }
         }
+        for elem in slices.1.iter().enumerate() {
+            if *elem.1 == needle { return Some(elem.0 + left_len) }
+        }
+        return None;
     }
     if needle.len() > haystack.len() {
         return None;
@@ -38,6 +44,7 @@ pub fn index_in_dq<T: PartialEq + Copy>(needle: &[T], haystack: &VecDeque<T>) ->
 #[cfg(test)]
 mod index_of_tests {
     use std::collections::VecDeque;
+    use quick_drop_deque::QuickDropDeque;
     use crate::columns::index_of::{index_of, index_in_dq};
 
     #[test]
@@ -54,47 +61,36 @@ mod index_of_tests {
 
     #[test]
     fn test_index_of_dq() {
-        assert_eq!(index_in_dq(&[1, 2, 3], &VecDeque::from(vec![1, 2, 3])), Some(0));
-        assert_eq!(index_in_dq(&[2, 3], &VecDeque::from(vec![1, 2, 3])), Some(1));
-        assert_eq!(index_in_dq(&[1, 2], &VecDeque::from(vec![1, 2, 3])), Some(0));
-        assert_eq!(index_in_dq(&[1], &VecDeque::from(vec![1, 2, 3])), Some(0));
-        assert_eq!(index_in_dq(&[], &VecDeque::from(vec![1, 2, 3])), Some(0));
-        assert_eq!(index_in_dq(&[1, 2, 3], &VecDeque::from(vec![])), None);
-        assert_eq!(index_in_dq(&[1, 2, 3], &VecDeque::from(vec![0, 1, 2, 3])), Some(1));
-        assert_eq!(index_in_dq(&[1, 2, 3,4,5,6,7,8], &VecDeque::from(vec![0, 1, 2, 3])), None);
+        assert_eq!(index_in_dq(&[1, 2, 3], &QuickDropDeque::from(vec![1, 2, 3])), Some(0));
+        assert_eq!(index_in_dq(&[2, 3], &QuickDropDeque::from(vec![1, 2, 3])), Some(1));
+        assert_eq!(index_in_dq(&[1, 2], &QuickDropDeque::from(vec![1, 2, 3])), Some(0));
+        assert_eq!(index_in_dq(&[1], &QuickDropDeque::from(vec![1, 2, 3])), Some(0));
+        assert_eq!(index_in_dq(&[], &QuickDropDeque::from(vec![1, 2, 3])), Some(0));
+        assert_eq!(index_in_dq(&[1, 2, 3], &QuickDropDeque::from(vec![])), None);
+        assert_eq!(index_in_dq(&[1, 2, 3], &QuickDropDeque::from(vec![0, 1, 2, 3])), Some(1));
+        assert_eq!(index_in_dq(&[1, 2, 3,4,5,6,7,8], &QuickDropDeque::from(vec![0, 1, 2, 3])), None);
     }
 
     #[test]
     fn test_index_of_dq_with_shifting() {
-        let mut shifted_dequeue = VecDeque::with_capacity(4);
-        shifted_dequeue.push_back(1);
-        shifted_dequeue.push_back(2);
-        shifted_dequeue.push_back(3);
-        shifted_dequeue.push_back(4);
+        let mut shifted_dequeue = QuickDropDeque::with_capacity(4);
+        shifted_dequeue.extend_from_slice(&[1,2,3,4]);
         // head:0 buf: [1,2,3,4]
-        shifted_dequeue.pop_front();
-        shifted_dequeue.pop_front();
+        shifted_dequeue.drop_front(2);
         // head:2 buf: [x,x,3,4]
-        shifted_dequeue.push_back(5);
-        shifted_dequeue.push_back(6);
+        shifted_dequeue.extend_from_slice(&[5, 6]);
         // head:2 buf: [5,6,3,4]
         assert_eq!(index_in_dq(&[3,4,5], &shifted_dequeue), Some(0));
     }
 
     #[test]
     fn test_index_of_dq_not_at_0() {
-        let mut shifted_dequeue = VecDeque::with_capacity(4);
-        shifted_dequeue.push_back(1);
-        shifted_dequeue.push_back(2);
-        shifted_dequeue.push_back(3);
-        shifted_dequeue.push_back(4);
+        let mut shifted_dequeue = QuickDropDeque::with_capacity(4);
+        shifted_dequeue.extend_from_slice(&[1,2,3,4]);
         // head:0 buf: [1,2,3,4]
-        shifted_dequeue.pop_front();
-        shifted_dequeue.pop_front();
+        shifted_dequeue.drop_front(2);
         // head:2 buf: [x,x,3,4]
-        shifted_dequeue.push_back(5);
-        shifted_dequeue.push_front(0);
-        // head:1 buf: [5,0,3,4]
+        shifted_dequeue.extend_from_slice(&[5]);
         assert_eq!(index_in_dq(&[3,4,5], &shifted_dequeue), Some(1));
     }
 }

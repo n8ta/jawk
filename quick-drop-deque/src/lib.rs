@@ -1,17 +1,51 @@
-use std::{cmp, ptr, slice};
-use std::fs::File;
+use std::{ptr, slice};
+use std::cmp::{max, min};
 use std::mem::MaybeUninit;
+use std::ops::Index;
+use crate::raw_vec::RawVec;
+
+mod raw_vec;
 
 pub struct QuickDropDeque {
     head: usize,
     tail: usize,
-    buf: Vec<u8>,
+    buf: RawVec,
+}
+
+impl From<Vec<u8>> for QuickDropDeque {
+    fn from(vec: Vec<u8>) -> Self {
+        let mut dq = QuickDropDeque::with_capacity(vec.len());
+        dq.extend_from_slice(&vec);
+        dq
+    }
+}
+
+impl Index<usize> for QuickDropDeque {
+    type Output = u8;
+
+    #[inline]
+    fn index(&self, index: usize) -> &u8 {
+        self.get(index).expect("Out of bounds access")
+    }
 }
 
 impl QuickDropDeque {
     pub fn new() -> Self {
         let cap = 4;
-        QuickDropDeque { tail: 0, head: 0, buf: Vec::with_capacity(cap) }
+        let buf = RawVec::with_capacity(cap);
+        QuickDropDeque { tail: 0, head: 0, buf }
+    }
+    pub fn with_capacity(cap: usize) -> Self {
+        let buf = RawVec::with_capacity(cap);
+        QuickDropDeque { tail: 0, head: 0, buf }
+    }
+    pub fn get(&self, index: usize) -> Option<&u8> {
+        if index < self.len() {
+            let idx = self.wrap_add(self.tail, index);
+            unsafe { Some(&*self.ptr().add(idx)) }
+        } else {
+            None
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -26,11 +60,10 @@ impl QuickDropDeque {
         self.buf.capacity()
     }
 
-    fn drop_front(&mut self, num: usize) {
+    pub fn drop_front(&mut self, num: usize) {
         if self.len() < num {
             panic!("Cannot drop more elements than exist in deque");
         }
-        let tail = self.tail;
         self.tail = self.wrap_add(self.tail, num);
     }
 
@@ -39,7 +72,7 @@ impl QuickDropDeque {
         // buffer without it being full emerge
         debug_assert!(self.is_full());
         let old_cap = self.cap();
-        self.buf.reserve_exact(old_cap);
+        self.buf.reserve_exact(old_cap, old_cap);
         assert!(self.cap() == old_cap * 2);
         unsafe {
             self.handle_capacity_increase(old_cap);
@@ -96,7 +129,7 @@ impl QuickDropDeque {
         }
     }
     fn ptr(&self) -> *mut u8 {
-        self.buf.as_ptr() as *mut u8
+        self.buf.ptr()
     }
 
     pub fn reserve_exact(&mut self, additional: usize) {
@@ -112,20 +145,18 @@ impl QuickDropDeque {
             .expect("capacity overflow");
 
         if new_cap > old_cap {
-            self.buf.reserve_exact(new_cap);
+            self.buf.reserve_exact(used_cap, new_cap - used_cap);
             unsafe {
                 self.handle_capacity_increase(old_cap);
             }
         }
     }
     pub fn extend_from_slice(&mut self, slice: &[u8]) {
+        if self.cap() - self.len() < slice.len() {
+            self.reserve(self.cap() - slice.len());
+        }
         let mut iter = slice.iter();
         while let Some(element) = iter.next() {
-            if self.len() == self.capacity() {
-                let (lower, _) = iter.size_hint();
-                self.reserve(lower.saturating_add(1));
-            }
-
             let head = self.head;
             self.head = self.wrap_add(self.head, 1);
             unsafe {

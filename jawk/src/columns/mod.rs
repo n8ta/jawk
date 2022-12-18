@@ -1,17 +1,16 @@
 mod lazily_split_line;
 mod index_of;
 mod borrowing_split;
-mod file_reader;
+mod file_record_reader;
 
 use std::fs::File;
-use crate::columns::file_reader::FileReader;
+use crate::columns::file_record_reader::FileReader;
 use crate::columns::lazily_split_line::LazilySplitLine;
 use crate::printable_error::PrintableError;
 
 pub struct Columns {
     files: Vec<String>,
-    current_record: LazilySplitLine,
-    file_reader: FileReader,
+    reader: FileReader,
 }
 
 impl Columns {
@@ -19,17 +18,16 @@ impl Columns {
         files.reverse();
         Columns {
             files,
-            current_record: LazilySplitLine::new(),
-            file_reader: FileReader::new(),
+            reader: FileReader::new(),
         }
     }
 
     pub fn get(&mut self, column: usize) -> String {
-        match self.current_record.get(column) {
+        match self.reader.get(column) {
             None => "".to_string(),
             Some(bytes) => {
                 // TODO: check utf8
-                unsafe { String::from_utf8_unchecked(bytes.to_vec()) }
+                unsafe { String::from_utf8_unchecked(bytes) }
             }
         }
     }
@@ -40,7 +38,7 @@ impl Columns {
                 Ok(f) => f,
                 Err(err) => return Err(PrintableError::new(format!("Failed to open file {}\n{}", file_path, err))),
             };
-            self.file_reader.next_file(file, file_path);
+            self.reader.next_file(file, file_path);
             Ok(true)
         } else {
             Ok(false)
@@ -49,8 +47,7 @@ impl Columns {
 
     pub fn next_line(&mut self) -> Result<bool, PrintableError> {
         loop {
-            if self.file_reader.try_read_record_into_buf(self.current_record.content_buffer())? {
-                self.current_record.calculate_columns();
+            if self.reader.try_next_record()? {
                 return Ok(true);
             };
             if self.next_file()? { continue; } else { return Ok(false); }
@@ -58,12 +55,13 @@ impl Columns {
     }
 
     pub fn set_record_sep(&mut self, value: String) {
-        self.file_reader.set_rs(value.as_bytes().to_vec())
+        self.reader.set_rs(value.as_bytes().to_vec())
     }
 
     pub fn set_field_sep(&mut self, value: String) {
-        let bytes = value.as_bytes().to_vec();
-        self.current_record.set_fs(bytes)
+        // TODO: FS
+        // let bytes = value.as_bytes().to_vec();
+        // self.reader.set_fs(bytes)
     }
 }
 
