@@ -151,19 +151,31 @@ impl QuickDropDeque {
             }
         }
     }
+
     pub fn extend_from_slice(&mut self, slice: &[u8]) {
-        if self.cap() - self.len() < slice.len() {
-            self.reserve(self.cap() - slice.len());
+        let free_bytes = self.cap()-self.len();
+        if slice.len() > free_bytes {
+            self.reserve(slice.len() - free_bytes);
         }
-        let mut iter = slice.iter();
-        while let Some(element) = iter.next() {
-            let head = self.head;
-            self.head = self.wrap_add(self.head, 1);
-            unsafe {
-                self.buffer_write(head, *element);
-            }
+        unsafe {
+            self.copy_slice(self.head, slice);
         }
+        self.head = self.wrap_add(self.head, slice.len());
     }
+
+    // pub fn extend_from_slice(&mut self, slice: &[u8]) {
+    //     if self.cap() - self.len() < slice.len() {
+    //         self.reserve(self.cap() - slice.len());
+    //     }
+    //     let mut iter = slice.iter();
+    //     while let Some(element) = iter.next() {
+    //         let head = self.head;
+    //         self.head = self.wrap_add(self.head, 1);
+    //         unsafe {
+    //             self.buffer_write(head, *element);
+    //         }
+    //     }
+    // }
 
     /// Writes an element into the buffer, moving it.
     #[inline]
@@ -196,10 +208,26 @@ impl QuickDropDeque {
         self.cap() - 1
     }
 
-
     unsafe fn buffer_as_slice(&self) -> &[MaybeUninit<u8>] {
         unsafe { slice::from_raw_parts(self.ptr() as *mut MaybeUninit<u8>, self.cap()) }
     }
+
+    unsafe fn copy_slice(&mut self, dst: usize, src: &[u8]) {
+        debug_assert!(src.len() <= self.cap());
+        let head_room = self.cap() - dst;
+        if src.len() <= head_room {
+            unsafe {
+                ptr::copy_nonoverlapping(src.as_ptr(), self.ptr().add(dst), src.len());
+            }
+        } else {
+            let (left, right) = src.split_at(head_room);
+            unsafe {
+                ptr::copy_nonoverlapping(left.as_ptr(), self.ptr().add(dst), left.len());
+                ptr::copy_nonoverlapping(right.as_ptr(), self.ptr(), right.len());
+            }
+        }
+    }
+
 
     #[inline]
     pub fn as_slices(&self) -> (&[u8], &[u8]) {
@@ -297,13 +325,12 @@ mod tests {
         let mut deque = QuickDropDeque::new();
 
         for _ in 0..50 {
-            let slice = [1,2,3,4,5,6,7,8,9,10];
+            let slice = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
             deque.extend_from_slice(&slice);
             std_dq.extend(&slice);
             std_dq.drain(0..5);
             deque.drop_front(5);
             println!("{:?}", deque.as_slices());
-
         }
         println!("{:?}", std_dq.as_slices());
         assert_eq!(std_dq.into_iter().collect::<Vec<u8>>(), to_vec(&deque))
