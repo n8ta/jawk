@@ -15,7 +15,7 @@ That chart is not a mistake. A normal run of this program for jawk (on my 2015 l
 ### Worse case scenario for jawk (short program, JIT provides no benefit)
 ![A histogram showing onetrueawk as the fastest followed by jawk](./assets/begin.png)
 
-Here we see jawk is doing okay but the interpreters are much closer and onetrueawk, the lightest of the interpreter, is generally slightly faster.
+Here we see jawk is doing okay but the interpreters are much closer and onetrueawk, the lightest of the interpreters, is generally slightly faster.
 
 ### Practical example
 
@@ -28,6 +28,16 @@ entirety up front (they should be streamed as needed).
 
 If gnu-lightjib the backing jit compiler doesn't have a backend for your system jawk will fallback to an interpreter
 and lose most performance gains.
+
+## Character encodings
+The awk spec states that 
+
+>The index, length, match, and substr functions should not be confused with similar functions in the ISO C standard; the awk versions deal with characters, while the ISO C standard deals with bytes.
+
+To this end jawk uses utf8 codepoints as characters for these functions. If invalid utf-8 data is parsed from a file jawk will emit a warning and any 
+length calculation will return bytes for a non utf-8 compliant string.
+
+jawk does not support any other locale eg. `LC_ALL=C` yet.
 
 ## How to use
 
@@ -65,11 +75,12 @@ Pattern Ranges
 6. Do we actually need numeric strings??? (Yes there are now commented tests for them)
 7. The columns runtime needs to be much faster and lazier.
 7. Make this compile on Windows!
-8. Divide by 0 needs to print an error (tests for this will probably need to be bespoke)
+8. Divide by 0 needs to print an error
 
 ## License
-GNU Libjit is GPLv2. 
-This project is MIT licensed.
+GNU Libjit is GPLv2. (./gnu-libjit-sys/LICENSE)
+Mawk is GPLv2 (./mawk-regex-sys/LICENSE)
+This project is GPLv2.
 
 ## Running the tests
 
