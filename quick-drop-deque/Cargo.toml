@@ -1,0 +1,9 @@
+[package]
+name = "quick-drop-deque"
+description = "Pronounced quick drop deck. Stdlib is missign an efficient pop_front(num: usize) impl."
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
