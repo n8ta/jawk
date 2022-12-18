@@ -29,8 +29,8 @@ is doing less work. I will update this chart when the new record splitter does c
 
 ## Limitations
 
-jawk doesn't support all of awk yet. Lots of builtins are missing and IO other than print is barely optimized. Files are read in there 
-entirety up front (they should be streamed as needed). 
+jawk doesn't support all of awk yet. Lots of builtins are missing, statements must be terminated with a `;` not a new line, and numeric strings 
+have not yet been implemented. 
 
 If gnu-lightjib the backing jit compiler doesn't have a backend for your system jawk will fallback to an interpreter
 and lose most performance gains.
