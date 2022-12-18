@@ -17,9 +17,15 @@ That chart is not a mistake. A normal run of this program for jawk (on my 2015 l
 
 Here we see jawk is doing okay but the interpreters are much closer and onetrueawk, the lightest of the interpreters, is generally slightly faster.
 
-### Practical example
+### (Slightly more) practical example
+Reading a 300MB csv file, storing each line, then printing the last one.
 
-(TODO)
+![A histogram showing jawk as the fastest by 3x and onetrueawk as the slowest by 15x. A second histgram to the right of it shows the chart with onetrueawk removed to make it easier to see the differences of the faster awks. Jawk is the fastest mean 130ms, then mawk 500m, then goawk 700ms, then gawks 2000ms](./assets/practical.png)
+
+The second histogram omits onetrueawk to make the distinctions between the others clearer.
+
+This is a slightly unfair comparison as I have not yet implemented field splitting so jawk 
+is doing less work. I will update this chart when the new record splitter does columns as well.
 
 ## Limitations
 
