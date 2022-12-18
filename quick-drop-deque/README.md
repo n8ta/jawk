@@ -5,7 +5,8 @@
 The stdlib VecDeque has no way to remove N elements from the front of the deque in O(1) time. 
 This may be because they need to handle types that need `Drop` functions but I don't need to handle that
 since I'm just using bytes. This deque is mostly copied from the stdlib with 1 additional method `drop_front`.
-It is specialized for u8 but could be easily modified to handle any non-drop type.
+It is specialized for u8 but could be easily modified to handle any non-drop type. I also modify extend_from_slice 
+use memcpy's instead of iterators.
 
 # 💣 Warning 💣
 I hacked a copy of RawVec out of the stdlib in about an hour and a half to be specific to u8 and use the global allocator. This was needed 
