@@ -1,7 +1,8 @@
-
 #[cfg(test)]
 mod tests {
     use std::collections::VecDeque;
+    use std::env::temp_dir;
+    use std::fs::File;
     use crate::QuickDropDeque;
     use super::*;
 
@@ -19,16 +20,85 @@ mod tests {
     }
 
     #[test]
+    fn test_from_small_file() {
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir().unwrap();
+        let file_path_1 = temp_dir.path().join("file1.txt");
+        let mut bytes = vec![];
+        for i in 0..10 {
+            bytes.push(i);
+        }
+        std::fs::write(file_path_1.clone(), bytes).unwrap();
+
+        let mut file = File::open(file_path_1).unwrap();
+
+        let mut dq = QuickDropDeque::new();
+        assert_eq!(dq.read(&mut file).unwrap(), 10);
+        assert_eq!(to_vec(&dq), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    }
+
+    #[test]
+    fn test_from_large_file() {
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir().unwrap();
+        let file_path_1 = temp_dir.path().join("file1.txt");
+        let mut bytes = vec![];
+        for i in 0..10_000 {
+            bytes.push((i % 255) as u8);
+        }
+        std::fs::write(file_path_1.clone(), &bytes).unwrap();
+
+        let mut file = File::open(file_path_1).unwrap();
+
+        let mut dq = QuickDropDeque::new();
+
+        while let bytes = dq.read(&mut file).unwrap() {
+            println!("Read {}", bytes);
+            if bytes == 0 { break; }
+        }
+        assert_eq!(to_vec(&dq), bytes);
+    }
+
+    #[test]
+    fn test_disjoint_reads() {
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir().unwrap();
+        let file_path_1 = temp_dir.path().join("file1.txt");
+        let mut bytes = vec![];
+        for i in 0..10_000 {
+            bytes.push((i % 255) as u8);
+        }
+        std::fs::write(file_path_1.clone(), &bytes).unwrap();
+
+        let mut file = File::open(file_path_1).unwrap();
+
+        // 8192
+        let mut dq = QuickDropDeque::with_io_size(8, 4);
+
+        dq.extend_from_slice(&[0, 1, 2, 3, 4, 5]);
+        // [0, 1, 2, 3, 4, 5, _, _ ]
+
+        dq.drop_front(3);
+        // [_, _, _, 3, 4, 5, _, _ ]
+
+        assert_eq!(4, dq.read(&mut file).unwrap());
+        assert_eq!(to_vec(&dq), vec![3, 4, 5, 0, 1, 2, 3]);
+    }
+
+    #[test]
     fn test_regular_dq() {
         let mut dq = VecDeque::with_capacity(4);
-        dq.extend(vec![0,1,2,3]);
+        dq.extend(vec![0, 1, 2, 3]);
         assert_eq!(dq.len(), 4)
     }
 
     #[test]
     fn test_len_4() {
         let mut dq = QuickDropDeque::with_capacity(4);
-        dq.extend_from_slice(&[0,1,2,3]);
+        dq.extend_from_slice(&[0, 1, 2, 3]);
         assert_eq!(dq.len(), 4)
     }
 
@@ -36,8 +106,8 @@ mod tests {
     #[test]
     fn test_len_8() {
         let mut dq = QuickDropDeque::with_capacity(4);
-        dq.extend_from_slice(&[0,1,2,3]);
-        dq.extend_from_slice(&[0,1,2,3]);
+        dq.extend_from_slice(&[0, 1, 2, 3]);
+        dq.extend_from_slice(&[0, 1, 2, 3]);
         assert_eq!(dq.len(), 8)
     }
 
@@ -92,20 +162,20 @@ mod tests {
 
     #[test]
     fn from_vec_len_pow2() {
-        let mut d = QuickDropDeque::from(vec![0,1,2,3]);
+        let mut d = QuickDropDeque::from(vec![0, 1, 2, 3]);
         assert_eq!(d.len(), 4);
     }
 
     #[test]
     fn from_len_extend_exactly_to_pow2() {
-        let mut d = QuickDropDeque::from(vec![0,1,2,3]);
-        d.extend_from_slice(&[4,5,6,7]);
+        let mut d = QuickDropDeque::from(vec![0, 1, 2, 3]);
+        d.extend_from_slice(&[4, 5, 6, 7]);
         assert_eq!(d.len(), 8);
     }
 
     #[test]
     fn from_vec_len_non_pow2() {
-        let mut d = QuickDropDeque::from(vec![0,1,2,3,4]);
+        let mut d = QuickDropDeque::from(vec![0, 1, 2, 3, 4]);
         assert_eq!(d.len(), 5)
     }
 }

@@ -1,4 +1,6 @@
-use std::{cmp, ptr, slice};
+use std::{cmp, io, ptr, slice};
+use std::fs::File;
+use std::io::Read;
 use std::mem::MaybeUninit;
 use std::ops::Index;
 use crate::raw_vec::RawVec;
@@ -11,6 +13,7 @@ pub struct QuickDropDeque {
     head: usize,
     tail: usize,
     buf: RawVec,
+    io_size: usize,
 }
 
 impl From<Vec<u8>> for QuickDropDeque {
@@ -31,16 +34,23 @@ impl Index<usize> for QuickDropDeque {
     }
 }
 
+const DEFAULT_READ_SIZE: usize = 1024 * 8;
+
 impl QuickDropDeque {
     pub fn new() -> Self {
         let cap = 4;
         let buf = RawVec::with_capacity(cap);
-        QuickDropDeque { tail: 0, head: 0, buf }
+        QuickDropDeque { tail: 0, head: 0, buf, io_size: DEFAULT_READ_SIZE }
     }
     pub fn with_capacity(cap: usize) -> Self {
-        let cap = cmp::max(cap + 1, 2).next_power_of_two();
+        let cap = cmp::max(cap , 2).next_power_of_two();
         let buf = RawVec::with_capacity(cap);
-        QuickDropDeque { tail: 0, head: 0, buf }
+        QuickDropDeque { tail: 0, head: 0, buf, io_size: DEFAULT_READ_SIZE }
+    }
+    pub fn with_io_size(cap: usize, io_size: usize) -> Self {
+        let cap = cmp::max(cap , 2).next_power_of_two();
+        let buf = RawVec::with_capacity(cap);
+        QuickDropDeque { tail: 0, head: 0, buf, io_size }
     }
     pub fn get(&self, index: usize) -> Option<&u8> {
         if index < self.len() {
@@ -65,10 +75,37 @@ impl QuickDropDeque {
     }
 
     pub fn drop_front(&mut self, num: usize) {
-        if self.len() < num {
-            panic!("Cannot drop more elements than exist in deque");
-        }
+        debug_assert!(self.len() >= num);
         self.tail = self.wrap_add(self.tail, num);
+    }
+
+    pub fn read(&mut self, file: &mut File) -> io::Result<usize> {
+        let free_bytes = self.cap() - self.len();
+        if free_bytes <= self.io_size {
+            self.reserve(self.io_size);
+        }
+        debug_assert!(self.capacity() - self.len() >= self.io_size);
+        let head_room = self.cap() - self.head;
+
+        let bytes_read = if self.io_size <= head_room {
+            unsafe {
+                let mut dest_slice = unsafe { std::slice::from_raw_parts_mut(self.ptr().add(self.head), self.io_size) };
+                file.read(dest_slice)?
+            }
+        } else {
+            unsafe {
+                let mut slice_one = unsafe { std::slice::from_raw_parts_mut(self.ptr().add(self.head), head_room) };
+                let mut bytes_read = file.read(&mut slice_one)?;
+                if bytes_read == head_room {
+                    let mut slice_two = unsafe { std::slice::from_raw_parts_mut(self.ptr(), self.io_size-head_room) };
+                    bytes_read += file.read(&mut slice_two)?;
+
+                }
+                bytes_read
+            }
+        };
+        self.head = self.wrap_add(self.head, bytes_read);
+        Ok(bytes_read)
     }
 
     #[allow(dead_code)]
@@ -158,29 +195,15 @@ impl QuickDropDeque {
     }
 
     pub fn extend_from_slice(&mut self, slice: &[u8]) {
-        let free_bytes = self.cap()-self.len();
+        let free_bytes = self.cap() - self.len();
         if slice.len() >= free_bytes {
-            self.reserve(self.len()+slice.len()+1);
+            self.reserve(self.len() + slice.len() + 1);
         }
         unsafe {
             self.copy_slice(self.head, slice);
         }
         self.head = self.wrap_add(self.head, slice.len());
     }
-
-    // pub fn extend_from_slice(&mut self, slice: &[u8]) {
-    //     if self.cap() - self.len() < slice.len() {
-    //         self.reserve(self.cap() - slice.len());
-    //     }
-    //     let mut iter = slice.iter();
-    //     while let Some(element) = iter.next() {
-    //         let head = self.head;
-    //         self.head = self.wrap_add(self.head, 1);
-    //         unsafe {
-    //             self.buffer_write(head, *element);
-    //         }
-    //     }
-    // }
 
     /// Writes an element into the buffer, moving it.
     #[inline]
@@ -236,8 +259,6 @@ impl QuickDropDeque {
         }
     }
 
-
-    #[inline]
     pub fn as_slices(&self) -> (&[u8], &[u8]) {
         // Safety:
         // - `self.head` and `self.tail` in a ring buffer are always valid indices.
