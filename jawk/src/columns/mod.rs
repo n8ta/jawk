@@ -27,7 +27,9 @@ impl Columns {
             None => "".to_string(),
             Some(bytes) => {
                 // TODO: check utf8
-                unsafe { String::from_utf8_unchecked(bytes) }
+                let s = unsafe { String::from_utf8_unchecked(bytes) };
+                println!("\tgot {}", s);
+                s
             }
         }
     }
@@ -50,7 +52,11 @@ impl Columns {
             if self.reader.try_next_record()? {
                 return Ok(true);
             };
-            if self.next_file()? { continue; } else { return Ok(false); }
+            if self.next_file()? {
+                continue;
+            } else {
+                return Ok(false);
+            }
         }
     }
 
@@ -59,9 +65,7 @@ impl Columns {
     }
 
     pub fn set_field_sep(&mut self, value: String) {
-        // TODO: FS
-        // let bytes = value.as_bytes().to_vec();
-        // self.reader.set_fs(bytes)
+        let bytes = value.as_bytes().to_vec();
     }
 }
 
@@ -112,5 +116,48 @@ fn test_files() {
     assert_eq!(cols.get(1), "7");
     assert_eq!(cols.get(0), "7 8 9");
     assert_eq!(cols.next_line().unwrap(), false);
+    assert_eq!(cols.next_line().unwrap(), false);
+}
+
+#[test]
+fn test_files_set_rs() {
+    use tempfile::tempdir;
+
+    let temp_dir = tempdir().unwrap();
+    let file_path_1 = temp_dir.path().join("file1.txt");
+    std::fs::write(file_path_1.clone(), "a b c\n-ZZZ1-ZZZ2").unwrap();
+
+    let mut cols = Columns::new(vec![
+        file_path_1.to_str().unwrap().to_string(),
+    ]);
+
+    assert!(cols.next_line().unwrap());
+    assert_eq!(cols.get(0), "a b c");
+    cols.set_record_sep("-".to_string());
+    assert!(cols.next_line().unwrap());
+    assert_eq!(cols.get(0), "\n");
+    assert!(cols.next_line().unwrap());
+    assert_eq!(cols.get(0), "ZZZ1");
+    assert!(cols.next_line().unwrap());
+    assert_eq!(cols.get(0), "ZZZ2");
+    assert_eq!(cols.next_line().unwrap(), false);
+    assert_eq!(cols.next_line().unwrap(), false);
+}
+
+
+#[test]
+fn test_simple_one_line() {
+    use tempfile::tempdir;
+
+    let temp_dir = tempdir().unwrap();
+    let file_path_1 = temp_dir.path().join("file1.txt");
+    std::fs::write(file_path_1.clone(), "1 2 3\n").unwrap();
+
+    let mut cols = Columns::new(vec![
+        file_path_1.to_str().unwrap().to_string(),
+    ]);
+
+    assert!(cols.next_line().unwrap());
+    assert_eq!(cols.get(0), "1 2 3");
     assert_eq!(cols.next_line().unwrap(), false);
 }

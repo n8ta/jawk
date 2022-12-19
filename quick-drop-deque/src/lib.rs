@@ -1,5 +1,4 @@
 use std::{ptr, slice};
-use std::cmp::{max, min};
 use std::mem::MaybeUninit;
 use std::ops::Index;
 use crate::raw_vec::RawVec;
@@ -14,7 +13,9 @@ pub struct QuickDropDeque {
 
 impl From<Vec<u8>> for QuickDropDeque {
     fn from(vec: Vec<u8>) -> Self {
-        let mut dq = QuickDropDeque::with_capacity(vec.len());
+        let len = vec.len();
+        let cap = if len == 0 { 4 } else { (len+1).next_power_of_two() };
+        let mut dq = QuickDropDeque::with_capacity(cap);
         dq.extend_from_slice(&vec);
         dq
     }
@@ -52,7 +53,8 @@ impl QuickDropDeque {
         count(self.tail, self.head, self.cap())
     }
 
-    fn is_full(&self) -> bool {
+    #[allow(dead_code)]
+    pub fn is_full(&self) -> bool {
         self.cap() - self.len() == 1
     }
 
@@ -67,6 +69,7 @@ impl QuickDropDeque {
         self.tail = self.wrap_add(self.tail, num);
     }
 
+    #[allow(dead_code)]
     fn grow(&mut self) {
         // Extend or possibly remove this assertion when valid use-cases for growing the
         // buffer without it being full emerge
@@ -125,7 +128,7 @@ impl QuickDropDeque {
             self.cap()
         );
         unsafe {
-            ptr::copy_nonoverlapping(unsafe { self.ptr() }.add(src), self.ptr().add(dst), len);
+            ptr::copy_nonoverlapping(self.ptr().add(src), self.ptr().add(dst), len);
         }
     }
     fn ptr(&self) -> *mut u8 {
@@ -153,9 +156,9 @@ impl QuickDropDeque {
     }
 
     pub fn extend_from_slice(&mut self, slice: &[u8]) {
-        let free_bytes = self.cap()-self.len();
-        if slice.len() > free_bytes {
-            self.reserve(slice.len() - free_bytes);
+        let free_bytes = self.cap() - self.len();
+        if slice.len()+1 > free_bytes {
+            self.reserve(slice.len()+1);
         }
         unsafe {
             self.copy_slice(self.head, slice);
@@ -179,6 +182,7 @@ impl QuickDropDeque {
 
     /// Writes an element into the buffer, moving it.
     #[inline]
+    #[allow(dead_code)]
     unsafe fn buffer_write(&mut self, off: usize, value: u8) {
         unsafe {
             ptr::write(self.ptr().add(off), value);
@@ -186,6 +190,7 @@ impl QuickDropDeque {
     }
 
     #[inline]
+    #[allow(dead_code)]
     fn wrap_index(&self, idx: usize) -> usize {
         wrap_index(idx, self.cap())
     }
@@ -200,6 +205,7 @@ impl QuickDropDeque {
     /// Returns the index in the underlying buffer for a given logical element
     /// index - subtrahend.
     #[inline]
+    #[allow(dead_code)]
     fn wrap_sub(&self, idx: usize, subtrahend: usize) -> usize {
         wrap_index(idx.wrapping_sub(subtrahend), self.cap())
     }
@@ -334,6 +340,25 @@ mod tests {
         }
         println!("{:?}", std_dq.as_slices());
         assert_eq!(std_dq.into_iter().collect::<Vec<u8>>(), to_vec(&deque))
+    }
+
+    #[test]
+    fn from_vec_len_pow2() {
+        let mut d = QuickDropDeque::from(vec![0,1,2,3]);
+        assert_eq!(d.len(), 4);
+    }
+
+    #[test]
+    fn from_len_extend_exactly_to_pow2() {
+        let mut d = QuickDropDeque::from(vec![0,1,2,3]);
+        d.extend_from_slice(&[4,5,6,7]);
+        assert_eq!(d.len(), 8);
+    }
+
+    #[test]
+    fn from_vec_len_non_pow2() {
+        let mut d = QuickDropDeque::from(vec![0,1,2,3,4]);
+        assert_eq!(d.len(), 5)
     }
 }
 

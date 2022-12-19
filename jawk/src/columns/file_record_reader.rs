@@ -1,11 +1,7 @@
 use std::cmp::min;
-use std::collections::VecDeque;
 use std::fs::File;
 use std::io::Read;
-use lexical_core::BUFFER_SIZE;
-use crate::columns::borrowing_split::{borrowing_split, Split};
 use crate::columns::index_of::index_in_dq;
-use crate::columns::lazily_split_line::LazilySplitLine;
 use crate::printable_error::PrintableError;
 
 use quick_drop_deque::QuickDropDeque;
@@ -22,7 +18,7 @@ pub struct FileReader {
     slop: QuickDropDeque,
     rs: Vec<u8>,
     read_buf: [u8; BUF_LEN],
-    index_of_next_record: usize,
+    end_of_current_record: usize,
 }
 
 impl FileReader {
@@ -40,7 +36,7 @@ impl FileReader {
             file: None,
             rs: vec![10], //space
             read_buf: [0; BUF_LEN],
-            index_of_next_record: 0,
+            end_of_current_record: 0,
         }
     }
 
@@ -50,8 +46,6 @@ impl FileReader {
 
     #[inline(never)]
     pub fn try_next_record(&mut self) -> Result<bool, PrintableError> {
-        // Drop last record if any
-        self.slop.drop_front(self.index_of_next_record);
 
         let file = if let Some(file) = &mut self.file {
             file
@@ -59,10 +53,20 @@ impl FileReader {
             return Ok(false);
         };
 
+        // Drop last record if any
+        self.slop.drop_front(self.end_of_current_record);
+
+        // Drop the record sep from the front if it's there. When the user changes RS read we want
+        // to retain the RS from the prior record.
+        let starts_with_rs = index_in_dq(&self.rs, &self.slop) == Some(0);
+        if starts_with_rs {
+            self.slop.drop_front(self.rs.len())
+        }
+
         loop {
             // Check if our last read grabbed more than 1 record
             if let Some(idx) = index_in_dq(&self.rs, &self.slop) {
-                self.index_of_next_record = idx+self.rs.len();
+                self.end_of_current_record = idx;
                 return Ok(true);
             }
 
@@ -71,7 +75,7 @@ impl FileReader {
 
             if bytes_read == 0 {
                 // No new data!
-                self.index_of_next_record = self.slop.len();
+                self.end_of_current_record = self.slop.len();
 
                 if self.slop.len() != 0 {
                     // Reached EOF but we have slop from last read without RS completing it
@@ -90,14 +94,13 @@ impl FileReader {
 
 
     pub fn get(&mut self, idx: usize) -> Option<Vec<u8>> {
-        // TODO: Columns
-        if self.index_of_next_record == 0 {
+        if self.end_of_current_record == 0 {
             return None
         }
-        let mut result = Vec::with_capacity(self.index_of_next_record);
+        let mut result = Vec::with_capacity(self.end_of_current_record);
 
         let slices = self.slop.as_slices();
-        let bytes_to_move = self.index_of_next_record - self.rs.len();
+        let bytes_to_move = self.end_of_current_record;
         let elements_from_left = min(slices.0.len(), bytes_to_move);
         result.extend_from_slice(&slices.0[0..elements_from_left]);
         if elements_from_left < bytes_to_move {

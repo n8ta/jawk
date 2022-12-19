@@ -1,18 +1,17 @@
 use core::alloc::LayoutError;
 use core::cmp;
-use core::mem::{self, ManuallyDrop, MaybeUninit};
 use core::ops::Drop;
 use core::ptr::{self, NonNull};
 use core::slice;
-use std::{alloc};
 use std::alloc::{handle_alloc_error, Layout};
 
 pub struct TryReserveError {
     pub kind: TryReserveErrorKind,
 }
+
 impl TryReserveError {
     pub fn kind(&self) -> TryReserveErrorKind {
-         self.kind.clone()
+        self.kind.clone()
     }
 }
 
@@ -37,6 +36,7 @@ pub enum TryReserveErrorKind {
 }
 
 #[cfg(not(no_global_oom_handling))]
+#[allow(dead_code)]
 enum AllocInit {
     /// The contents of the new memory are uninitialized.
     Uninitialized,
@@ -72,12 +72,14 @@ pub struct RawVec {
     cap: usize,
 }
 
+#[allow(dead_code)]
 impl RawVec {
     /// HACK(Centril): This exists because stable `const fn` can only call stable `const fn`, so
     /// they cannot call `Self::new()`.
     ///
     /// If you change `RawVec<T>::new` or dependencies, please take care to not introduce anything
     /// that would truly const-call something unstable.
+    #[allow(dead_code)]
     pub const NEW: Self = Self::new();
 
     /// Creates the biggest possible `RawVec` (on the system heap)
@@ -99,6 +101,7 @@ impl RawVec {
     }
 }
 
+#[allow(dead_code)]
 impl RawVec {
     // Tiny Vecs are dumb. Skip to:
     // - 8 if the element size is 1, because any heap allocators is likely
@@ -156,7 +159,7 @@ impl RawVec {
         // matches the size requested. If that ever changes, the capacity
         // here should change to `ptr.len() / mem::size_of::<T>()`.
         Self {
-            ptr: unsafe { ptr as *mut u8 },
+            ptr: ptr as *mut u8,
             cap: capacity,
         }
     }
@@ -178,9 +181,7 @@ impl RawVec {
     }
 
 
-
     fn current_memory(&self) -> Option<(NonNull<u8>, Layout)> {
-
         unsafe {
             let layout = Layout::array::<u8>(self.cap).unwrap_unchecked();
             Some((NonNull::new(self.ptr).unwrap_unchecked(), layout))
@@ -308,7 +309,7 @@ impl RawVec {
         // Allocators currently return a `NonNull<[u8]>` whose length matches
         // the size requested. If that ever changes, the capacity here should
         // change to `ptr.len() / mem::size_of::<T>()`.
-        self.ptr = unsafe { ptr.as_ptr() as *mut u8 };
+        self.ptr = ptr.as_ptr() as *mut u8;
         self.cap = cap;
     }
 
@@ -396,11 +397,9 @@ fn finish_grow(
 
     if let Some((ptr, old_layout)) = current_memory {
         debug_assert_eq!(old_layout.align(), new_layout.align());
-        unsafe {
-            // The allocator checks for alignment equality
-            // intrinsics::assume(old_layout.align() == new_layout.align());
-            grow_global_allocator(ptr, old_layout, new_layout)
-        }
+        // The allocator checks for alignment equality
+        // intrinsics::assume(old_layout.align() == new_layout.align());
+        grow_global_allocator(ptr, old_layout, new_layout)
     } else {
         unsafe {
             let raw_ptr = std::alloc::alloc(new_layout);
@@ -448,7 +447,7 @@ impl Drop for RawVec {
     /// Frees the memory owned by the `RawVec` *without* trying to drop its contents.
     fn drop(&mut self) {
         if let Some((ptr, layout)) = self.current_memory() {
-            unsafe { deallocate_global_allocator(ptr, layout) }
+            deallocate_global_allocator(ptr, layout)
         }
     }
 }
