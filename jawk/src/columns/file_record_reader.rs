@@ -60,7 +60,6 @@ impl FileReader {
                 return Ok(true);
             }
             // Nope, then read some bytes into buf then copy to slop
-
             let bytes_read = self.slop.read(&mut file.file).unwrap(); // TODO: unwrap
 
             if bytes_read == 0 {

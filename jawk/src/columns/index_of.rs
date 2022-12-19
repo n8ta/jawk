@@ -39,6 +39,8 @@ pub fn index_in_dq(needle: &[u8], haystack: &QuickDropDeque) -> Option<usize> {
         }
         return None;
     }
+    // TODO: This is way slower than the len(needle) == 1 branch
+    // Do people care about record splitting on things like \r\n or ® ?
     for idx in 0..(hlen-nlen)+1 {
         let mut matches = true;
         for needle_idx in 0..nlen {
