@@ -27,9 +27,7 @@ impl Columns {
             None => "".to_string(),
             Some(bytes) => {
                 // TODO: check utf8
-                let s = unsafe { String::from_utf8_unchecked(bytes) };
-                println!("\tgot {}", s);
-                s
+                unsafe { String::from_utf8_unchecked(bytes) }
             }
         }
     }

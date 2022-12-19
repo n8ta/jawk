@@ -43,12 +43,12 @@ impl QuickDropDeque {
         QuickDropDeque { tail: 0, head: 0, buf, io_size: DEFAULT_READ_SIZE }
     }
     pub fn with_capacity(cap: usize) -> Self {
-        let cap = cmp::max(cap , 2).next_power_of_two();
+        let cap = cmp::max(cap, 2).next_power_of_two();
         let buf = RawVec::with_capacity(cap);
         QuickDropDeque { tail: 0, head: 0, buf, io_size: DEFAULT_READ_SIZE }
     }
     pub fn with_io_size(cap: usize, io_size: usize) -> Self {
-        let cap = cmp::max(cap , 2).next_power_of_two();
+        let cap = cmp::max(cap, 2).next_power_of_two();
         let buf = RawVec::with_capacity(cap);
         QuickDropDeque { tail: 0, head: 0, buf, io_size }
     }
@@ -79,6 +79,7 @@ impl QuickDropDeque {
         self.tail = self.wrap_add(self.tail, num);
     }
 
+    #[inline(never)]
     pub fn read(&mut self, file: &mut File) -> io::Result<usize> {
         let free_bytes = self.cap() - self.len();
         if free_bytes <= self.io_size {
@@ -88,21 +89,16 @@ impl QuickDropDeque {
         let head_room = self.cap() - self.head;
 
         let bytes_read = if self.io_size <= head_room {
-            unsafe {
-                let mut dest_slice = unsafe { std::slice::from_raw_parts_mut(self.ptr().add(self.head), self.io_size) };
-                file.read(dest_slice)?
-            }
+            let mut dest_slice = unsafe { std::slice::from_raw_parts_mut(self.ptr().add(self.head), self.io_size) };
+            file.read(dest_slice)?
         } else {
-            unsafe {
-                let mut slice_one = unsafe { std::slice::from_raw_parts_mut(self.ptr().add(self.head), head_room) };
-                let mut bytes_read = file.read(&mut slice_one)?;
-                if bytes_read == head_room {
-                    let mut slice_two = unsafe { std::slice::from_raw_parts_mut(self.ptr(), self.io_size-head_room) };
-                    bytes_read += file.read(&mut slice_two)?;
-
-                }
-                bytes_read
+            let mut slice_one = unsafe { std::slice::from_raw_parts_mut(self.ptr().add(self.head), head_room) };
+            let mut bytes_read = file.read(&mut slice_one)?;
+            if bytes_read == head_room {
+                let mut slice_two = unsafe { std::slice::from_raw_parts_mut(self.ptr(), self.io_size - head_room) };
+                bytes_read += file.read(&mut slice_two)?;
             }
+            bytes_read
         };
         self.head = self.wrap_add(self.head, bytes_read);
         Ok(bytes_read)
