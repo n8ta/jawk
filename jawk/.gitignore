@@ -1,4 +1,5 @@
 .idea
+prog.awk
 flamegraph.svg
 run3.awk
 *.swp

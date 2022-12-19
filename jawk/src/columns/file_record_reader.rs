@@ -48,6 +48,7 @@ impl FileReader {
         self.file = Some(FileWithPath { file, path })
     }
 
+    #[inline(never)]
     pub fn try_next_record(&mut self) -> Result<bool, PrintableError> {
         // Drop last record if any
         self.slop.drop_front(self.index_of_next_record);

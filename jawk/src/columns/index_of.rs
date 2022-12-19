@@ -8,7 +8,6 @@ pub fn index_of<T: PartialEq>(needle: &[T], haystack: &[T]) -> Option<usize> {
 }
 
 
-#[inline(never)]
 pub fn index_in_dq(needle: &[u8], haystack: &QuickDropDeque) -> Option<usize> {
     if needle.len() == 1 {
         let needle = needle[0];

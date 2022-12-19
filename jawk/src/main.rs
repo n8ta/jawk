@@ -35,6 +35,7 @@ mod printable_error;
 mod runtime;
 mod symbolizer;
 mod typing;
+mod optional_usize;
 
 pub const PRINTF_MAX_ARGS: usize = 128;
 
