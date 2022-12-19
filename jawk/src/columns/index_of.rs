@@ -60,14 +60,14 @@ mod index_of_tests {
 
     #[test]
     fn test_index_of_dq_0() {
-        // assert_eq!(index_in_dq(&[1, 2, 3], &QuickDropDeque::from(vec![1, 2, 3])), Some(0));
-        // assert_eq!(index_in_dq(&[2, 3], &QuickDropDeque::from(vec![1, 2, 3])), Some(1));
-        // assert_eq!(index_in_dq(&[1, 2], &QuickDropDeque::from(vec![1, 2, 3])), Some(0));
-        // assert_eq!(index_in_dq(&[1], &QuickDropDeque::from(vec![1, 2, 3])), Some(0));
-        // assert_eq!(index_in_dq(&[], &QuickDropDeque::from(vec![1, 2, 3])), Some(0));
-        // assert_eq!(index_in_dq(&[1, 2, 3], &QuickDropDeque::from(vec![])), None);
+        assert_eq!(index_in_dq(&[1, 2, 3], &QuickDropDeque::from(vec![1, 2, 3])), Some(0));
+        assert_eq!(index_in_dq(&[2, 3], &QuickDropDeque::from(vec![1, 2, 3])), Some(1));
+        assert_eq!(index_in_dq(&[1, 2], &QuickDropDeque::from(vec![1, 2, 3])), Some(0));
+        assert_eq!(index_in_dq(&[1], &QuickDropDeque::from(vec![1, 2, 3])), Some(0));
+        assert_eq!(index_in_dq(&[], &QuickDropDeque::from(vec![1, 2, 3])), Some(0));
+        assert_eq!(index_in_dq(&[1, 2, 3], &QuickDropDeque::from(vec![])), None);
         assert_eq!(index_in_dq(&[1, 2, 3], &QuickDropDeque::from(vec![0, 1, 2, 3])), Some(1));
-        // assert_eq!(index_in_dq(&[1, 2, 3,4,5,6,7,8], &QuickDropDeque::from(vec![0, 1, 2, 3])), None);
+        assert_eq!(index_in_dq(&[1, 2, 3,4,5,6,7,8], &QuickDropDeque::from(vec![0, 1, 2, 3])), None);
     }
 
     #[test]
