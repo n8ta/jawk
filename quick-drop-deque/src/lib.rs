@@ -1,9 +1,11 @@
-use std::{ptr, slice};
+use std::{cmp, ptr, slice};
 use std::mem::MaybeUninit;
 use std::ops::Index;
 use crate::raw_vec::RawVec;
 
 mod raw_vec;
+#[cfg(test)]
+mod test;
 
 pub struct QuickDropDeque {
     head: usize,
@@ -13,9 +15,8 @@ pub struct QuickDropDeque {
 
 impl From<Vec<u8>> for QuickDropDeque {
     fn from(vec: Vec<u8>) -> Self {
-        let len = vec.len();
-        let cap = if len == 0 { 4 } else { (len+1).next_power_of_two() };
-        let mut dq = QuickDropDeque::with_capacity(cap);
+        // TODO: consume the vec instead of copying but this is test only atm so not a prio
+        let mut dq = QuickDropDeque::with_capacity(vec.len());
         dq.extend_from_slice(&vec);
         dq
     }
@@ -37,6 +38,7 @@ impl QuickDropDeque {
         QuickDropDeque { tail: 0, head: 0, buf }
     }
     pub fn with_capacity(cap: usize) -> Self {
+        let cap = cmp::max(cap + 1, 2).next_power_of_two();
         let buf = RawVec::with_capacity(cap);
         QuickDropDeque { tail: 0, head: 0, buf }
     }
@@ -156,9 +158,9 @@ impl QuickDropDeque {
     }
 
     pub fn extend_from_slice(&mut self, slice: &[u8]) {
-        let free_bytes = self.cap() - self.len();
-        if slice.len()+1 > free_bytes {
-            self.reserve(slice.len()+1);
+        let free_bytes = self.cap()-self.len();
+        if slice.len() >= free_bytes {
+            self.reserve(self.len()+slice.len()+1);
         }
         unsafe {
             self.copy_slice(self.head, slice);
@@ -277,88 +279,3 @@ fn wrap_index(index: usize, size: usize) -> usize {
     debug_assert!(size.is_power_of_two());
     index & (size - 1)
 }
-
-#[cfg(test)]
-mod tests {
-    use std::collections::VecDeque;
-    use super::*;
-
-    fn to_vec(dq: &QuickDropDeque) -> Vec<u8> {
-        let length = dq.len();
-        let (left, right) = dq.as_slices();
-        let mut res = Vec::with_capacity(left.len() + right.len());
-        for x in left {
-            res.push(*x);
-        }
-        for x in right {
-            res.push(*x);
-        }
-        res
-    }
-
-    #[test]
-    fn it_works() {
-        let mut deque = QuickDropDeque::new();
-        deque.extend_from_slice(&[1, 2, 3, 4]);
-        deque.extend_from_slice(&[1, 2, 3, 4]);
-        deque.extend_from_slice(&[3, 3, 3, 3]);
-        let slices = deque.as_slices();
-        assert_eq!(slices.0.len() + slices.1.len(), 12);
-        assert_eq!(vec![1, 2, 3, 4, 1, 2, 3, 4, 3, 3, 3, 3], to_vec(&deque))
-    }
-
-    #[test]
-    fn many_pushes() {
-        let mut std_dq: VecDeque<u8> = VecDeque::new();
-        let mut deque = QuickDropDeque::new();
-        deque.extend_from_slice(&[1, 2, 3, 4]);
-        deque.extend_from_slice(&[1, 2, 3, 4]);
-        deque.extend_from_slice(&[3, 3, 3, 3]);
-        std_dq.extend(&[1, 2, 3, 4]);
-        std_dq.extend(&[1, 2, 3, 4]);
-        std_dq.extend(&[3, 3, 3, 3]);
-
-        for _ in 0..5000 {
-            deque.extend_from_slice(&[3, 3, 3, 3, 4, 4, 4, 4]);
-            std_dq.extend(&[3, 3, 3, 3, 4, 4, 4, 4]);
-        }
-        assert_eq!(std_dq.into_iter().collect::<Vec<u8>>(), to_vec(&deque))
-    }
-
-    #[test]
-    fn many_pushes_and_drop() {
-        let mut std_dq: VecDeque<u8> = VecDeque::new();
-        let mut deque = QuickDropDeque::new();
-
-        for _ in 0..50 {
-            let slice = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-            deque.extend_from_slice(&slice);
-            std_dq.extend(&slice);
-            std_dq.drain(0..5);
-            deque.drop_front(5);
-            println!("{:?}", deque.as_slices());
-        }
-        println!("{:?}", std_dq.as_slices());
-        assert_eq!(std_dq.into_iter().collect::<Vec<u8>>(), to_vec(&deque))
-    }
-
-    #[test]
-    fn from_vec_len_pow2() {
-        let mut d = QuickDropDeque::from(vec![0,1,2,3]);
-        assert_eq!(d.len(), 4);
-    }
-
-    #[test]
-    fn from_len_extend_exactly_to_pow2() {
-        let mut d = QuickDropDeque::from(vec![0,1,2,3]);
-        d.extend_from_slice(&[4,5,6,7]);
-        assert_eq!(d.len(), 8);
-    }
-
-    #[test]
-    fn from_vec_len_non_pow2() {
-        let mut d = QuickDropDeque::from(vec![0,1,2,3,4]);
-        assert_eq!(d.len(), 5)
-    }
-}
-
