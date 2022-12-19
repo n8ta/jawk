@@ -89,7 +89,7 @@ impl QuickDropDeque {
         let head_room = self.cap() - self.head;
 
         let bytes_read = if self.io_size <= head_room {
-            let mut dest_slice = unsafe { std::slice::from_raw_parts_mut(self.ptr().add(self.head), self.io_size) };
+            let dest_slice = unsafe { std::slice::from_raw_parts_mut(self.ptr().add(self.head), self.io_size) };
             file.read(dest_slice)?
         } else {
             let mut slice_one = unsafe { std::slice::from_raw_parts_mut(self.ptr().add(self.head), head_room) };

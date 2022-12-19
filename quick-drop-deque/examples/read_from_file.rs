@@ -7,10 +7,9 @@ use quick_drop_deque::QuickDropDeque;
 pub fn main() {
     let start = Instant::now();
     let mut file = File::open(Path::new("/Users/n8ta/Desktop/short.csv")).unwrap();
-    let mut buf = [0; 4096];
     let mut dq = QuickDropDeque::with_capacity(4);
     let mut iters = 0;
-    while let bytes = file.read(&mut buf).unwrap() {
+    while let bytes = dq.read(&mut file).unwrap() {
         iters += 1;
         if bytes == 0 {
             break;
@@ -18,7 +17,6 @@ pub fn main() {
         if iters % 4 == 0 {
             dq.drop_front(dq.len());
         }
-        dq.extend_from_slice(&buf[0..bytes])
     }
-    println!("{} {}", dq.len(), start.elapsed().as_millis());
+    println!("{} - {}ms", dq.len(), start.elapsed().as_millis());
 }
