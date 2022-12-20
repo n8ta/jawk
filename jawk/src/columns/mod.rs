@@ -33,6 +33,7 @@ impl Columns {
     }
 
     pub fn get_into_buf(&mut self, column: usize, buf: &mut Vec<u8>) {
+        buf.clear();
         self.reader.get_into_buf(column, buf);
     }
 
