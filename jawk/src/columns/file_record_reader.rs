@@ -77,12 +77,7 @@ impl FileReader {
         }
     }
 
-    pub fn get(&mut self, idx: usize) -> Option<Vec<u8>> {
-        if self.end_of_current_record == 0 {
-            return None
-        }
-        let mut result: Vec<u8> = Vec::with_capacity(self.end_of_current_record);
-
+    pub fn get_into_buf(&mut self, idx: usize, result: &mut Vec<u8>) {
         let slices = self.slop.as_slices();
         let bytes_to_move = self.end_of_current_record;
         let elements_from_left = min(slices.0.len(), bytes_to_move);
@@ -91,6 +86,14 @@ impl FileReader {
             let remaining = bytes_to_move - elements_from_left;
             result.extend_from_slice(&slices.1[0..remaining]);
         }
+    }
+
+    pub fn get(&mut self, idx: usize) -> Option<Vec<u8>> {
+        if self.end_of_current_record == 0 {
+            return None
+        }
+        let mut result: Vec<u8> = Vec::with_capacity(self.end_of_current_record);
+        self.get_into_buf(idx, &mut result);
         Some(result)
     }
 

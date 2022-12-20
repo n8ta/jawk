@@ -32,6 +32,10 @@ impl Columns {
         }
     }
 
+    pub fn get_into_buf(&mut self, column: usize, buf: &mut Vec<u8>) {
+        self.reader.get_into_buf(column, buf);
+    }
+
     fn next_file(&mut self) -> Result<bool, PrintableError> {
         if let Some(file_path) = self.files.pop() {
             let file = match File::open(&file_path) {
