@@ -21,6 +21,7 @@ Here we see jawk is doing okay but the interpreters are much closer and onetruea
 
 Reading a 300MB CSV file, storing every line in a variable, and then printing the final line.
 
+The right chart omits onetrueawk to make distinctions clearer.
 ![Left is a histogram of mawk, gawk, goawk, jawk, and onetrue awk. Right omits onetrueawk since it s 10x slower than the others. Mean runtimes are mawk: 554ms gawk: 2042ms goawk: 747ms jawk: 448ms](./assets/practical.png)
 
 ATM this is an unfair comparison since jawk field splitting isn't implemented. Shout out to mawk it took me a lot of optimization
