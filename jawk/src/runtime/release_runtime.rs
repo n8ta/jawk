@@ -64,8 +64,10 @@ extern "C" fn column(
     };
     let idx = idx.round() as usize;
     let str =
-        if let Some(current) = data.fast_alloc.take() {
-            data.columns.get(idx)
+        if let Some( mut current) = data.fast_alloc.take() {
+            let mut buf = unsafe { current.as_mut_vec() };
+            data.columns.get_into_buf(idx, buf);
+            current
         } else {
             data.columns.get(idx)
         };
