@@ -63,16 +63,32 @@ extern "C" fn column(
         string_to_number(data_ptr, pointer)
     };
     let idx = idx.round() as usize;
-    Rc::into_raw(Rc::new(data.columns.get(idx))) as *mut String
+    let str =
+        if let Some(current) = data.fast_alloc.take() {
+            data.columns.get(idx)
+        } else {
+            data.columns.get(idx)
+        };
+    Rc::into_raw(Rc::new(str)) as *mut String
 }
 
-extern "C" fn free_string(_data: *mut c_void, string: *const String) {
-    unsafe { Rc::from_raw(string) };
+extern "C" fn free_string(data_ptr: *mut c_void, string: *const String) {
+    let data = cast_to_runtime_data(data_ptr);
+    let str = unsafe { Rc::from_raw(string) };
+    match Rc::try_unwrap(str) {
+        Ok(str) => {
+            data.fast_alloc = Some(str)
+        }
+        Err(none) => {
+            // drop it
+        }
+    }
 }
 
-extern "C" fn free_if_string(_data: *mut c_void, tag: i8, string: *const String) {
+extern "C" fn free_if_string(data_ptr: *mut c_void, tag: i8, string: *const String) {
     if tag == STRING_TAG {
-        unsafe { Rc::from_raw(string) };
+        free_string(data_ptr, string);
+        // unsafe { Rc::from_raw(string) };
     }
 }
 
@@ -379,6 +395,7 @@ pub struct RuntimeData {
     regex_cache: LruCache<String, Regex>,
     arrays: Arrays,
     float_parser: FloatParser,
+    fast_alloc: Option<String>,
 }
 
 impl RuntimeData {
@@ -391,6 +408,7 @@ impl RuntimeData {
             regex_cache: LruCache::new(8),
             arrays: Arrays::new(),
             float_parser: FloatParser::new(),
+            fast_alloc: None,
         }
     }
 }
