@@ -65,25 +65,26 @@ extern "C" fn column(
     let idx = idx.round() as usize;
     let str =
         if let Some( mut current) = data.fast_alloc.take() {
-            let mut buf = unsafe { current.as_mut_vec() };
-            data.columns.get_into_buf(idx, buf);
+            {
+                let mutable = match Rc::get_mut(&mut current) {
+                    None => panic!("rc should be unique"),
+                    Some(some) => some,
+                };
+                let mut buf = unsafe { mutable.as_mut_vec() };
+                data.columns.get_into_buf(idx, buf);
+            }
             current
         } else {
-            data.columns.get(idx)
+            Rc::new(data.columns.get(idx))
         };
-    Rc::into_raw(Rc::new(str)) as *mut String
+    Rc::into_raw(str) as *mut String
 }
 
 extern "C" fn free_string(data_ptr: *mut c_void, string: *const String) {
     let data = cast_to_runtime_data(data_ptr);
     let str = unsafe { Rc::from_raw(string) };
-    match Rc::try_unwrap(str) {
-        Ok(str) => {
-            data.fast_alloc = Some(str)
-        }
-        Err(none) => {
-            // drop it
-        }
+    if Rc::strong_count(&str) == 1 && Rc::weak_count(&str) == 0 {
+        data.fast_alloc = Some(str);
     }
 }
 
@@ -397,7 +398,7 @@ pub struct RuntimeData {
     regex_cache: LruCache<String, Regex>,
     arrays: Arrays,
     float_parser: FloatParser,
-    fast_alloc: Option<String>,
+    fast_alloc: Option<Rc<String>>,
 }
 
 impl RuntimeData {
