@@ -19,7 +19,13 @@ Here we see jawk is doing okay but the interpreters are much closer and onetruea
 
 ### (Slightly more) practical example
 
-TODO
+Reading a 300MB CSV file, storing every line in a variable, and then printing the final line.
+
+![Left is a histogram of mawk, gawk, goawk, jawk, and onetrue awk. Right omits onetrueawk since it s 10x slower than the others. Mean runtimes are mawk: 554ms gawk: 2042ms goawk: 747ms jawk: 448ms](./assets/practical.png)
+
+ATM this is an unfair comparison since jawk field splitting isn't implemented. Shout out to mawk it took me a lot of optimization
+to beat their runtime for io bound programs.
+
 
 ## Limitations
 
@@ -79,8 +85,12 @@ Pattern Ranges
 
 ## License
 GNU Libjit is GPLv2. (./gnu-libjit-sys/LICENSE)
+
 Mawk is GPLv2 (./mawk-regex-sys/LICENSE)
-This project is GPLv2.
+
+Quick Drop Deque is MIT (./quick-drop-deque/LICENSE)
+
+The combined project is GPLv2 
 
 ## Running the tests
 
