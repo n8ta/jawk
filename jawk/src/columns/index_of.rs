@@ -95,21 +95,11 @@ pub fn index_in_dq(needle: &[u8], haystack: &QuickDropDeque, start: usize, lengt
     return index_in_slices(needle, left, right);
 }
 
-// Only look at first `length` elements of the deque
-pub fn index_in_dq_truncated(needle: &[u8], haystack: &QuickDropDeque, length: usize) -> Option<usize> {
-    index_in_dq(needle, haystack, 0, length)
-}
-
-// Skip the first `num_skipped` elements when searching
-pub fn index_in_dq_shifted(needle: &[u8], haystack: &QuickDropDeque, num_skipped: usize) -> Option<usize> {
-    index_in_dq(needle, haystack, num_skipped, haystack.len() - num_skipped)
-}
-
 #[cfg(test)]
 mod index_of_tests {
     use libc::EMPTY;
     use quick_drop_deque::QuickDropDeque;
-    use crate::columns::index_of::{index_of, index_in_dq, index_in_dq_truncated, index_in_dq_shifted, subslices_inner, EMPTY_SLICE};
+    use crate::columns::index_of::{index_of, index_in_dq, subslices_inner, EMPTY_SLICE};
 
     #[test]
     fn test_index_of() {
@@ -137,15 +127,15 @@ mod index_of_tests {
 
     #[test]
     fn test_index_of_dq_up_to() {
-        assert_eq!(index_in_dq_truncated(&[1, 2, 3], &QuickDropDeque::from(vec![1, 2, 3]), 3), Some(0));
-        assert_eq!(index_in_dq_truncated(&[2, 3], &QuickDropDeque::from(vec![1, 2, 3]), 3), Some(1));
-        assert_eq!(index_in_dq_truncated(&[1, 2], &QuickDropDeque::from(vec![1, 2, 3]), 3), Some(0));
-        assert_eq!(index_in_dq_truncated(&[1], &QuickDropDeque::from(vec![1, 2, 3]), 3), Some(0));
-        assert_eq!(index_in_dq_truncated(&[], &QuickDropDeque::from(vec![1, 2, 3]), 3), Some(0));
-        assert_eq!(index_in_dq_truncated(&[1, 2, 3], &QuickDropDeque::from(vec![]), 0), None);
-        assert_eq!(index_in_dq_truncated(&[1, 2, 3], &QuickDropDeque::from(vec![0, 1, 2, 3]), 4), Some(1));
-        assert_eq!(index_in_dq_truncated(&[1, 2, 3, 4, 5, 6, 7, 8], &QuickDropDeque::from(vec![0, 1, 2, 3]), 4), None);
-        assert_eq!(index_in_dq_truncated(&[2, 3], &QuickDropDeque::from(vec![1, 2, 3]), 0), None);
+        assert_eq!(index_in_dq(&[1, 2, 3], &QuickDropDeque::from(vec![1, 2, 3]), 0, 3), Some(0));
+        assert_eq!(index_in_dq(&[2, 3], &QuickDropDeque::from(vec![1, 2, 3]), 0, 3), Some(1));
+        assert_eq!(index_in_dq(&[1, 2], &QuickDropDeque::from(vec![1, 2, 3]), 0, 3), Some(0));
+        assert_eq!(index_in_dq(&[1], &QuickDropDeque::from(vec![1, 2, 3]), 0, 3), Some(0));
+        assert_eq!(index_in_dq(&[], &QuickDropDeque::from(vec![1, 2, 3]), 0, 3), Some(0));
+        assert_eq!(index_in_dq(&[1, 2, 3], &QuickDropDeque::from(vec![]), 0, 0), None);
+        assert_eq!(index_in_dq(&[1, 2, 3], &QuickDropDeque::from(vec![0, 1, 2, 3]), 0, 4), Some(1));
+        assert_eq!(index_in_dq(&[1, 2, 3, 4, 5, 6, 7, 8], &QuickDropDeque::from(vec![0, 1, 2, 3]), 0, 4), None);
+        assert_eq!(index_in_dq(&[2, 3], &QuickDropDeque::from(vec![1, 2, 3]), 0, 0), None);
     }
 
     #[test]
@@ -166,32 +156,32 @@ mod index_of_tests {
         shifted_dequeue.extend_from_slice(&[1, 2, 3, 4]);
         shifted_dequeue.drop_front(2);
         shifted_dequeue.extend_from_slice(&[5, 6]);
-        assert_eq!(index_in_dq_truncated(&[3, 4, 5], &shifted_dequeue, 4), Some(0));
-        assert_eq!(index_in_dq_truncated(&[3, 4, 5], &shifted_dequeue, 3), Some(0));
-        assert_eq!(index_in_dq_truncated(&[3, 4, 5], &shifted_dequeue, 1), None);
-        assert_eq!(index_in_dq_truncated(&[3, 4, 5], &shifted_dequeue, 2), None);
+        assert_eq!(index_in_dq(&[3, 4, 5], &shifted_dequeue, 0, 4), Some(0));
+        assert_eq!(index_in_dq(&[3, 4, 5], &shifted_dequeue, 0, 3), Some(0));
+        assert_eq!(index_in_dq(&[3, 4, 5], &shifted_dequeue, 0, 1), None);
+        assert_eq!(index_in_dq(&[3, 4, 5], &shifted_dequeue, 0, 2), None);
     }
 
     #[test]
     fn test_index_of_dq_shifted() {
-        let mut shifted_dequeue = QuickDropDeque::with_capacity(4);
-        shifted_dequeue.extend_from_slice(&[1, 2, 3, 4]);
-        shifted_dequeue.drop_front(2);
-        shifted_dequeue.extend_from_slice(&[5, 6]);
+        let mut dq = QuickDropDeque::with_capacity(4);
+        dq.extend_from_slice(&[1, 2, 3, 4]);
+        dq.drop_front(2);
+        dq.extend_from_slice(&[5, 6]);
         // 3 4 5 6
-        assert_eq!(index_in_dq_shifted(&[3, 4, 5], &shifted_dequeue, 0), Some(0));
-        assert_eq!(index_in_dq_shifted(&[4, 5], &shifted_dequeue, 0), Some(1));
-        assert_eq!(index_in_dq_shifted(&[5], &shifted_dequeue, 0), Some(2));
-        assert_eq!(index_in_dq_shifted(&[6], &shifted_dequeue, 0), Some(3));
+        assert_eq!(index_in_dq(&[3, 4, 5], &dq, 0, dq.len()), Some(0));
+        assert_eq!(index_in_dq(&[4, 5], &dq, 0, dq.len()), Some(1));
+        assert_eq!(index_in_dq(&[5], &dq, 0, dq.len()), Some(2));
+        assert_eq!(index_in_dq(&[6], &dq, 0, dq.len()), Some(3));
 
-        assert_eq!(index_in_dq_shifted(&[3, 4, 5], &shifted_dequeue, 1), None);
-        assert_eq!(index_in_dq_shifted(&[4, 5], &shifted_dequeue, 1), Some(0));
-        assert_eq!(index_in_dq_shifted(&[5], &shifted_dequeue, 1), Some(1));
-        assert_eq!(index_in_dq_shifted(&[6], &shifted_dequeue, 1), Some(2));
-        assert_eq!(index_in_dq_shifted(&[5], &shifted_dequeue, 2), Some(0));
-        assert_eq!(index_in_dq_shifted(&[6], &shifted_dequeue, 2), Some(1));
-        assert_eq!(index_in_dq_shifted(&[6], &shifted_dequeue, 3), Some(0));
-        assert_eq!(index_in_dq_shifted(&[6], &shifted_dequeue, 4), None);
+        assert_eq!(index_in_dq(&[3, 4, 5], &dq, 1, dq.len()-1), None);
+        assert_eq!(index_in_dq(&[4, 5], &dq, 1, dq.len()-1), Some(0));
+        assert_eq!(index_in_dq(&[5], &dq, 1, dq.len()-1), Some(1));
+        assert_eq!(index_in_dq(&[6], &dq, 1, dq.len()-1), Some(2));
+        assert_eq!(index_in_dq(&[5], &dq, 2, dq.len()-2), Some(0));
+        assert_eq!(index_in_dq(&[6], &dq, 2, dq.len()-2), Some(1));
+        assert_eq!(index_in_dq(&[6], &dq, 3, dq.len()-3), Some(0));
+        assert_eq!(index_in_dq(&[6], &dq, 4, dq.len()-4), None);
     }
 
     #[test]
@@ -211,9 +201,9 @@ mod index_of_tests {
         shifted_dequeue.extend_from_slice(&[1, 2, 3, 4]);
         shifted_dequeue.drop_front(2);
         shifted_dequeue.extend_from_slice(&[5]);
-        assert_eq!(index_in_dq_truncated(&[4, 5], &shifted_dequeue, 3), Some(1));
-        assert_eq!(index_in_dq_truncated(&[4, 5], &shifted_dequeue, 2), None);
-        assert_eq!(index_in_dq_truncated(&[4, 5], &shifted_dequeue, 1), None);
+        assert_eq!(index_in_dq(&[4, 5], &shifted_dequeue, 0, 3), Some(1));
+        assert_eq!(index_in_dq(&[4, 5], &shifted_dequeue, 0, 2), None);
+        assert_eq!(index_in_dq(&[4, 5], &shifted_dequeue, 0, 1), None);
     }
 
     #[test]

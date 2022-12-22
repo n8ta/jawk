@@ -1,6 +1,6 @@
 use quick_drop_deque::QuickDropDeque;
 use crate::columns::borrowing_split::{borrowing_split, Split};
-use crate::columns::index_of::{index_in_dq, index_in_dq_shifted, index_in_dq_truncated};
+use crate::columns::index_of::{index_in_dq};
 
 pub struct LazilySplitLine {
     // splits: Vec<Split>,
