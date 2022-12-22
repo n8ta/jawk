@@ -23,13 +23,9 @@ impl Columns {
     }
 
     pub fn get(&mut self, column: usize) -> String {
-        match self.reader.get(column) {
-            None => "".to_string(),
-            Some(bytes) => {
-                // TODO: check utf8
-                unsafe { String::from_utf8_unchecked(bytes) }
-            }
-        }
+        let bytes = self.reader.get(column);
+        // TODO: check utf8
+        unsafe { String::from_utf8_unchecked(bytes) }
     }
 
     pub fn get_into_buf(&mut self, column: usize, buf: &mut Vec<u8>) {

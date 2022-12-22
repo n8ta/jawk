@@ -72,13 +72,10 @@ fn index_in_slices_multibyte(needle: &[u8], left: &[u8], right: &[u8], offset: u
 }
 
 // Search left and right for needle. Return index of result + offset.
-fn index_in_slices(needle: &[u8], left: &[u8], right: &[u8], offset: usize) -> Option<usize> {
+pub fn index_in_slices(needle: &[u8], slices: (&[u8], &[u8]), offset: usize) -> Option<usize> {
+    let (left, right) = slices;
     let llen = left.len();
     let nlen = needle.len();
-    let hlen = llen + right.len();
-    if nlen > hlen {
-        return None;
-    }
     if nlen == 1 {
         let needle = needle[0];
         if let Some(idx) = memchr_libc(left, needle) {
@@ -92,9 +89,13 @@ fn index_in_slices(needle: &[u8], left: &[u8], right: &[u8], offset: usize) -> O
     return index_in_slices_multibyte(needle, left, right, offset);
 }
 
+pub fn index_in_full_dq(needle: &[u8], haystack: &QuickDropDeque) -> Option<usize> {
+    return index_in_slices(needle, haystack.as_slices(), 0)
+}
+
+
 pub fn index_in_dq(needle: &[u8], haystack: &QuickDropDeque, start: usize, end: usize) -> Option<usize> {
-    let (left, right) = subslices(haystack, start, end);
-    return index_in_slices(needle, left, right, start)
+    return index_in_slices(needle, subslices(haystack, start, end), start)
 }
 
 #[cfg(test)]

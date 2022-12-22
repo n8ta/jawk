@@ -2,7 +2,7 @@ use std::cmp::min;
 use std::fs::File;
 use std::io::Read;
 use std::ptr;
-use crate::columns::index_of::index_in_dq;
+use crate::columns::index_of::{index_in_dq, index_in_full_dq};
 use crate::printable_error::PrintableError;
 
 use quick_drop_deque::QuickDropDeque;
@@ -37,8 +37,8 @@ impl FileReader {
     }
 
     pub fn try_next_record(&mut self) -> Result<bool, PrintableError> {
+
         let file = if let Some(file) = &mut self.file {
-            self.line.next_record();
             file
         } else {
             return Ok(false);
@@ -49,15 +49,16 @@ impl FileReader {
 
         // Drop the record sep from the front if it's there. When the user changes RS read we want
         // to retain the RS from the prior record.
-        let mut rs_idx = index_in_dq(&self.rs, &self.slop, 0, self.slop.len());
-        if rs_idx == Some(0) {
+        let mut rs_idx = index_in_full_dq(&self.rs, &self.slop);
+        let starts_with_rs = rs_idx == Some(0);
+        if starts_with_rs {
             self.slop.drop_front(self.rs.len());
             rs_idx = None;
         }
 
         loop {
             // Check if our last read grabbed more than 1 record
-            if let Some(idx) = rs_idx.or_else(|| index_in_dq(&self.rs, &self.slop, 0, self.slop.len())) {
+            if let Some(idx) = rs_idx.or_else(|| index_in_full_dq(&self.rs, &self.slop)) {
                 self.end_of_current_record = idx;
                 return Ok(true);
             }
@@ -80,24 +81,26 @@ impl FileReader {
     }
 
     pub fn get_into_buf(&mut self, idx: usize, result: &mut Vec<u8>) {
-        self.line.get_into(&self.slop, idx, self.end_of_current_record, result);
-        // let slices = self.slop.as_slices();
-        // let bytes_to_move = self.end_of_current_record;
-        // let elements_from_left = min(slices.0.len(), bytes_to_move);
-        // result.extend_from_slice(&slices.0[0..elements_from_left]);
-        // if elements_from_left < bytes_to_move {
-        //     let remaining = bytes_to_move - elements_from_left;
-        //     result.extend_from_slice(&slices.1[0..remaining]);
-        // }
+        if idx == 0 {
+            let slices = self.slop.as_slices();
+            let bytes_to_move = self.end_of_current_record;
+            let elements_from_left = min(slices.0.len(), bytes_to_move);
+            result.extend_from_slice(&slices.0[0..elements_from_left]);
+            if elements_from_left < bytes_to_move {
+                let remaining = bytes_to_move - elements_from_left;
+                result.extend_from_slice(&slices.1[0..remaining]);
+            }
+        } else {
+            self.line.get_into(&self.slop, idx, self.end_of_current_record, result);
+        }
     }
 
-    pub fn get(&mut self, idx: usize) -> Option<Vec<u8>> {
-        if self.end_of_current_record == 0 {
-            return None
-        }
+    pub fn get(&mut self, idx: usize) -> Vec<u8> {
         let mut result: Vec<u8> = Vec::with_capacity(self.end_of_current_record);
-        self.get_into_buf(idx, &mut result);
-        Some(result)
+        if self.end_of_current_record != 0 {
+            self.get_into_buf(idx, &mut result);
+        }
+        result
     }
 
     pub fn set_rs(&mut self, rs: Vec<u8>) {

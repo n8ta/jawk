@@ -15,7 +15,8 @@ const EMPTY_SLICE: &[u8] = &[];
 impl LazilySplitLine {
     pub fn new() -> Self {
         Self {
-            fs: vec![32], // space
+            // fs: vec![32], // space
+            fs: vec![44], // ,
             // splits: vec![],
             next_fs: None,
         }
@@ -44,11 +45,9 @@ impl LazilySplitLine {
         return
     }
 
+    #[inline(never)]
     pub fn get_into(&mut self, dq: &QuickDropDeque, field_idx: usize, end_of_record_idx: usize, result: &mut Vec<u8>) {
-        result.clear();
-        if field_idx == 0 {
-            return LazilySplitLine::move_into_buf(dq, result, 0, end_of_record_idx);
-        }
+        debug_assert!(field_idx != 0);
         let mut start_of_field = 0;
         let mut fields_found = 0;
         while let Some(found_at) = index_in_dq(&self.fs, dq, start_of_field, end_of_record_idx) {
