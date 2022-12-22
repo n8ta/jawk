@@ -18,6 +18,7 @@ pub struct FileReader {
     slop: QuickDropDeque,
     rs: Vec<u8>,
     end_of_current_record: usize,
+    line: LazilySplitLine,
 }
 
 impl FileReader {
@@ -27,6 +28,7 @@ impl FileReader {
             file: None,
             rs: vec![10], //space
             end_of_current_record: 0,
+            line: LazilySplitLine::new(),
         }
     }
 
@@ -36,6 +38,7 @@ impl FileReader {
 
     pub fn try_next_record(&mut self) -> Result<bool, PrintableError> {
         let file = if let Some(file) = &mut self.file {
+            self.line.next_record();
             file
         } else {
             return Ok(false);
@@ -77,14 +80,15 @@ impl FileReader {
     }
 
     pub fn get_into_buf(&mut self, idx: usize, result: &mut Vec<u8>) {
-        let slices = self.slop.as_slices();
-        let bytes_to_move = self.end_of_current_record;
-        let elements_from_left = min(slices.0.len(), bytes_to_move);
-        result.extend_from_slice(&slices.0[0..elements_from_left]);
-        if elements_from_left < bytes_to_move {
-            let remaining = bytes_to_move - elements_from_left;
-            result.extend_from_slice(&slices.1[0..remaining]);
-        }
+        self.line.get_into(&self.slop, idx, self.end_of_current_record, result);
+        // let slices = self.slop.as_slices();
+        // let bytes_to_move = self.end_of_current_record;
+        // let elements_from_left = min(slices.0.len(), bytes_to_move);
+        // result.extend_from_slice(&slices.0[0..elements_from_left]);
+        // if elements_from_left < bytes_to_move {
+        //     let remaining = bytes_to_move - elements_from_left;
+        //     result.extend_from_slice(&slices.1[0..remaining]);
+        // }
     }
 
     pub fn get(&mut self, idx: usize) -> Option<Vec<u8>> {

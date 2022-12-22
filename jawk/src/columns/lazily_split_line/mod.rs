@@ -6,7 +6,6 @@ use crate::columns::borrowing_split::{borrowing_split, Split};
 use crate::columns::index_of::{index_in_dq, subslices};
 
 pub struct LazilySplitLine {
-    // splits: Vec<Split>,
     fs: Vec<u8>,
     next_fs: Option<Vec<u8>>,
 }
@@ -38,32 +37,30 @@ impl LazilySplitLine {
         vec
     }
 
+    fn move_into_buf(dq: &QuickDropDeque, result: &mut Vec<u8>, start: usize, end: usize) {
+        let (left, right) = subslices(dq, start, end);
+        result.extend_from_slice(left);
+        result.extend_from_slice(right);
+        return
+    }
+
     pub fn get_into(&mut self, dq: &QuickDropDeque, field_idx: usize, end_of_record_idx: usize, result: &mut Vec<u8>) {
         result.clear();
         if field_idx == 0 {
-            let (left, right) = subslices(dq, 0, end_of_record_idx);
-            result.extend_from_slice(left);
-            result.extend_from_slice(right);
-            return
+            return LazilySplitLine::move_into_buf(dq, result, 0, end_of_record_idx);
         }
-        let mut start_of_record = 0;
-        let mut records_found = 0;
-        while let Some(found_at) = index_in_dq(&self.fs, dq, start_of_record, end_of_record_idx) {
-            let found_at = found_at + start_of_record;
-            records_found += 1;
-            if records_found == field_idx {
-                let (left, right) = subslices(dq, start_of_record, found_at);
-                result.extend_from_slice(left);
-                result.extend_from_slice(right);
-                return
+        let mut start_of_field = 0;
+        let mut fields_found = 0;
+        while let Some(found_at) = index_in_dq(&self.fs, dq, start_of_field, end_of_record_idx) {
+            fields_found += 1;
+            if fields_found == field_idx {
+                return LazilySplitLine::move_into_buf(dq, result, start_of_field, found_at);
             }
-            start_of_record = found_at + self.fs.len();
+            start_of_field = found_at + self.fs.len();
         }
-        if records_found+1 == field_idx {
+        if fields_found +1 == field_idx {
             // Trailing record
-            let (left, right) = subslices(dq, start_of_record, end_of_record_idx);
-            result.extend_from_slice(left);
-            result.extend_from_slice(right);
+            LazilySplitLine::move_into_buf(dq, result, start_of_field, end_of_record_idx);
         }
     }
 
@@ -71,7 +68,6 @@ impl LazilySplitLine {
         let mut start_of_record = 0;
         let mut records_found = 0;
         while let Some(found_at) = index_in_dq(&self.fs, dq, start_of_record, end_of_record_idx) {
-            let found_at = found_at + start_of_record;
             records_found += 1;
             start_of_record = found_at + self.fs.len();
         }

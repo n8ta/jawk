@@ -1,5 +1,5 @@
 use std::cmp::min;
-use libc::EMPTY;
+use libc::{EMPTY, off_t};
 use quick_drop_deque::QuickDropDeque;
 
 pub fn index_of<T: PartialEq>(needle: &[T], haystack: &[T]) -> Option<usize> {
@@ -49,7 +49,7 @@ pub fn subslices(dq: &QuickDropDeque, start: usize, end: usize) -> (&[u8], &[u8]
 }
 
 #[inline(never)]
-fn index_in_slices_multibyte(needle: &[u8], left: &[u8], right: &[u8]) -> Option<usize> {
+fn index_in_slices_multibyte(needle: &[u8], left: &[u8], right: &[u8], offset: usize) -> Option<usize> {
     // Slow path
     let nlen = needle.len();
     let llen = left.len();
@@ -65,34 +65,36 @@ fn index_in_slices_multibyte(needle: &[u8], left: &[u8], right: &[u8]) -> Option
             }
         }
         if matches {
-            return Some(idx);
+            return Some(idx+offset);
         }
     }
     None
 }
 
-fn index_in_slices(needle: &[u8], left: &[u8], right: &[u8]) -> Option<usize> {
-    let hlen = left.len() + right.len();
+// Search left and right for needle. Return index of result + offset.
+fn index_in_slices(needle: &[u8], left: &[u8], right: &[u8], offset: usize) -> Option<usize> {
+    let llen = left.len();
     let nlen = needle.len();
+    let hlen = llen + right.len();
     if nlen > hlen {
         return None;
     }
     if nlen == 1 {
         let needle = needle[0];
         if let Some(idx) = memchr_libc(left, needle) {
-            return Some(idx);
+            return Some(idx + offset);
         }
         if let Some(idx) = memchr_libc(right, needle) {
-            return Some(idx + left.len());
+            return Some(idx + llen + offset);
         }
         return None;
     }
-    return index_in_slices_multibyte(needle, left, right);
+    return index_in_slices_multibyte(needle, left, right, offset);
 }
 
 pub fn index_in_dq(needle: &[u8], haystack: &QuickDropDeque, start: usize, end: usize) -> Option<usize> {
     let (left, right) = subslices(haystack, start, end);
-    return index_in_slices(needle, left, right);
+    return index_in_slices(needle, left, right, start)
 }
 
 #[cfg(test)]
@@ -175,12 +177,12 @@ mod index_of_tests {
         assert_eq!(index_in_dq(&[6], &dq, 0, dq.len()), Some(3));
 
         assert_eq!(index_in_dq(&[3, 4, 5], &dq, 1, dq.len()), None);
-        assert_eq!(index_in_dq(&[4, 5], &dq, 1, dq.len()), Some(0));
-        assert_eq!(index_in_dq(&[5], &dq, 1, dq.len()), Some(1));
-        assert_eq!(index_in_dq(&[6], &dq, 1, dq.len()), Some(2));
-        assert_eq!(index_in_dq(&[5], &dq, 2, dq.len()), Some(0));
-        assert_eq!(index_in_dq(&[6], &dq, 2, dq.len()), Some(1));
-        assert_eq!(index_in_dq(&[6], &dq, 3, dq.len()), Some(0));
+        assert_eq!(index_in_dq(&[4, 5], &dq, 1, dq.len()), Some(1));
+        assert_eq!(index_in_dq(&[5], &dq, 1, dq.len()), Some(2));
+        assert_eq!(index_in_dq(&[6], &dq, 1, dq.len()), Some(3));
+        assert_eq!(index_in_dq(&[5], &dq, 2, dq.len()), Some(2));
+        assert_eq!(index_in_dq(&[6], &dq, 2, dq.len()), Some(3));
+        assert_eq!(index_in_dq(&[6], &dq, 3, dq.len()), Some(3));
         assert_eq!(index_in_dq(&[6], &dq, 4, dq.len()), None);
     }
 
