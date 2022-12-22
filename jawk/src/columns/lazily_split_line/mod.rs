@@ -15,8 +15,8 @@ const EMPTY_SLICE: &[u8] = &[];
 impl LazilySplitLine {
     pub fn new() -> Self {
         Self {
-            // fs: vec![32], // space
-            fs: vec![44], // ,
+            fs: vec![32], // space
+            // fs: vec![44], // ,
             // splits: vec![],
             next_fs: None,
         }
