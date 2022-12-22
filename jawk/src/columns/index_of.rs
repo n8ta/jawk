@@ -41,11 +41,11 @@ fn subslices_inner<'a, 'b>(left: &'a[u8], right: &'b[u8], start: usize, length: 
 
 // Skip `start` elements and take `length` elements from the logical buffer made up
 // up of `dq`s two slices
-fn subslices(dq: &QuickDropDeque, start: usize, length: usize) -> (&[u8], &[u8]) {
-    let dlen = dq.len();
-    debug_assert!(dlen >= start + length);
+pub fn subslices(dq: &QuickDropDeque, start: usize, end: usize) -> (&[u8], &[u8]) {
+    debug_assert!(start >= 0);
+    debug_assert!(end <= dq.len());
     let (left, right) = dq.as_slices();
-    subslices_inner(left, right, start, length)
+    subslices_inner(left, right, start, end-start)
 }
 
 #[inline(never)]
@@ -90,8 +90,8 @@ fn index_in_slices(needle: &[u8], left: &[u8], right: &[u8]) -> Option<usize> {
     return index_in_slices_multibyte(needle, left, right);
 }
 
-pub fn index_in_dq(needle: &[u8], haystack: &QuickDropDeque, start: usize, length: usize) -> Option<usize> {
-    let (left, right) = subslices(haystack, start, length);
+pub fn index_in_dq(needle: &[u8], haystack: &QuickDropDeque, start: usize, end: usize) -> Option<usize> {
+    let (left, right) = subslices(haystack, start, end);
     return index_in_slices(needle, left, right);
 }
 
@@ -174,14 +174,14 @@ mod index_of_tests {
         assert_eq!(index_in_dq(&[5], &dq, 0, dq.len()), Some(2));
         assert_eq!(index_in_dq(&[6], &dq, 0, dq.len()), Some(3));
 
-        assert_eq!(index_in_dq(&[3, 4, 5], &dq, 1, dq.len()-1), None);
-        assert_eq!(index_in_dq(&[4, 5], &dq, 1, dq.len()-1), Some(0));
-        assert_eq!(index_in_dq(&[5], &dq, 1, dq.len()-1), Some(1));
-        assert_eq!(index_in_dq(&[6], &dq, 1, dq.len()-1), Some(2));
-        assert_eq!(index_in_dq(&[5], &dq, 2, dq.len()-2), Some(0));
-        assert_eq!(index_in_dq(&[6], &dq, 2, dq.len()-2), Some(1));
-        assert_eq!(index_in_dq(&[6], &dq, 3, dq.len()-3), Some(0));
-        assert_eq!(index_in_dq(&[6], &dq, 4, dq.len()-4), None);
+        assert_eq!(index_in_dq(&[3, 4, 5], &dq, 1, dq.len()), None);
+        assert_eq!(index_in_dq(&[4, 5], &dq, 1, dq.len()), Some(0));
+        assert_eq!(index_in_dq(&[5], &dq, 1, dq.len()), Some(1));
+        assert_eq!(index_in_dq(&[6], &dq, 1, dq.len()), Some(2));
+        assert_eq!(index_in_dq(&[5], &dq, 2, dq.len()), Some(0));
+        assert_eq!(index_in_dq(&[6], &dq, 2, dq.len()), Some(1));
+        assert_eq!(index_in_dq(&[6], &dq, 3, dq.len()), Some(0));
+        assert_eq!(index_in_dq(&[6], &dq, 4, dq.len()), None);
     }
 
     #[test]

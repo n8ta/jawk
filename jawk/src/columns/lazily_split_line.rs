@@ -1,6 +1,6 @@
 use quick_drop_deque::QuickDropDeque;
 use crate::columns::borrowing_split::{borrowing_split, Split};
-use crate::columns::index_of::{index_in_dq};
+use crate::columns::index_of::{index_in_dq, subslices};
 
 pub struct LazilySplitLine {
     // splits: Vec<Split>,
@@ -29,23 +29,35 @@ impl LazilySplitLine {
         }
     }
 
-    pub fn get(&mut self, dq: &QuickDropDeque, idx: usize, ends_at: usize) -> Vec<u8> {
-        // dest_buf.clear();
-        todo!();
-        // debug_assert!(idx != 0); // $0 should be handled by RecordReader
-        // let mut start_of_record = 0;
-        // let mut records_found = 0;
-        // while let Some(found_at) = index_in_dq_shifted(&self.fs, dq, start_of_record) {
-        //     records_found += 1;
-        //     if records_found == idx {
-        //
-        //
-        //
-        //     }
-        //     start_of_record = found_at+self.fs.len();
-        //
-        // }
-        // EMPTY_SLICE
+    pub fn get(&mut self, dq: &QuickDropDeque, field_idx: usize, end_of_record_idx: usize) -> Vec<u8> {
+        let mut vec = vec![];
+        self.get_into(dq, field_idx, end_of_record_idx, &mut vec);
+        vec
+    }
+
+    pub fn get_into(&mut self, dq: &QuickDropDeque, field_idx: usize, end_of_record_idx: usize, result: &mut Vec<u8>) {
+        result.clear();
+        if field_idx == 0 {
+            let (left, right) = subslices(dq, 0, end_of_record_idx);
+            result.extend_from_slice(left);
+            result.extend_from_slice(right);
+            return
+        }
+        let mut start_of_record = 0;
+        let mut records_found = 0;
+        while let Some(found_at) = index_in_dq(&self.fs, dq, start_of_record, end_of_record_idx) {
+            records_found += 1;
+            if records_found == field_idx {
+                let (left, right) = subslices(dq, start_of_record, found_at);
+                result.extend_from_slice(left);
+                result.extend_from_slice(right);
+                return
+            }
+            start_of_record = found_at + self.fs.len();
+        }
+        let (left, right) = subslices(dq, start_of_record, end_of_record_idx);
+        result.extend_from_slice(left);
+        result.extend_from_slice(right);
     }
 
     pub fn nf(&mut self, dq: &QuickDropDeque) -> usize {
@@ -99,6 +111,15 @@ mod test {
         assert_eq!(line.get(&dq, 2, 10).to_vec(), vec![A, A]);
         assert_eq!(line.get(&dq, 3, 10).to_vec(), vec![A, A, A]);
     }
+
+    #[test]
+    fn tests_splits_ez() {
+        let mut line = LazilySplitLine::new();
+        let dq = QuickDropDeque::from(vec![A, NL]);
+        assert_eq!(line.get(&dq, 0, 1).to_vec(), vec![A]);
+        assert_eq!(line.get(&dq, 1, 1).to_vec(), vec![A]);
+    }
+
 
     #[test]
     fn test_changing_fs() {
