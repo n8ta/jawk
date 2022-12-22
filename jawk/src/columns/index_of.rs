@@ -54,6 +54,9 @@ fn index_in_slices_multibyte(needle: &[u8], left: &[u8], right: &[u8], offset: u
     let nlen = needle.len();
     let llen = left.len();
     let hlen = llen + right.len();
+    if needle.len() > hlen {
+        return None;
+    }
     for idx in 0..(hlen - nlen) + 1 {
         let mut matches = true;
         for needle_idx in 0..nlen {
