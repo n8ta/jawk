@@ -6,6 +6,7 @@ use crate::columns::index_of::index_in_dq;
 use crate::printable_error::PrintableError;
 
 use quick_drop_deque::QuickDropDeque;
+use crate::columns::lazily_split_line::LazilySplitLine;
 
 struct FileWithPath {
     path: String,
@@ -34,7 +35,6 @@ impl FileReader {
     }
 
     pub fn try_next_record(&mut self) -> Result<bool, PrintableError> {
-
         let file = if let Some(file) = &mut self.file {
             file
         } else {
@@ -46,16 +46,15 @@ impl FileReader {
 
         // Drop the record sep from the front if it's there. When the user changes RS read we want
         // to retain the RS from the prior record.
-        let mut rs_idx = index_in_dq(&self.rs, &self.slop);
-        let starts_with_rs = rs_idx == Some(0);
-        if starts_with_rs {
+        let mut rs_idx = index_in_dq(&self.rs, &self.slop, 0, self.slop.len());
+        if rs_idx == Some(0) {
             self.slop.drop_front(self.rs.len());
             rs_idx = None;
         }
 
         loop {
             // Check if our last read grabbed more than 1 record
-            if let Some(idx) = rs_idx.or_else(|| index_in_dq(&self.rs, &self.slop)) {
+            if let Some(idx) = rs_idx.or_else(|| index_in_dq(&self.rs, &self.slop, 0, self.slop.len())) {
                 self.end_of_current_record = idx;
                 return Ok(true);
             }
