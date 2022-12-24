@@ -14,7 +14,7 @@ use std::rc::Rc;
 pub struct TypedBuiltin {
     args: RefCell<Vec<Arg>>,
     builtin: BuiltinFunc,
-    arity: usize,
+    min_arity: usize,
     name: Symbol,
     shared: Rc<BuiltinShared>, // Shared empty callers and calls sets between all builtins
 }
@@ -26,12 +26,12 @@ impl TypedBuiltin {
         builtin: BuiltinFunc,
         shared: Rc<BuiltinShared>,
     ) -> Self {
-        let arity = args.len();
+        let min_arity = args.iter().filter(|a| !a.builtin_optional).count();
         Self {
             name,
             args: RefCell::new(args),
             builtin,
-            arity,
+            min_arity,
             shared,
         }
     }
@@ -48,8 +48,8 @@ impl ITypedFunction for TypedBuiltin {
         self.args.borrow()
     }
 
-    fn arity(&self) -> usize {
-        self.arity
+    fn min_arity(&self) -> usize {
+        self.min_arity
     }
 
     fn add_caller(&self, _caller: Rc<TypedUserFunction>) {}

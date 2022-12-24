@@ -34,28 +34,27 @@ pub enum BuiltinFunc {
 impl BuiltinFunc {
     pub fn args(&self, s: &mut Symbolizer) -> Vec<Arg> {
         match self {
-            BuiltinFunc::Sin => vec![Arg::new(s.get("sin-arg-0"), ArgT::Scalar)],
-            BuiltinFunc::Cos => vec![Arg::new(s.get("cos-arg-0"), ArgT::Scalar)],
-            BuiltinFunc::Log => vec![Arg::new(s.get("log-arg-0"), ArgT::Scalar)],
-            BuiltinFunc::Sqrt => vec![Arg::new(s.get("sqrt-arg-0"), ArgT::Scalar)],
-            BuiltinFunc::Exp => vec![Arg::new(s.get("exp-arg-0"), ArgT::Scalar)],
-            BuiltinFunc::Int => vec![Arg::new(s.get("int-arg-0"), ArgT::Scalar)],
+            BuiltinFunc::Sin => vec![Arg::new_scl(s.get("sin-arg-0"))],
+            BuiltinFunc::Cos => vec![Arg::new_scl(s.get("cos-arg-0"))],
+            BuiltinFunc::Log => vec![Arg::new_scl(s.get("log-arg-0"))],
+            BuiltinFunc::Sqrt => vec![Arg::new_scl(s.get("sqrt-arg-0"))],
+            BuiltinFunc::Exp => vec![Arg::new_scl(s.get("exp-arg-0"))],
+            BuiltinFunc::Int => vec![Arg::new_scl(s.get("int-arg-0"))],
             BuiltinFunc::Rand => vec![],
-            BuiltinFunc::Srand => vec![Arg::new(s.get("rand-arg-0"), ArgT::Scalar)],
-            BuiltinFunc::Atan2 => vec![Arg::new(s.get("atan2-arg-0"), ArgT::Scalar), Arg::new(s.get("atan2-arg-1"), ArgT::Scalar)],
-
+            BuiltinFunc::Srand => vec![Arg::new_scl(s.get("rand-arg-0"))],
+            BuiltinFunc::Atan2 => vec![Arg::new_scl(s.get("atan2-arg-0")), Arg::new_scl(s.get("atan2-arg-1"))],
+            BuiltinFunc::Length => vec![Arg::new_scl(s.get("length-arg-0"))],
+            BuiltinFunc::Tolower => vec![Arg::new_scl(s.get("lower-arg-0"))],
+            BuiltinFunc::Toupper => vec![Arg::new_scl(s.get("upper-arg-0"))],
+            BuiltinFunc::Split => vec![Arg::new_scl(s.get("split-arg-0")), Arg::new_arr(s.get("split-arg-1")), Arg::new_optional(s.get("split-arg-2"), ArgT::Scalar)],
             BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Index => todo!(),
             BuiltinFunc::Matches => todo!(),
-            BuiltinFunc::Split => todo!(),
             BuiltinFunc::Sprintf => todo!(),
             BuiltinFunc::Sub => todo!(),
             BuiltinFunc::Substr => todo!(),
             BuiltinFunc::Close => todo!(),
             BuiltinFunc::System => todo!(),
-            BuiltinFunc::Length => vec![Arg::new(s.get("length-arg-0"), ArgT::Scalar)],
-            BuiltinFunc::Tolower => vec![Arg::new(s.get("lower-arg-0"), ArgT::Scalar)],
-            BuiltinFunc::Toupper => vec![Arg::new(s.get("upper-arg-0"), ArgT::Scalar)],
         }
     }
     pub fn names_as_symbols(symbolizer: &mut Symbolizer) -> [Symbol; NUM_BUILTIN_VARIANTS] {

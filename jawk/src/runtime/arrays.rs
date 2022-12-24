@@ -1,6 +1,7 @@
 use crate::codegen::FLOAT_TAG;
 use hashbrown::HashMap;
 use std::rc::Rc;
+use mawk_regex::Regex;
 
 #[derive(Hash, PartialEq, Eq, Clone)]
 struct HashFloat {
@@ -81,6 +82,14 @@ impl Arrays {
         for _ in 0..count {
             self.arrays.push(AwkMap::new())
         }
+    }
+
+    pub fn split(&mut self, array_id: i32, string: Rc<String>, ere: Option<Regex>) {
+        // if let Some(regex) = ere {
+        //     regex.matches()
+        // } else {
+        //
+        // }
     }
 
     pub fn access(&mut self, array_id: i32, key: MapValue) -> Option<&MapValue> {

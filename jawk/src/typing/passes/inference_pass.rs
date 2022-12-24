@@ -13,11 +13,11 @@ fn propogate(
     let dest = link.target.clone();
     let src = link.src.clone();
 
-    if link.args.len() != dest.arity() {
+    if link.args.len() < dest.min_arity() {
         return Err(PrintableError::new(format!(
-            "Function `{}` accepts {} arguments but was called with {} from function `{}`",
+            "Function `{}` accepts a min of {} arguments but was called with {} from function `{}`",
             dest.name(),
-            dest.arity(),
+            dest.min_arity(),
             link.args.len(),
             link.src.name()
         )));

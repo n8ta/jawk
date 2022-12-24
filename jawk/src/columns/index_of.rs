@@ -1,5 +1,4 @@
 use std::cmp::min;
-use libc::{EMPTY, off_t};
 use quick_drop_deque::QuickDropDeque;
 
 pub fn index_of<T: PartialEq>(needle: &[T], haystack: &[T]) -> Option<usize> {
@@ -19,7 +18,7 @@ fn memchr_libc(buf: &[u8], needle: u8) -> Option<usize> {
     if res == 0 as *mut std::os::raw::c_void {
         return None;
     }
-    let mut base = buf.as_ptr();
+    let base = buf.as_ptr();
     let res = res as *const u8;
     Some((unsafe { res.offset_from(base) }) as usize)
 }
@@ -103,7 +102,6 @@ pub fn index_in_dq(needle: &[u8], haystack: &QuickDropDeque, start: usize, end: 
 
 #[cfg(test)]
 mod index_of_tests {
-    use libc::EMPTY;
     use quick_drop_deque::QuickDropDeque;
     use crate::columns::index_of::{index_of, index_in_dq, subslices_inner, EMPTY_SLICE};
 

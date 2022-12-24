@@ -2,7 +2,6 @@
 mod test;
 
 use quick_drop_deque::QuickDropDeque;
-use crate::columns::borrowing_split::{borrowing_split, Split};
 use crate::columns::index_of::{index_in_dq, subslices};
 
 pub struct LazilySplitLine {
@@ -10,7 +9,6 @@ pub struct LazilySplitLine {
     next_fs: Option<Vec<u8>>,
 }
 
-const EMPTY_SLICE: &[u8] = &[];
 
 impl LazilySplitLine {
     pub fn new() -> Self {

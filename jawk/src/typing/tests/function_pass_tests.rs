@@ -291,4 +291,13 @@ mod tests {
     fn mixed_scalar_array() {
         test_exception("BEGIN { a[0] = 1; a = 5; }", "attempt to use")
     }
+
+    #[test]
+    fn mixed_scalar_split_bad_ere() {
+        test_exception("BEGIN { c[0] = 1; split(a, b, c )}", "attempt to use");
+        test_exception("BEGIN { a[0] = 1; split(a, b, c )}", "attempt to use");
+        test_exception("BEGIN { b = 1; split(a, b, c )}", "attempt to use");
+        test_exception("BEGIN { b = 1; split(a, b )}", "attempt to use");
+        test_exception("BEGIN { a[0] = 1; split(a, b )}", "attempt to use");
+    }
 }

@@ -252,12 +252,18 @@ impl Display for ArgT {
 pub struct Arg {
     pub name: Symbol,
     pub typ: ArgT,
+    pub builtin_optional: bool, // Like split(string, arr [, fs] ) this arguments is an optional for a builtin. All args for user functions are optional.
 }
 
 impl Arg {
     pub fn new(name: Symbol, typ: ArgT) -> Self {
-        Self { name, typ }
+        Self { name, typ, builtin_optional: false }
     }
+    pub fn new_optional(name: Symbol, typ: ArgT) -> Self {
+        Self { name, typ, builtin_optional: true }
+    }
+    pub fn new_scl(name: Symbol) -> Self { Self { name, typ: ArgT::Scalar, builtin_optional: false } }
+    pub fn new_arr(name: Symbol) -> Self { Self { name, typ: ArgT::Array, builtin_optional: false } }
 }
 
 impl Display for Arg {

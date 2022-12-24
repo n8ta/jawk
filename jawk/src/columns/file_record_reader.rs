@@ -1,8 +1,6 @@
 use std::cmp::min;
 use std::fs::File;
-use std::io::Read;
-use std::ptr;
-use crate::columns::index_of::{index_in_dq, index_in_full_dq};
+use crate::columns::index_of::{index_in_full_dq};
 use crate::printable_error::PrintableError;
 
 use quick_drop_deque::QuickDropDeque;

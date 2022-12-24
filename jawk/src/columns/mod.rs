@@ -5,7 +5,6 @@ mod file_record_reader;
 
 use std::fs::File;
 use crate::columns::file_record_reader::FileReader;
-use crate::columns::lazily_split_line::LazilySplitLine;
 use crate::printable_error::PrintableError;
 
 pub struct Columns {
@@ -64,7 +63,8 @@ impl Columns {
     }
 
     pub fn set_field_sep(&mut self, value: String) {
-        let bytes = value.as_bytes().to_vec();
+        // let bytes = value.as_bytes().to_vec();
+        todo!()
     }
 }
 

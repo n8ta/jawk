@@ -45,7 +45,7 @@ impl ITypedFunction for TypedUserFunction {
     fn args(&self) -> Ref<'_, Vec<Arg>> {
         self.args.borrow()
     }
-    fn arity(&self) -> usize {
+    fn min_arity(&self) -> usize {
         self.func.borrow().args.len()
     }
     fn add_caller(&self, caller: Rc<TypedUserFunction>) {

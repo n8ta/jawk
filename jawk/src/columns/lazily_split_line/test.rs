@@ -78,7 +78,7 @@ mod test {
     #[test]
     fn test_getting_in_rev_order() {
         let mut line = LazilySplitLine::new();
-        let mut dq = QuickDropDeque::from(vec![A, SPACE, B, NL, B, A, C]);
+        let dq = QuickDropDeque::from(vec![A, SPACE, B, NL, B, A, C]);
         assert_eq!(line.get(&dq, 30000, 3).to_vec(), vec![]);
         assert_eq!(line.get(&dq, 3, 3).to_vec(), vec![]);
         assert_eq!(line.get(&dq, 2, 3).to_vec(), vec![B]);

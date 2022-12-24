@@ -22,6 +22,8 @@ pub enum Call {
     Rand,
     Srand,
     Length,
+    Split,
+    SplitEre,
     // Printf,
 }
 

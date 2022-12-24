@@ -739,7 +739,7 @@ mod integration_tests {
     );
 
     // TODO: Efficient IO
-    // test!(test_pattern_long, "$1 == $4", long_number_file(), ".");
+    test!(test_pattern_long, "$1 == $4", long_number_file(), "");
 
     // TODO: Numeric strings
     // test!(
@@ -917,6 +917,13 @@ mod integration_tests {
         "BEGIN { print \"123\" !~ /1/}",
         ONE_LINE,
         "0\n"
+    );
+
+    test!(
+        test_regex_5,
+        "BEGIN { print \"123\" ~ /3/}",
+        ONE_LINE,
+        "1\n"
     );
 
     test!(test_array_get_1, "BEGIN { print a[0] }", ONE_LINE, "\n");
@@ -1285,4 +1292,10 @@ mod integration_tests {
     test!(test_fs_0, "{ print $2; FS = \"b\"; }", ABC, "\nc\n");
     test!(test_fs_1, "{ print $2; FS = \"a\"; }", ABC, "\nbc\n");
 
+    test!(test_split_0, "BEGIN { split(a,b); print b[0] }", ONE_LINE, "\n");
+    test!(test_split_1, "BEGIN { split(a,b,c); print b[0] }", ONE_LINE, "\n");
+    test!(test_split_2, "BEGIN { split(\"abc def\", b); print b[1]; print b[2] }", ONE_LINE, "abc\ndef\n");
+    test!(test_split_ere_0, "BEGIN { split(\"abcZZZdef\", b, \"Z+\"); print b[1]; print b[2] }", ONE_LINE, "abc\ndef\n");
+    test!(test_split_ere_1, "BEGIN { split(\"abc4def\", b, 4); print b[1]; print b[2] }", ONE_LINE, "abc\ndef\n");
+    test!(test_split_overwrite, "BEGIN { b[1] = \"should be free'd\"; b[5] = \"existing\";  split(\"abc def\",  b); print b[1]; print b[2]; print b[5]; }", ONE_LINE, "abc\ndef\nexisting\n");
 }

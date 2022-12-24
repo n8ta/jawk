@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 pub trait ITypedFunction: Debug + Display {
     fn args(&self) -> Ref<'_, Vec<Arg>>;
-    fn arity(&self) -> usize;
+    fn min_arity(&self) -> usize;
     fn add_caller(&self, caller: Rc<TypedUserFunction>);
     fn calls(&self) -> Ref<'_, Vec<Call>>;
     fn callers(&self) -> Ref<'_, HashSet<Rc<TypedUserFunction>>>;
