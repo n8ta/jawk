@@ -12,6 +12,8 @@ use crate::{runtime_fn, runtime_fn_no_ret};
 use gnu_libjit::{Abi, Context, Function, Value};
 use hashbrown::HashMap;
 use std::ffi::c_void;
+use std::io::{stdout, Write};
+use crate::awk_str::AwkStr;
 use crate::runtime::debug_runtime::native::{column, concat, array_assign, copy_string, copy_if_string, binop, print_float, print_string, print_error, printf, split, next_line, string_to_number, number_to_string, concat_array_indices, array_access, in_array, to_upper, to_lower, rand, srand, length, split_ere, free_string, free_if_string, empty_string};
 
 pub const CANARY: &str = "this is the canary!";
@@ -31,7 +33,7 @@ pub struct RuntimeData {
     srand_seed: f64,
     columns: Columns,
     canary: String,
-    output: String,
+    output: Vec<u8>,
     calls: CallLog,
     string_out: usize,
     strings_in: usize,
@@ -40,12 +42,22 @@ pub struct RuntimeData {
 }
 
 impl RuntimeData {
-    pub fn string_out(&mut self, src: &str, string: &str) {
-        println!("\t===> {} '{}'", src, string);
+    pub fn string_out(&mut self, src: &str, string: &[u8]) {
+        let mut stdout = stdout();
+        stdout.write_all("\t===> ".as_bytes()).unwrap();
+        stdout.write_all(&src.as_bytes()).unwrap();
+        stdout.write_all(" ".as_bytes()).unwrap();
+        stdout.write_all(&string).unwrap();
+        stdout.write_all(&[10]).unwrap();
         self.string_out += 1;
     }
-    pub fn string_in(&mut self, src: &str, string: &str) {
-        println!("\t<=== {} '{}'", src, string);
+    pub fn string_in(&mut self, src: &str, string: &[u8]) {
+        let mut stdout = stdout();
+        stdout.write_all("\t<=== ".as_bytes()).unwrap();
+        stdout.write_all(&src.as_bytes()).unwrap();
+        stdout.write_all(" ".as_bytes()).unwrap();
+        stdout.write_all(&string).unwrap();
+        stdout.write_all(&[10]).unwrap();
         self.strings_in += 1;
     }
     pub fn new(files: Vec<String>) -> RuntimeData {
@@ -53,7 +65,7 @@ impl RuntimeData {
         RuntimeData {
             canary: String::from(CANARY),
             columns: Columns::new(files),
-            output: String::new(),
+            output: vec![],
             calls: CallLog::new(),
             string_out: 0,
             strings_in: 0,
@@ -67,7 +79,12 @@ impl RuntimeData {
 impl DebugRuntime {
     #[allow(dead_code)]
     pub fn output(&self) -> String {
-        cast_to_runtime_data(self.runtime_data).output.clone()
+        String::from_utf8(cast_to_runtime_data(self.runtime_data).output.clone()).unwrap()
+    }
+    #[allow(dead_code)]
+
+    pub fn output_bytes(&self) -> String {
+        String::from_utf8(cast_to_runtime_data(self.runtime_data).output.clone()).unwrap()
     }
     #[allow(dead_code)]
     pub fn strings_in(&self) -> usize {
@@ -104,7 +121,7 @@ impl Runtime for DebugRuntime {
         DebugRuntime { runtime_data }
     }
 
-    fn init_empty_string(&mut self) -> *const String {
+    fn init_empty_string(&mut self) -> *const AwkStr {
         empty_string(self.runtime_data as *mut c_void)
     }
 

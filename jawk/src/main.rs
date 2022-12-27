@@ -36,6 +36,7 @@ mod runtime;
 mod symbolizer;
 mod typing;
 mod optional_usize;
+mod awk_str;
 
 pub const PRINTF_MAX_ARGS: usize = 128;
 

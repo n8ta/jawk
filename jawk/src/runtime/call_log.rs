@@ -3,7 +3,7 @@
 #[derive(Clone, Debug)]
 pub enum Call {
     NextLine,
-    Column(f64, String),
+    Column(f64),
     FreeString,
     StringToNumber,
     CopyString,

@@ -12,6 +12,8 @@ use crate::{Expr, PrintableError, Symbolizer};
 use gnu_libjit::{Context, Function, Label, Value};
 use hashbrown::HashMap;
 use std::os::raw::{c_char, c_int, c_long, c_void};
+use std::rc::Rc;
+use crate::awk_str::AwkStr;
 
 mod builtin_codegen;
 
@@ -402,20 +404,14 @@ impl<'a> FunctionCodegen<'a> {
                 self.zero_ptr(),
             ),
             Expr::String(str) => {
-                let ptr = self
-                    .function
-                    .create_void_ptr_constant(self.function_scope.get_const_str(&str)?);
+                let ptr = self.function.create_void_ptr_constant(self.function_scope.get_const_str(&str)?);
                 let val = ValueT::new(self.string_tag(), self.zero_f(), ptr);
-                self.runtime
-                    .copy_if_string(&mut self.function, val, ScalarType::String)
+                self.runtime.copy_if_string(&mut self.function, val, ScalarType::String)
             }
             Expr::Regex(str) => {
-                let ptr = self
-                    .function
-                    .create_void_ptr_constant(self.function_scope.get_const_str(&str)?);
+                let ptr = self.function.create_void_ptr_constant(self.function_scope.get_const_str(&str)?);
                 let val = ValueT::new(self.string_tag(), self.zero_f(), ptr);
-                self.runtime
-                    .copy_if_string(&mut self.function, val, ScalarType::String)
+                self.runtime.copy_if_string(&mut self.function, val, ScalarType::String)
             }
             Expr::MathOp(left_expr, op, right_expr) => {
                 // Convert left and right to floats if needed and perform the MathOp

@@ -1,33 +1,39 @@
+use std::io::{stdout, Write};
 use std::os::raw::c_void;
 use std::rc::Rc;
 use mawk_regex::Regex;
+use crate::awk_str::AwkStr;
 use crate::codegen::{FLOAT_TAG, STRING_TAG};
 use crate::lexer::BinOp;
+use crate::runtime::arrays::MapValue;
 use crate::runtime::call_log::Call;
 use crate::runtime::debug_runtime::{cast_to_runtime_data, RuntimeData};
 use crate::runtime::ErrorCode;
 use crate::runtime::float_parser::string_to_float;
 
-pub extern "C" fn print_string(data: *mut c_void, value: *mut String) {
+pub extern "C" fn print_string(data: *mut c_void, value: *mut AwkStr) {
     let data = cast_to_runtime_data(data);
     data.calls.log(Call::PrintString);
     let str = unsafe { Rc::from_raw(value) };
 
-    let res = if str.ends_with("\n") {
-        format!("{}", str)
+    let res = if str.bytes().ends_with(&[10]) {
+        str.bytes().to_vec()
     } else {
-        format!("{}\n", str)
+        let mut bytes = str.bytes().to_vec();
+        bytes.push(10);
+        bytes
     };
-    data.output.push_str(&res);
-    println!("{}", str);
-    data.string_in("print_string", &str)
+    data.output.extend_from_slice(&res);
+    stdout().write_all(&res).unwrap();
+    data.string_in("print_string", &*str)
 }
 
 pub extern "C" fn print_float(data: *mut c_void, value: f64) {
     let data = cast_to_runtime_data(data);
     data.calls.log(Call::PrintFloat);
-    let res = format!("{}\n", value);
-    data.output.push_str(&res);
+    let mut res = value.to_string();
+    res.push_str("\n");
+    data.output.extend_from_slice(res.as_bytes());
     println!("{}", value);
 }
 
@@ -43,38 +49,16 @@ pub extern "C" fn next_line(data: *mut c_void) -> f64 {
     }
 }
 
-pub extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const String) -> *const String {
-    let ptr = unsafe { Rc::from_raw(ptr) };
-    let data = cast_to_runtime_data(data_ptr);
-    data.calls.log(Call::ToLower);
-    data.string_in("to_lower", &*ptr);
-    let str = match Rc::try_unwrap(ptr) {
-        Ok(mut str) => unsafe {
-            if str.is_ascii() {
-                let bytes = str.as_bytes_mut();
-                bytes.make_ascii_lowercase();
-                Rc::into_raw(Rc::new(str))
-            } else {
-                let lowercased = Rc::new(str.to_lowercase());
-                Rc::into_raw(lowercased)
-            }
-        },
-        Err(ptr) => Rc::into_raw(Rc::new(ptr.to_lowercase())),
-    };
-    let str = unsafe { Rc::from_raw(str) };
-    data.string_out("to_lower", &*str);
-    Rc::into_raw(str)
+pub extern "C" fn split(data_ptr: *mut c_void, string: *const AwkStr, array: i32) {
+    todo!()
+    // let data = cast_to_runtime_data(data_ptr);
+    // data.calls.log(Call::Split);
 }
 
-pub extern "C" fn split(data_ptr: *mut c_void, string: *const String, array: i32) {
-    let data = cast_to_runtime_data(data_ptr);
-    data.calls.log(Call::Split);
-
-}
-
-pub extern "C" fn split_ere(data_ptr: *mut c_void, string: *const String, array: i32, ere_split: *const String) {
-    let data = cast_to_runtime_data(data_ptr);
-    data.calls.log(Call::SplitEre)
+pub extern "C" fn split_ere(data_ptr: *mut c_void, string: *const AwkStr, array: i32, ere_split: *const AwkStr) {
+    todo!()
+    // let data = cast_to_runtime_data(data_ptr);
+    // data.calls.log(Call::SplitEre)
 }
 
 pub extern "C" fn srand(data_ptr: *mut c_void, seed: f64) -> f64 {
@@ -86,6 +70,7 @@ pub extern "C" fn srand(data_ptr: *mut c_void, seed: f64) -> f64 {
     data.srand_seed = seed;
     prior
 }
+
 pub extern "C" fn rand(data_ptr: *mut c_void) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::Rand);
@@ -94,35 +79,54 @@ pub extern "C" fn rand(data_ptr: *mut c_void) -> f64 {
     rand / libc::RAND_MAX as f64
 }
 
-pub extern "C" fn length(data_ptr: *mut c_void, str: *const String) -> f64 {
+pub extern "C" fn length(data_ptr: *mut c_void, str: *const AwkStr) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::Length);
     let str = unsafe { Rc::from_raw(str) };
-    data.string_in("length ptr", &*str);
-    str.chars().count() as f64
-    // Drop str
+    data.string_in("length ptr", str.bytes());
+    let len = match String::from_utf8(str.bytes().to_vec()) {
+        Ok(s) => s.len(),
+        Err(err) => {
+            eprintln!("String is not validate utf-8 falling back to length in bytes");
+            str.bytes().len()
+        }
+    };
+    len as f64
 }
 
-pub extern "C" fn to_upper(data_ptr: *mut c_void, ptr: *const String) -> *const String {
+pub extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const AwkStr) -> *const AwkStr {
+    let ptr = unsafe { Rc::from_raw(ptr) };
+    let data = cast_to_runtime_data(data_ptr);
+    data.calls.log(Call::ToLower);
+    data.string_in("to_lower", ptr.bytes());
+    let str = match Rc::try_unwrap(ptr) {
+        Ok(mut str) => unsafe {
+            // TODO: non-ascii lower case
+            str.make_ascii_lowercase();
+            Rc::into_raw(Rc::new(str))
+        },
+        Err(ptr) => Rc::into_raw(Rc::new(ptr.to_ascii_lowercase())),
+    };
+    let str = unsafe { Rc::from_raw(str) };
+    data.string_out("to_lower", str.bytes());
+    Rc::into_raw(str)
+}
+
+pub extern "C" fn to_upper(data_ptr: *mut c_void, ptr: *const AwkStr) -> *const AwkStr {
     let ptr = unsafe { Rc::from_raw(ptr) };
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::ToUpper);
-    data.string_in("to_lower", &*ptr);
+    data.string_in("to_lower", ptr.bytes());
     let str = match Rc::try_unwrap(ptr) {
         Ok(mut str) => unsafe {
-            if str.is_ascii() {
-                let bytes = str.as_bytes_mut();
-                bytes.make_ascii_uppercase();
-                Rc::into_raw(Rc::new(str))
-            } else {
-                let uppercased = Rc::new(str.to_uppercase());
-                Rc::into_raw(uppercased)
-            }
+            // TODO: non-ascii lower case
+            str.make_ascii_uppercase();
+            Rc::into_raw(Rc::new(str))
         },
-        Err(ptr) => Rc::into_raw(Rc::new(ptr.to_uppercase())),
+        Err(ptr) => Rc::into_raw(Rc::new(ptr.to_ascii_uppercase())),
     };
     let str = unsafe { Rc::from_raw(str) };
-    data.string_out("to_upper", &*str);
+    data.string_out("to_upper", str.bytes());
     Rc::into_raw(str)
 }
 
@@ -130,8 +134,8 @@ pub extern "C" fn column(
     data_ptr: *mut c_void,
     tag: i8,
     value: f64,
-    pointer: *const String,
-) -> *const String {
+    pointer: *const AwkStr,
+) -> *const AwkStr {
     let data = cast_to_runtime_data(data_ptr);
     let idx_f = if tag == FLOAT_TAG {
         value
@@ -140,34 +144,32 @@ pub extern "C" fn column(
     };
     let idx = idx_f.round() as usize;
     let str = data.columns.get(idx);
-    data.calls.log(Call::Column(idx_f, str.clone()));
+    data.calls.log(Call::Column(idx_f));
     println!(
         "\tgetting column tag:{} float:{} ptr:{:?}",
         tag, value, pointer
     );
-    data.string_out("column", &str);
+    data.string_out("column", str.bytes());
     Rc::into_raw(Rc::new(str))
 }
 
-pub extern "C" fn free_string(data_ptr: *mut c_void, ptr: *const String) -> f64 {
+pub extern "C" fn free_string(data_ptr: *mut c_void, ptr: *const AwkStr) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::FreeString);
     println!("\tfreeing ptr {:?}", ptr);
 
     let string_data = unsafe { Rc::from_raw(ptr) };
-    data.string_in("free_string", &*string_data);
+    data.string_in("free_string", string_data.bytes());
     if Rc::strong_count(&string_data) > 1000 {
         panic!("count is very large! {}", Rc::strong_count(&string_data));
     }
-    println!(
-        "\tstring is: '{}' count is now: {}",
-        string_data,
-        Rc::strong_count(&string_data).saturating_sub(1)
-    );
+    print!("\tstring is: '");
+    stdout().write_all(string_data.bytes()).unwrap();
+    println!("' count is now: {}", Rc::strong_count(&string_data).saturating_sub(1));
     0.0
 }
 
-pub extern "C" fn free_if_string(data_ptr: *mut c_void, tag: i8, string: *const String) {
+pub extern "C" fn free_if_string(data_ptr: *mut c_void, tag: i8, string: *const AwkStr) {
     if tag == STRING_TAG {
         free_string(data_ptr, string);
     }
@@ -175,18 +177,20 @@ pub extern "C" fn free_if_string(data_ptr: *mut c_void, tag: i8, string: *const 
 
 pub extern "C" fn concat(
     data: *mut c_void,
-    left: *const String,
-    right: *const String,
-) -> *const String {
+    left: *const AwkStr,
+    right: *const AwkStr,
+) -> *const AwkStr {
     let data = cast_to_runtime_data(data);
     data.calls.log(Call::Concat);
     println!("\t{:?}, {:?}", left, right);
     let lhs = unsafe { Rc::from_raw(left) };
     let rhs = unsafe { Rc::from_raw(right) };
 
-    let mut lhs: String = match Rc::try_unwrap(lhs) {
+    let mut lhs: AwkStr = match Rc::try_unwrap(lhs) {
         Ok(str) => {
-            println!("\tDowngraded RC into box for string {}", str);
+            print!("\tDowngraded RC into box for: ");
+            stdout().write_all(&str.bytes()).unwrap();
+            println!();
             str
         }
         Err(rc) => (*rc).clone(),
@@ -195,56 +199,57 @@ pub extern "C" fn concat(
     data.string_in("concat rhs", &*rhs);
 
     lhs.push_str(&rhs);
-    println!("\tResult: '{}'", lhs);
-    data.string_out("concat result", &lhs);
+    println!("\tResult: ");
+    stdout().write_all(&*lhs).unwrap();
+    println!();
+    data.string_out("concat result", &*lhs);
     Rc::into_raw(Rc::new(lhs))
 }
 
-pub extern "C" fn empty_string(data: *mut c_void) -> *const String {
+pub extern "C" fn empty_string(data: *mut c_void) -> *const AwkStr {
     let data = cast_to_runtime_data(data);
     data.calls.log(Call::EmptyString);
-    let rc = Rc::new("".to_string());
-    data.string_out("empty_string", &*rc);
+    let rc = Rc::new(AwkStr::new(vec![]));
+    data.string_out("empty_string", rc.bytes());
     let ptr = Rc::into_raw(rc);
     println!("\tempty string is {:?}", ptr);
     ptr
 }
 
-pub extern "C" fn string_to_number(data_ptr: *mut c_void, ptr: *const String) -> f64 {
+pub extern "C" fn string_to_number(data_ptr: *mut c_void, ptr: *const AwkStr) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::StringToNumber);
 
     let string = unsafe { Rc::from_raw(ptr) };
-    println!("\tstring_to_number {:?} '{}'", ptr, string);
+    print!("\tstring_to_number '");
+    stdout().write_all(string.bytes()).unwrap();
+    println!("'{:?}", ptr);
     let res = string_to_float(&*string);
     Rc::into_raw(string);
     println!("\tret {}", res);
     res
 }
 
-pub extern "C" fn number_to_string(data_ptr: *mut c_void, value: f64) -> *const String {
+pub extern "C" fn number_to_string(data_ptr: *mut c_void, value: f64) -> *const AwkStr {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::NumberToString);
     println!("\tnum: {}", value);
-    let str = data.float_parser.parse(value);
+    let str = AwkStr::new(data.float_parser.parse(value));
     let heap_alloc_string = Rc::new(str);
     data.string_out("number_to_string", &*heap_alloc_string);
     let ptr = Rc::into_raw(heap_alloc_string);
     ptr
 }
 
-pub extern "C" fn copy_string(data_ptr: *mut c_void, ptr: *mut String) -> *const String {
+pub extern "C" fn copy_string(data_ptr: *mut c_void, ptr: *mut AwkStr) -> *const AwkStr {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::CopyString);
 
-    let original = unsafe { Rc::from_raw(ptr as *mut String) };
+    let original = unsafe { Rc::from_raw(ptr) };
     data.string_out("copy_string", &*original);
-    println!(
-        "\tCopying string {:?} '{}' count is {}",
-        ptr,
-        original,
-        Rc::strong_count(&original)
-    );
+    print!("\tCopying string {:?} '", ptr);
+    stdout().write_all(original.bytes()).unwrap();
+    println!("' count is {}", Rc::strong_count(&original));
     let copy = original.clone();
     Rc::into_raw(original);
 
@@ -254,7 +259,7 @@ pub extern "C" fn copy_string(data_ptr: *mut c_void, ptr: *mut String) -> *const
     copy
 }
 
-pub extern "C" fn copy_if_string(_data: *mut c_void, tag: i8, ptr: *mut String) -> *const String {
+pub extern "C" fn copy_if_string(_data: *mut c_void, tag: i8, ptr: *mut AwkStr) -> *const AwkStr {
     if tag == STRING_TAG {
         copy_string(_data, ptr)
     } else {
@@ -264,8 +269,8 @@ pub extern "C" fn copy_if_string(_data: *mut c_void, tag: i8, ptr: *mut String) 
 
 pub extern "C" fn binop(
     data: *mut c_void,
-    l_ptr: *const String,
-    r_ptr: *const String,
+    l_ptr: *const AwkStr,
+    r_ptr: *const AwkStr,
     binop: BinOp,
 ) -> std::os::raw::c_double {
     let data = cast_to_runtime_data(data);
@@ -290,10 +295,11 @@ pub extern "C" fn binop(
         }
     };
     let res = if res { 1.0 } else { 0.0 };
-    println!(
-        "\tBinop called: '{}' {:?} '{}' == {}",
-        left, binop, right, res
-    );
+    print!("\tBinop called: '");
+    stdout().write_all(left.bytes()).unwrap();
+    print!(" {} ", binop);
+    stdout().write_all(right.bytes()).unwrap();
+    println!(" = {}", res);
     data.string_in("binop left", &*left);
     data.string_in("binop right", &*right);
     // Implicitly drop left and right
@@ -309,21 +315,20 @@ pub extern "C" fn array_assign(
     array: i32,
     key_tag: i8,
     key_num: f64,
-    key_ptr: *mut String,
+    key_ptr: *mut AwkStr,
     tag: i8,
     float: f64,
-    ptr: *mut String,
+    ptr: *mut AwkStr,
 ) {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::ArrayAssign);
-    let res = data
-        .arrays
-        .assign(array, (key_tag, key_num, key_ptr), (tag, float, ptr));
+    let res = data.arrays.assign(array, MapValue::new(key_tag, key_num, key_ptr), MapValue::new(tag, float, ptr));
     match res {
         None => {}
-        Some((existing_tag, _existing_float, existing_ptr)) => {
-            if existing_tag == STRING_TAG {
-                unsafe { Rc::from_raw(existing_ptr) };
+        Some(existing) => {
+            if existing.tag == STRING_TAG {
+                println!("\tfreeing prior value from array");
+                unsafe { Rc::from_raw(existing.ptr) };
                 // implicitly drop RC here. Do not report as a string_in our out since it was
                 // already stored in the runtime and droped from the runtime.
             }
@@ -347,29 +352,31 @@ pub extern "C" fn array_access(
     array: i32,
     in_tag: i8,
     in_float: f64,
-    in_ptr: *const String,
+    in_ptr: *const AwkStr,
     out_tag: *mut i8,
     out_float: *mut f64,
-    out_value: *mut *mut String,
+    out_value: *mut *mut AwkStr,
 ) {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::ArrayAccess);
-    match data.arrays.access(array, (in_tag, in_float, in_ptr)) {
+    println!("\tarray access for key tag:{} flt:{} ptr:{:?}", in_tag, in_float, in_ptr);
+    match data.arrays.access(array, MapValue::new(in_tag, in_float, in_ptr)) {
         None => unsafe {
+            println!("\tarray access for non-existant key");
             *out_tag = STRING_TAG;
-            *out_value = empty_string(data_ptr) as *mut String;
+            *out_value = empty_string(data_ptr) as *mut AwkStr;
         },
-        Some((tag, float, str)) => unsafe {
-            *out_tag = *tag;
-            *out_float = *float;
-            if *tag == STRING_TAG {
-                let rc = Rc::from_raw(*str);
+        Some(value) => unsafe {
+            *out_tag = value.tag;
+            *out_float = value.float;
+            if value.tag == STRING_TAG {
+                let rc = Rc::from_raw(value.ptr);
                 let cloned = rc.clone();
                 data.string_out("array_access", &*cloned);
 
                 Rc::into_raw(rc);
 
-                *out_value = Rc::into_raw(cloned) as *mut String;
+                *out_value = Rc::into_raw(cloned) as *mut AwkStr;
             }
         },
     }
@@ -384,11 +391,11 @@ pub extern "C" fn in_array(
     array: i32,
     in_tag: i8,
     in_float: f64,
-    in_ptr: *const String,
+    in_ptr: *const AwkStr,
 ) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::InArray);
-    let res = data.arrays.in_array(array, (in_tag, in_float, in_ptr));
+    let res = data.arrays.in_array(array, MapValue::new(in_tag, in_float, in_ptr));
     if in_tag == STRING_TAG {
         let rc = unsafe { Rc::from_raw(in_ptr) };
         data.string_in("input_str_to_array_access", &*rc);
@@ -402,18 +409,20 @@ pub extern "C" fn in_array(
 
 pub extern "C" fn concat_array_indices(
     data: *mut c_void,
-    left: *const String,
-    right: *const String,
-) -> *const String {
+    left: *const AwkStr,
+    right: *const AwkStr,
+) -> *const AwkStr {
     let data = cast_to_runtime_data(data);
     data.calls.log(Call::ConcatArrayIndices);
     println!("\t{:?}, {:?}", left, right);
     let lhs = unsafe { Rc::from_raw(left) };
     let rhs = unsafe { Rc::from_raw(right) };
 
-    let mut lhs: String = match Rc::try_unwrap(lhs) {
+    let mut lhs = match Rc::try_unwrap(lhs) {
         Ok(str) => {
-            println!("\tDowngraded RC into box for string {}", str);
+            print!("\tDowngraded RC into box for string ");
+            stdout().write_all(str.bytes()).unwrap();
+            println!();
             str
         }
         Err(rc) => (*rc).clone(),
@@ -421,7 +430,7 @@ pub extern "C" fn concat_array_indices(
     data.string_in("concat-indices lhs", &*lhs);
     data.string_in("concat-indices rhs", &*rhs);
 
-    lhs.push_str("-");
+    lhs.push_str("-".as_bytes());
     lhs.push_str(&rhs);
     data.string_out("concat indices result", &lhs);
     let res = Rc::into_raw(Rc::new(lhs));
@@ -429,24 +438,24 @@ pub extern "C" fn concat_array_indices(
     res
 }
 
-pub extern "C" fn printf(data: *mut c_void, fstring: *mut String, nargs: i32, args: *mut c_void) {
+pub extern "C" fn printf(data: *mut c_void, fstring: *mut AwkStr, nargs: i32, args: *mut c_void) {
     let data = cast_to_runtime_data(data);
     // let mut args = vec![];
     let base_ptr = args as *mut f64;
     unsafe {
         let fstring = Rc::from_raw(fstring);
         data.string_in("printf fstring", &*fstring);
-        data.output.push_str(&*fstring);
-        print!("{}", fstring);
+        data.output.extend_from_slice(&*fstring);
+        stdout().write_all(fstring.bytes()).unwrap();
         for i in 0..(nargs as isize) {
             let _tag = *(base_ptr.offset(i * 3) as *const i8);
             let _float = *(base_ptr.offset(i * 3 + 1) as *const f64);
-            let ptr = *(base_ptr.offset(i * 3 + 2) as *const *mut String);
+            let ptr = *(base_ptr.offset(i * 3 + 2) as *const *mut AwkStr);
             // args.push((tag, float, ptr));
             let str = Rc::from_raw(ptr);
-            data.output.push_str(&*str);
+            data.output.extend_from_slice(&*str);
             data.string_in("printf in arg", &*str);
-            print!("{}", str)
+            stdout().write_all(str.bytes()).unwrap();
         }
         // Rc::from_raw(fstring)
     };

@@ -18,6 +18,7 @@ use native::{column, concat, array_assign, copy_string, copy_if_string, binop, p
 
 use crate::runtime::float_parser::{FloatParser};
 use crate::{runtime_fn, runtime_fn_no_ret};
+use crate::awk_str::AwkStr;
 
 pub struct ReleaseRuntime {
     runtime_data: *mut RuntimeData,
@@ -40,10 +41,10 @@ pub struct RuntimeData {
     srand_seed: f64,
     columns: Columns,
     stdout: BufWriter<StdoutLock<'static>>,
-    regex_cache: LruCache<String, Regex>,
+    regex_cache: LruCache<AwkStr, Regex>,
     arrays: Arrays,
     float_parser: FloatParser,
-    fast_alloc: Option<Rc<String>>,
+    fast_alloc: Option<Rc<AwkStr>>,
 }
 
 impl RuntimeData {
@@ -79,7 +80,7 @@ impl Runtime for ReleaseRuntime {
         unsafe { (*self.runtime_data).arrays.allocate(count) }
     }
 
-    fn init_empty_string(&mut self) -> *const String {
+    fn init_empty_string(&mut self) -> *const AwkStr {
         empty_string(self.runtime_data as *mut c_void)
     }
 

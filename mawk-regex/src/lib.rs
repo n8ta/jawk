@@ -16,19 +16,19 @@ pub struct Match {
 }
 
 impl Regex {
-    pub fn new(regex: &str) -> Self {
+    pub fn new(regex: &[u8]) -> Self {
         unsafe {
             Regex { ptr: REcompile(regex.as_ptr() as *mut c_char, regex.len() as ::std::os::raw::c_ulong) }
         }
     }
-    pub fn matches(&self, str: &str) -> bool {
+    pub fn matches(&self, str: &[u8]) -> bool {
         unsafe {
             let res = REtest(str.as_ptr() as *mut c_char, str.len() as ::std::os::raw::c_ulong, self.ptr);
             return res != 0
         }
     }
 
-    pub fn match_idx(&self, str: &str) -> Option<Match> {
+    pub fn match_idx(&self, str: &[u8]) -> Option<Match> {
         let mut match_len: Box<size_t> = Box::new(0);
         let result_ptr = unsafe {
             REmatch(str.as_ptr() as *mut c_char,

@@ -7,12 +7,13 @@ use gnu_libjit::{Context, Function, Value};
 use hashbrown::HashMap;
 use std::os::raw::c_void;
 use std::rc::Rc;
+use crate::awk_str::AwkStr;
 
 pub struct Globals {
     mapping: SymbolMapping,
     global_scalar_allocation: Vec<i64>,
     arrays: SymbolMapping,
-    const_str_allocation: Vec<*mut String>,
+    const_str_allocation: Vec<*mut AwkStr>,
     const_str_mapping: HashMap<Symbol, usize>,
     global_return_value: Vec<i64>,
 }
@@ -30,13 +31,13 @@ impl Globals {
 
         let global_scalar_allocation: Vec<i64> = Vec::with_capacity(scalar_memory);
         let global_return_value: Vec<i64> = Vec::with_capacity(3);
-        let mut const_str_allocation: Vec<*mut String> = Vec::with_capacity(const_str_memory);
+        let mut const_str_allocation: Vec<*mut AwkStr> = Vec::with_capacity(const_str_memory);
 
         let mut const_str_mapping = HashMap::new();
         for (idx, str) in analysis.str_consts.iter().enumerate() {
             const_str_mapping.insert(str.clone(), idx);
-            let str: Rc<String> = Rc::new(str.to_str().to_string());
-            const_str_allocation.push(Rc::into_raw(str) as *mut String)
+            let str = Rc::new(AwkStr::new(str.as_bytes().to_vec()));
+            const_str_allocation.push(Rc::into_raw(str) as *mut AwkStr)
         }
 
         let init = Self {

@@ -1,7 +1,10 @@
+use std::fmt::{Debug, Formatter};
 use crate::codegen::FLOAT_TAG;
 use hashbrown::HashMap;
 use std::rc::Rc;
 use mawk_regex::Regex;
+use crate::awk_str::AwkStr;
+use crate::runtime::float_parser::string_exactly_float;
 
 #[derive(Hash, PartialEq, Eq, Clone)]
 struct HashFloat {
@@ -22,25 +25,60 @@ impl HashFloat {
 
 #[derive(Hash, PartialEq, Eq, Clone)]
 enum MapKey {
-    String(Rc<String>),
+    String(Rc<AwkStr>),
     Float(HashFloat),
 }
 
-pub type MapValue = (i8, f64, *const String);
+impl Debug for MapKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MapKey::String(str) => {
+                let s = String::from_utf8(str.bytes().to_vec()).unwrap();
+                f.write_str(&s)
+            }
+            MapKey::Float(flt) => {
+                write!(f, "{}", flt.to_float64())
+            }
+        }
+    }
+}
+
+pub struct MapValue {
+    pub tag: i8,
+    pub float: f64,
+    pub ptr: *const AwkStr,
+}
+
+impl MapValue {
+    pub fn new(tag: i8, float: f64, ptr: *const AwkStr) -> Self { Self { tag, float, ptr } }
+}
+
+impl Debug for MapValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.tag == FLOAT_TAG {
+            write!(f, "float:{}", self.float)
+        } else {
+            let rced = unsafe { Rc::from_raw(self.ptr) };
+            let s = String::from_utf8(rced.bytes().to_vec()).unwrap();
+            Rc::into_raw(rced);
+            f.write_str("str:'").unwrap();
+            f.write_str(&s).unwrap();
+            f.write_str("'")
+        }
+    }
+}
 
 impl MapKey {
     // Does not drop the Rc<String> count
     pub fn new(val: MapValue) -> Self {
-        let tag = val.0;
-        let num = val.1;
-        let str = val.2;
-        if tag == FLOAT_TAG {
-            MapKey::Float(HashFloat::new(num))
+        if val.tag == FLOAT_TAG {
+            MapKey::Float(HashFloat::new(val.float))
         } else {
-            let str = unsafe { Rc::from_raw(str) };
-            let res = match str.parse::<f64>() {
-                Ok(float) => MapKey::Float(HashFloat::new(float)),
-                Err(_err) => MapKey::String(str.clone()),
+            let str = unsafe { Rc::from_raw(val.ptr) };
+            let res = if let Some(flt) = string_exactly_float(&str) {
+                MapKey::Float(HashFloat::new(flt))
+            } else {
+                MapKey::String(str.clone())
             };
             Rc::into_raw(str);
             res
@@ -93,6 +131,7 @@ impl Arrays {
     }
 
     pub fn access(&mut self, array_id: i32, key: MapValue) -> Option<&MapValue> {
+        println!("\taccessing: {:?}", key);
         let array = self
             .arrays
             .get_mut(array_id as usize)
@@ -106,6 +145,7 @@ impl Arrays {
         indices: MapValue,
         value: MapValue,
     ) -> Option<MapValue> {
+        println!("\tassigning: {:?}", indices);
         let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize) };
         array.assign(&MapKey::new(indices), value)
     }

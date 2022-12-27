@@ -1298,4 +1298,11 @@ mod integration_tests {
     test!(test_split_ere_0, "BEGIN { split(\"abcZZZdef\", b, \"Z+\"); print b[1]; print b[2] }", ONE_LINE, "abc\ndef\n");
     test!(test_split_ere_1, "BEGIN { split(\"abc4def\", b, 4); print b[1]; print b[2] }", ONE_LINE, "abc\ndef\n");
     test!(test_split_overwrite, "BEGIN { b[1] = \"should be free'd\"; b[5] = \"existing\";  split(\"abc def\",  b); print b[1]; print b[2]; print b[5]; }", ONE_LINE, "abc\ndef\nexisting\n");
+
+    test!(test_array_unrolled, "BEGIN { a[1] = 3; print a[\"1\"]; print a[\"1\"]; print a[\"1\"]; print a[\"1\"]; print a[\"1\"] }", ONE_LINE, "3\n3\n3\n3\n3\n");
+    test!(test_constants_loop, "BEGIN { a[1] = 1; while(x++<10) { print a[\"1\"] } }", ONE_LINE, "1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n");
+    test!(test_array_loop, "BEGIN { a[1] = 4; while(x++<10) { print a[\"1\"]; } }", ONE_LINE, "4\n4\n4\n4\n4\n4\n4\n4\n4\n4\n");
+    test!(test_array_exact_match_no_dec, "BEGIN { a[1] = 3; a[\"1\"] = 4; print a[1]; print a[\"1\"]; }", ONE_LINE, "4\n4\n");
+    test!(test_array_exact_mismatch, "BEGIN { a[1.1] = 3; a[\"1\"] = 4; print a[1.1]; print a[\"1\"]; }", ONE_LINE, "3\n4\n");
+    test!(test_array_exact_match_decimal, "BEGIN { a[1.0] = 3; a[\"1\"] = 4; print a[1.0]; print a[\"1\"]; }", ONE_LINE, "4\n4\n");
 }

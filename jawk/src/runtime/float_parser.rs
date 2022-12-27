@@ -1,4 +1,6 @@
+use std::slice;
 use lexical_core::write_float_options::Options;
+use crate::awk_str::AwkStr;
 
 pub struct FloatParser {
     buffer: [u8; 256],
@@ -18,7 +20,7 @@ impl FloatParser {
             options,
         }
     }
-    pub fn parse(&mut self, flt: f64) -> String {
+    pub fn parse(&mut self, flt: f64) -> Vec<u8> {
         #[cfg(debug_assertions)]
         lexical_core::write_with_options::<_, FORMAT>(flt, &mut self.buffer, &self.options);
 
@@ -33,30 +35,70 @@ impl FloatParser {
         #[cfg(debug_assertions)]
         String::from_utf8_lossy(res).to_string();
 
-        unsafe { String::from_utf8_unchecked(res.to_vec()) }
+        res.to_vec()
     }
 }
 
-pub fn string_to_float(string: &str) -> f64 {
+
+// Permissive awk string to float
+// 1.1a => 1.1
+// 1.1 => 1.1
+pub fn string_to_float(string: &AwkStr) -> f64 {
     if string.len() == 0 {
         0.0
     } else {
         let mut digits = 0;
         let mut dot_seen = false;
-        for chr in string.chars() {
-            if chr.is_digit(10) {
+        let bytes = string.bytes();
+        for chr in bytes.iter() {
+            // [0..9]
+            if (48..58).contains(chr) {
                 digits += 1;
                 continue;
-            } else if chr == '.' && !dot_seen {
+                // 46 == '.'
+            } else if *chr == 46 && !dot_seen {
                 digits += 1;
                 dot_seen = true;
             } else {
                 break;
             }
         }
-        match string[0..digits].parse() {
+        let number_bytes: &[u8] = &bytes[0..digits];
+        let number = std::str::from_utf8(number_bytes).expect("Compiler bug parsing float");
+        match number.parse() {
             Ok(flt) => flt,
             Err(_err) => 0.0, // TODO: Is this right?
+        }
+    }
+}
+
+// Exact match string to float
+// 1.1a => None
+// 1.1 => 1.1
+pub fn string_exactly_float(string: &AwkStr) -> Option<f64> {
+    if string.len() == 0 {
+        None
+    } else {
+        let mut digits = 0;
+        let mut dot_seen = false;
+        let bytes = string.bytes();
+        for chr in bytes.iter() {
+            // [0..9]
+            if (48..58).contains(chr) {
+                digits += 1;
+                continue;
+                // 46 == '.'
+            } else if *chr == 46 && !dot_seen {
+                digits += 1;
+                dot_seen = true;
+            } else {
+                return None;
+            }
+        }
+        let number = std::str::from_utf8(bytes).expect("Compiler bug parsing float");
+        match number.parse() {
+            Ok(flt) => Some(flt),
+            Err(_err) => None,
         }
     }
 }

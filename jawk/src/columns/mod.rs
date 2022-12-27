@@ -4,6 +4,7 @@ mod borrowing_split;
 mod file_record_reader;
 
 use std::fs::File;
+use crate::awk_str::AwkStr;
 use crate::columns::file_record_reader::FileReader;
 use crate::printable_error::PrintableError;
 
@@ -21,10 +22,10 @@ impl Columns {
         }
     }
 
-    pub fn get(&mut self, column: usize) -> String {
+    pub fn get(&mut self, column: usize) -> AwkStr {
         let bytes = self.reader.get(column);
         // TODO: check utf8
-        unsafe { String::from_utf8_unchecked(bytes) }
+        AwkStr::new(bytes)
     }
 
     pub fn get_into_buf(&mut self, column: usize, buf: &mut Vec<u8>) {
@@ -85,35 +86,35 @@ fn test_files() {
     ]);
 
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "a b c");
-    assert_eq!(cols.get(1), "a");
-    assert_eq!(cols.get(2), "b");
-    assert_eq!(cols.get(3), "c");
+    assert_eq!(cols.get(0), "a b c".into());
+    assert_eq!(cols.get(1), "a".into());
+    assert_eq!(cols.get(2), "b".into());
+    assert_eq!(cols.get(3), "c".into());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(3), "f");
-    assert_eq!(cols.get(2), "e");
-    assert_eq!(cols.get(1), "d");
-    assert_eq!(cols.get(0), "d e f");
+    assert_eq!(cols.get(3), "f".into());
+    assert_eq!(cols.get(2), "e".into());
+    assert_eq!(cols.get(1), "d".into());
+    assert_eq!(cols.get(0), "d e f".into());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(3), "i");
-    assert_eq!(cols.get(2), "h");
-    assert_eq!(cols.get(1), "g");
-    assert_eq!(cols.get(0), "g h i");
+    assert_eq!(cols.get(3), "i".into());
+    assert_eq!(cols.get(2), "h".into());
+    assert_eq!(cols.get(1), "g".into());
+    assert_eq!(cols.get(0), "g h i".into());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "1 2 3");
-    assert_eq!(cols.get(3), "3");
-    assert_eq!(cols.get(2), "2");
-    assert_eq!(cols.get(1), "1");
+    assert_eq!(cols.get(0), "1 2 3".into());
+    assert_eq!(cols.get(3), "3".into());
+    assert_eq!(cols.get(2), "2".into());
+    assert_eq!(cols.get(1), "1".into());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(3), "6");
-    assert_eq!(cols.get(2), "5");
-    assert_eq!(cols.get(1), "4");
-    assert_eq!(cols.get(0), "4 5 6");
+    assert_eq!(cols.get(3), "6".into());
+    assert_eq!(cols.get(2), "5".into());
+    assert_eq!(cols.get(1), "4".into());
+    assert_eq!(cols.get(0), "4 5 6".into());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(3), "9");
-    assert_eq!(cols.get(2), "8");
-    assert_eq!(cols.get(1), "7");
-    assert_eq!(cols.get(0), "7 8 9");
+    assert_eq!(cols.get(3), "9".into());
+    assert_eq!(cols.get(2), "8".into());
+    assert_eq!(cols.get(1), "7".into());
+    assert_eq!(cols.get(0), "7 8 9".into());
     assert_eq!(cols.next_line().unwrap(), false);
     assert_eq!(cols.next_line().unwrap(), false);
 }
@@ -131,14 +132,14 @@ fn test_files_set_rs() {
     ]);
 
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "a b c");
+    assert_eq!(cols.get(0), "a b c".into());
     cols.set_record_sep("-".to_string());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "\n");
+    assert_eq!(cols.get(0), "\n".into());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "ZZZ1");
+    assert_eq!(cols.get(0), "ZZZ1".into());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "ZZZ2");
+    assert_eq!(cols.get(0), "ZZZ2".into());
     assert_eq!(cols.next_line().unwrap(), false);
     assert_eq!(cols.next_line().unwrap(), false);
 }
@@ -157,6 +158,6 @@ fn test_simple_one_line() {
     ]);
 
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "1 2 3");
+    assert_eq!(cols.get(0), "1 2 3".into());
     assert_eq!(cols.next_line().unwrap(), false);
 }
