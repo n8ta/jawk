@@ -24,7 +24,6 @@ pub extern "C" fn print_string(data: *mut c_void, value: *mut AwkStr) {
 
 pub extern "C" fn print_float(data: *mut c_void, value: f64) {
     let data = cast_to_runtime_data(data);
-
     data.stdout.write_fmt(format_args!("{}\n", value)).unwrap();
 }
 
