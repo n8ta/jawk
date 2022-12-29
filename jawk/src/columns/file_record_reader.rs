@@ -104,4 +104,8 @@ impl FileReader {
     pub fn set_rs(&mut self, rs: Vec<u8>) {
         self.rs = rs;
     }
+
+    pub fn get_field_sep(&mut self) -> &[u8] {
+        self.line.get_field_sep()
+    }
 }

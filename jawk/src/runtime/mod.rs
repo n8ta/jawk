@@ -3,6 +3,7 @@ mod call_log;
 mod debug_runtime;
 mod float_parser;
 mod release_runtime;
+mod array_split;
 
 use crate::codegen::ValueT;
 use crate::lexer::BinOp;
@@ -63,7 +64,7 @@ pub trait Runtime {
     fn length(&mut self, func: &mut Function, ptr: Value) -> Value;
     fn column(&mut self, func: &mut Function, tag: Value, float: Value, ptr: Value) -> Value;
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType);
-    fn split(&mut self, func: &mut Function, string: Value, array: Value, ere_string: Option<Value>);
+    fn split(&mut self, func: &mut Function, string: Value, array: Value, ere_string: Option<Value>) -> Value;
     fn string_to_number(&mut self, func: &mut Function, ptr: Value) -> Value;
     fn copy_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) -> ValueT;
     fn number_to_string(&mut self, func: &mut Function, number: Value) -> Value;

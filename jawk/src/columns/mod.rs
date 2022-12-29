@@ -7,6 +7,7 @@ use std::fs::File;
 use crate::awk_str::AwkStr;
 use crate::columns::file_record_reader::FileReader;
 use crate::printable_error::PrintableError;
+pub use crate::columns::index_of::{index_in_slice};
 
 pub struct Columns {
     files: Vec<String>,
@@ -66,6 +67,10 @@ impl Columns {
     pub fn set_field_sep(&mut self, value: String) {
         // let bytes = value.as_bytes().to_vec();
         todo!()
+    }
+
+    pub fn get_field_sep(&mut self) -> &[u8] {
+        self.reader.get_field_sep()
     }
 }
 

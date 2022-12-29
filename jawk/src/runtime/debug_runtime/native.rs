@@ -5,6 +5,7 @@ use mawk_regex::Regex;
 use crate::awk_str::AwkStr;
 use crate::codegen::{FLOAT_TAG, STRING_TAG};
 use crate::lexer::BinOp;
+use crate::runtime::array_split::{split_on_regex, split_on_string};
 use crate::runtime::arrays::MapValue;
 use crate::runtime::call_log::Call;
 use crate::runtime::debug_runtime::{cast_to_runtime_data, RuntimeData};
@@ -49,16 +50,51 @@ pub extern "C" fn next_line(data: *mut c_void) -> f64 {
     }
 }
 
-pub extern "C" fn split(data_ptr: *mut c_void, string: *const AwkStr, array: i32) {
-    todo!()
-    // let data = cast_to_runtime_data(data_ptr);
-    // data.calls.log(Call::Split);
+pub extern "C" fn split(data_ptr: *mut c_void, string: *const AwkStr, array: i32) -> f64 {
+    let data = cast_to_runtime_data(data_ptr);
+    data.calls.log(Call::Split);
+    let rc = unsafe { Rc::from_raw(string) };
+    data.string_in("split_ere string", &rc);
+    let mut count: f64 = 0.0;
+    for (_key, val) in data.arrays.clear(array) {
+        if val.tag == STRING_TAG {
+            unsafe { Rc::from_raw(val.ptr) };
+        }
+    }
+    for (idx, elem) in split_on_string(data.columns.get_field_sep(), &rc).enumerate()
+    {
+        count += 1.0;
+        let string = Rc::into_raw(Rc::new(AwkStr::new(elem.to_vec())));
+        let res = data.arrays.assign(array,
+                                     MapValue::new(FLOAT_TAG, (idx + 1) as f64, 0 as *const AwkStr),
+                                     MapValue::new(STRING_TAG, 0.0, string));
+    }
+    count
 }
 
-pub extern "C" fn split_ere(data_ptr: *mut c_void, string: *const AwkStr, array: i32, ere_split: *const AwkStr) {
-    todo!()
-    // let data = cast_to_runtime_data(data_ptr);
-    // data.calls.log(Call::SplitEre)
+pub extern "C" fn split_ere(data_ptr: *mut c_void, string: *const AwkStr, array: i32, ere_split: *const AwkStr) -> f64 {
+    let data = cast_to_runtime_data(data_ptr);
+    data.calls.log(Call::Split);
+    let str = unsafe { Rc::from_raw(string) };
+    let reg_str = unsafe { Rc::from_raw(ere_split) };
+    data.string_in("split_ere string", &str);
+    data.string_in("split_ere regex", &reg_str);
+    let reg = Regex::new(&reg_str);
+    let mut count: f64 = 0.0;
+    for (_key, val) in data.arrays.clear(array) {
+        if val.tag == STRING_TAG {
+            unsafe { Rc::from_raw(val.ptr) };
+        }
+    }
+    for (idx, elem) in split_on_regex(&reg, &str).enumerate()
+    {
+        count += 1.0;
+        let string = Rc::into_raw(Rc::new(AwkStr::new(elem.to_vec())));
+        let _ = data.arrays.assign(array,
+                                     MapValue::new(FLOAT_TAG, (idx + 1) as f64, 0 as *const AwkStr),
+                                     MapValue::new(STRING_TAG, 0.0, string));
+    }
+    count
 }
 
 pub extern "C" fn srand(data_ptr: *mut c_void, seed: f64) -> f64 {

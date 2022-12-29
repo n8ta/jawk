@@ -2,8 +2,10 @@ use std::fmt::{Debug, Formatter};
 use crate::codegen::FLOAT_TAG;
 use hashbrown::HashMap;
 use std::rc::Rc;
+use hashbrown::hash_map::Drain;
 use mawk_regex::Regex;
 use crate::awk_str::AwkStr;
+use crate::runtime::array_split::split_on_regex;
 use crate::runtime::float_parser::string_exactly_float;
 
 #[derive(Hash, PartialEq, Eq, Clone)]
@@ -24,7 +26,7 @@ impl HashFloat {
 }
 
 #[derive(Hash, PartialEq, Eq, Clone)]
-enum MapKey {
+pub enum MapKey {
     String(Rc<AwkStr>),
     Float(HashFloat),
 }
@@ -105,6 +107,10 @@ impl AwkMap {
     fn in_array(&mut self, key: &MapKey) -> bool {
         self.map.contains_key(key)
     }
+
+    fn drain(&mut self) -> Drain<'_, MapKey, MapValue> {
+        self.map.drain()
+    }
 }
 
 pub struct Arrays {
@@ -121,21 +127,13 @@ impl Arrays {
             self.arrays.push(AwkMap::new())
         }
     }
-
-    pub fn split(&mut self, array_id: i32, string: Rc<String>, ere: Option<Regex>) {
-        // if let Some(regex) = ere {
-        //     regex.matches()
-        // } else {
-        //
-        // }
+    pub fn clear(&mut self, array_id: i32) -> Drain<'_, MapKey, MapValue> {
+        let array = self.arrays.get_mut(array_id as usize).expect("array to exist based on id");
+        array.drain()
     }
 
     pub fn access(&mut self, array_id: i32, key: MapValue) -> Option<&MapValue> {
-        println!("\taccessing: {:?}", key);
-        let array = self
-            .arrays
-            .get_mut(array_id as usize)
-            .expect("array to exist based on id");
+        let array = self.arrays.get_mut(array_id as usize).expect("array to exist based on id");
         array.access(&MapKey::new(key))
     }
 
@@ -145,7 +143,6 @@ impl Arrays {
         indices: MapValue,
         value: MapValue,
     ) -> Option<MapValue> {
-        println!("\tassigning: {:?}", indices);
         let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize) };
         array.assign(&MapKey::new(indices), value)
     }

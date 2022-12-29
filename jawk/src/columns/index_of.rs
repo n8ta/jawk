@@ -91,6 +91,18 @@ pub fn index_in_slices(needle: &[u8], slices: (&[u8], &[u8]), offset: usize) -> 
     return index_in_slices_multibyte(needle, left, right, offset);
 }
 
+pub fn index_in_slice(needle: &[u8], haystack: &[u8]) -> Option<usize> {
+    let nlen = needle.len();
+    if nlen == 1 {
+        let needle = needle[0];
+        if let Some(idx) = memchr_libc(haystack, needle) {
+            return Some(idx);
+        }
+        return None;
+    }
+    return index_in_slices_multibyte(needle, haystack, &[], 0);
+}
+
 pub fn index_in_full_dq(needle: &[u8], haystack: &QuickDropDeque) -> Option<usize> {
     return index_in_slices(needle, haystack.as_slices(), 0)
 }

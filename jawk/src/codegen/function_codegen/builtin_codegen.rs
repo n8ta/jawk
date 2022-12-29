@@ -1,6 +1,6 @@
 use crate::codegen::function_codegen::FunctionCodegen;
 use crate::codegen::ValueT;
-use crate::parser::{TypedExpr};
+use crate::parser::{ArgT, Expr, TypedExpr};
 use crate::printable_error::PrintableError;
 use crate::typing::BuiltinFunc;
 use gnu_libjit::Value;
@@ -13,6 +13,11 @@ impl<'a> FunctionCodegen<'a> {
         Ok(float)
     }
     fn arg_to_str(&mut self, args: &Vec<TypedExpr>, idx: usize) -> Result<Value, PrintableError> {
+        let arg = self.compile_expr(&args[idx], false)?;
+        let float = self.val_to_string(&arg, args[idx].typ);
+        Ok(float)
+    }
+    fn arg_to_array(&mut self, args: &Vec<TypedExpr>, idx: usize) -> Result<Value, PrintableError> {
         let arg = self.compile_expr(&args[idx], false)?;
         let float = self.val_to_string(&arg, args[idx].typ);
         Ok(float)
@@ -78,7 +83,23 @@ impl<'a> FunctionCodegen<'a> {
                 let len = self.runtime.length(&mut self.function, str); //drops str
                 Ok(self.mk_float(len))
             }
-            BuiltinFunc::Split => todo!(),
+            BuiltinFunc::Split => {
+                let str = self.arg_to_str(args, 0)?;
+                let array = if let Expr::Variable(sym) = &args[1].expr {
+                    let array = self.function_scope.get_array(&mut self.function, &sym)?;
+                    array
+                } else {
+                    panic!("Typechecking bug. Non-array type used as arg to builtin split() function.");
+                };
+                let flt = if let Some(ere_expr) = args.get(2) {
+                    let ere = self.compile_expr(ere_expr, false)?;
+                    let ere_string = self.val_to_string(&ere, ere_expr.typ);
+                    self.runtime.split(&mut self.function, str, array, Some(ere_string))
+                } else {
+                    self.runtime.split(&mut self.function, str, array, None)
+                };
+                Ok(self.mk_float(flt))
+            },
             BuiltinFunc::Close => todo!(),
             BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Index => todo!(),

@@ -315,10 +315,7 @@ impl<'a> FunctionCodegen<'a> {
                 if let Some(builtin) = BuiltinFunc::get(target_name.to_str()) {
                     return self.compile_builtin(&builtin, args);
                 }
-                let target = self
-                    .function_map
-                    .get(target_name)
-                    .expect("expected function to exist");
+                let target = self.function_map.get(target_name).expect("expected function to exist");
                 let mut call_args = Vec::with_capacity(args.len());
                 let target_args = target.args();
                 for (idx, (ast_arg, target_arg)) in args.iter().zip(target_args.iter()).enumerate()
@@ -332,8 +329,7 @@ impl<'a> FunctionCodegen<'a> {
                         }
                         ArgT::Array => {
                             if let Expr::Variable(sym) = &ast_arg.expr {
-                                let array =
-                                    self.function_scope.get_array(&mut self.function, &sym)?;
+                                let array = self.function_scope.get_array(&mut self.function, &sym)?;
                                 call_args.push(array)
                             } else {
                                 return Err(PrintableError::new(format!("Tried to use scalar as arg #{} to function {} which accepts an array", idx + 1, &target_name)));

@@ -1292,12 +1292,15 @@ mod integration_tests {
     test!(test_fs_0, "{ print $2; FS = \"b\"; }", ABC, "\nc\n");
     test!(test_fs_1, "{ print $2; FS = \"a\"; }", ABC, "\nbc\n");
 
-    test!(test_split_0, "BEGIN { split(a,b); print b[0] }", ONE_LINE, "\n");
+    test!(test_split_0, "BEGIN { print split(a,b); print b[0] }", ONE_LINE, "0\n\n");
     test!(test_split_1, "BEGIN { split(a,b,c); print b[0] }", ONE_LINE, "\n");
     test!(test_split_2, "BEGIN { split(\"abc def\", b); print b[1]; print b[2] }", ONE_LINE, "abc\ndef\n");
     test!(test_split_ere_0, "BEGIN { split(\"abcZZZdef\", b, \"Z+\"); print b[1]; print b[2] }", ONE_LINE, "abc\ndef\n");
     test!(test_split_ere_1, "BEGIN { split(\"abc4def\", b, 4); print b[1]; print b[2] }", ONE_LINE, "abc\ndef\n");
-    test!(test_split_overwrite, "BEGIN { b[1] = \"should be free'd\"; b[5] = \"existing\";  split(\"abc def\",  b); print b[1]; print b[2]; print b[5]; }", ONE_LINE, "abc\ndef\nexisting\n");
+    test!(test_split_overwrite, "BEGIN { b[1] = \"should be free'd\"; b[5] = \"existing\";  split(\"abc def\",  b); print b[1]; print b[2]; print b[5]; }", ONE_LINE, "abc\ndef\n\n");
+    test!(test_split_ret_0, "BEGIN { print split(\"abc def\", b); }", ONE_LINE, "2\n");
+    test!(test_split_ret_1, "BEGIN { print split(\"abcdef\", b); }", ONE_LINE, "1\n");
+    test!(test_split_ret_2, "BEGIN { print split(\"\", b); }", ONE_LINE, "0\n");
 
     test!(test_array_unrolled, "BEGIN { a[1] = 3; print a[\"1\"]; print a[\"1\"]; print a[\"1\"]; print a[\"1\"]; print a[\"1\"] }", ONE_LINE, "3\n3\n3\n3\n3\n");
     test!(test_constants_loop, "BEGIN { a[1] = 1; while(x++<10) { print a[\"1\"] } }", ONE_LINE, "1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n");

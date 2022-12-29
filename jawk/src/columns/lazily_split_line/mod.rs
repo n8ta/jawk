@@ -74,4 +74,12 @@ impl LazilySplitLine {
         }
         records_found
     }
+
+    pub fn get_field_sep(&self) -> &[u8] {
+        if let Some(next) = &self.next_fs {
+            next
+        } else {
+            &self.fs
+        }
+    }
 }

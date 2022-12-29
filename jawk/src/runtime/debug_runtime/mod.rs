@@ -180,22 +180,22 @@ impl Runtime for DebugRuntime {
     runtime_fn!(srand, srand, Some(Context::float64_type()), seed: Value);
     runtime_fn!(length, length, Some(Context::float64_type()), string: Value);
 
-    fn split(&mut self, func: &mut Function, string: Value, array: Value, split_ere_val: Option<Value>) {
+    fn split(&mut self, func: &mut Function, string: Value, array: Value, split_ere_val: Option<Value>) -> Value{
         let data_ptr = self.data_ptr(func);
         if let Some(ere) = split_ere_val {
             func.insn_call_native(
                 split_ere as *mut c_void,
                 vec![data_ptr, string, array, ere],
-                None,
+                Some(Context::float64_type()),
                 Abi::Cdecl,
-            );
+            )
         } else {
             func.insn_call_native(
                 split as *mut c_void,
                 vec![data_ptr, string, array],
-                None,
+                Some(Context::float64_type()),
                 Abi::Cdecl,
-            );
+            )
         }
     }
 
