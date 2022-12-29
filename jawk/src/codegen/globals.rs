@@ -1,4 +1,4 @@
-use crate::codegen::{ValuePtrT, ValueT, STRING_TAG};
+use crate::codegen::{ValuePtrT, ValueT, Tag};
 use crate::global_scalars::SymbolMapping;
 use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
@@ -53,7 +53,7 @@ impl Globals {
             let ptr = runtime.init_empty_string() as *mut c_void;
             let ptr_const = function.create_void_ptr_constant(ptr);
             let val = ValueT::string(
-                function.create_sbyte_constant(STRING_TAG),
+                function.create_sbyte_constant(Tag::StringTag as i8),
                 function.create_float64_constant(0.0),
                 ptr_const,
             );

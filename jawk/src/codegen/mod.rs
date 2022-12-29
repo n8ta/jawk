@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 pub use value::{ValuePtrT, ValueT};
 
 mod callable_function;
@@ -6,6 +7,7 @@ mod function_codegen;
 mod function_scope;
 mod globals;
 mod value;
+mod tag;
 
 use crate::codegen::callable_function::CallableFunction;
 use crate::codegen::function_codegen::FunctionCodegen;
@@ -18,6 +20,8 @@ use crate::{PRINTF_MAX_ARGS, Symbolizer};
 use gnu_libjit::{Abi, Context, Function, Value};
 use hashbrown::HashMap;
 
+pub use tag::Tag;
+
 /// ValueT is the jit values that make up a struct. It's not a tagged union
 /// just a struct with only one other field being valid to read at a time based on the tag field.
 ///
@@ -26,10 +30,6 @@ use hashbrown::HashMap;
 ///     float: f64
 ///     string: *mut c_void
 /// }
-
-pub const FLOAT_TAG: i8 = 0;
-pub const STRING_TAG: i8 = 1;
-
 
 // Entry point to run a program
 pub fn compile_and_run(

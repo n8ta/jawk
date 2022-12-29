@@ -3,7 +3,7 @@ use std::os::raw::c_void;
 use std::rc::Rc;
 use mawk_regex::Regex;
 use crate::awk_str::AwkStr;
-use crate::codegen::{FLOAT_TAG, STRING_TAG};
+use crate::codegen::{Tag};
 use crate::lexer::BinOp;
 use crate::runtime::array_split::{split_on_regex, split_on_string};
 use crate::runtime::arrays::MapValue;
@@ -42,7 +42,7 @@ pub extern "C" fn next_line(data: *mut c_void) -> f64 {
     let data = cast_to_runtime_data(data);
     data.calls.log(Call::NextLine);
 
-    // TODO: remove unwrap
+    // TODO: remove unwrap handle the error
     if data.columns.next_line().unwrap() {
         1.0
     } else {
@@ -57,7 +57,7 @@ pub extern "C" fn split(data_ptr: *mut c_void, string: *const AwkStr, array: i32
     data.string_in("split_ere string", &rc);
     let mut count: f64 = 0.0;
     for (_key, val) in data.arrays.clear(array) {
-        if val.tag == STRING_TAG {
+        if val.tag.has_ptr() {
             unsafe { Rc::from_raw(val.ptr) };
         }
     }
@@ -66,8 +66,8 @@ pub extern "C" fn split(data_ptr: *mut c_void, string: *const AwkStr, array: i32
         count += 1.0;
         let string = Rc::into_raw(Rc::new(AwkStr::new(elem.to_vec())));
         let res = data.arrays.assign(array,
-                                     MapValue::new(FLOAT_TAG, (idx + 1) as f64, 0 as *const AwkStr),
-                                     MapValue::new(STRING_TAG, 0.0, string));
+                                     MapValue::new(Tag::FloatTag, (idx + 1) as f64, 0 as *const AwkStr),
+                                     MapValue::new(Tag::StrnumTag, 0.0, string));
     }
     count
 }
@@ -82,7 +82,7 @@ pub extern "C" fn split_ere(data_ptr: *mut c_void, string: *const AwkStr, array:
     let reg = Regex::new(&reg_str);
     let mut count: f64 = 0.0;
     for (_key, val) in data.arrays.clear(array) {
-        if val.tag == STRING_TAG {
+        if val.tag.has_ptr() {
             unsafe { Rc::from_raw(val.ptr) };
         }
     }
@@ -91,8 +91,8 @@ pub extern "C" fn split_ere(data_ptr: *mut c_void, string: *const AwkStr, array:
         count += 1.0;
         let string = Rc::into_raw(Rc::new(AwkStr::new(elem.to_vec())));
         let _ = data.arrays.assign(array,
-                                     MapValue::new(FLOAT_TAG, (idx + 1) as f64, 0 as *const AwkStr),
-                                     MapValue::new(STRING_TAG, 0.0, string));
+                                   MapValue::new(Tag::FloatTag, (idx + 1) as f64, 0 as *const AwkStr),
+                                   MapValue::new(Tag::StrnumTag, 0.0, string));
     }
     count
 }
@@ -168,23 +168,19 @@ pub extern "C" fn to_upper(data_ptr: *mut c_void, ptr: *const AwkStr) -> *const 
 
 pub extern "C" fn column(
     data_ptr: *mut c_void,
-    tag: i8,
+    tag: Tag,
     value: f64,
     pointer: *const AwkStr,
 ) -> *const AwkStr {
     let data = cast_to_runtime_data(data_ptr);
-    let idx_f = if tag == FLOAT_TAG {
-        value
-    } else {
-        string_to_number(data_ptr, pointer)
+    let idx = match tag {
+        Tag::FloatTag => value,
+        Tag::StringTag | Tag::StrnumTag => string_to_number(data_ptr, pointer),
     };
-    let idx = idx_f.round() as usize;
+    let idx = idx.round() as usize;
     let str = data.columns.get(idx);
-    data.calls.log(Call::Column(idx_f));
-    println!(
-        "\tgetting column tag:{} float:{} ptr:{:?}",
-        tag, value, pointer
-    );
+    data.calls.log(Call::Column(idx as f64));
+    println!("\tgetting column tag:{} float:{} ptr:{:?}", tag, value, pointer);
     data.string_out("column", str.bytes());
     Rc::into_raw(Rc::new(str))
 }
@@ -197,6 +193,8 @@ pub extern "C" fn free_string(data_ptr: *mut c_void, ptr: *const AwkStr) -> f64 
     let string_data = unsafe { Rc::from_raw(ptr) };
     data.string_in("free_string", string_data.bytes());
     if Rc::strong_count(&string_data) > 1000 {
+        // This isn't truly an error condition but if we use-after-free a string this is often hit
+        // and is great for catching uaf early.
         panic!("count is very large! {}", Rc::strong_count(&string_data));
     }
     print!("\tstring is: '");
@@ -205,8 +203,8 @@ pub extern "C" fn free_string(data_ptr: *mut c_void, ptr: *const AwkStr) -> f64 
     0.0
 }
 
-pub extern "C" fn free_if_string(data_ptr: *mut c_void, tag: i8, string: *const AwkStr) {
-    if tag == STRING_TAG {
+pub extern "C" fn free_if_string(data_ptr: *mut c_void, tag: Tag, string: *const AwkStr) {
+    if tag.has_ptr() {
         free_string(data_ptr, string);
     }
 }
@@ -295,8 +293,8 @@ pub extern "C" fn copy_string(data_ptr: *mut c_void, ptr: *mut AwkStr) -> *const
     copy
 }
 
-pub extern "C" fn copy_if_string(_data: *mut c_void, tag: i8, ptr: *mut AwkStr) -> *const AwkStr {
-    if tag == STRING_TAG {
+pub extern "C" fn copy_if_string(_data: *mut c_void, tag: Tag, ptr: *mut AwkStr) -> *const AwkStr {
+    if tag.has_ptr() {
         copy_string(_data, ptr)
     } else {
         ptr
@@ -349,10 +347,10 @@ pub extern "C" fn print_error(_data_ptr: *mut std::os::raw::c_void, code: ErrorC
 pub extern "C" fn array_assign(
     data_ptr: *mut std::os::raw::c_void,
     array: i32,
-    key_tag: i8,
+    key_tag: Tag,
     key_num: f64,
     key_ptr: *mut AwkStr,
-    tag: i8,
+    tag: Tag,
     float: f64,
     ptr: *mut AwkStr,
 ) {
@@ -362,7 +360,7 @@ pub extern "C" fn array_assign(
     match res {
         None => {}
         Some(existing) => {
-            if existing.tag == STRING_TAG {
+            if existing.tag.has_ptr() {
                 println!("\tfreeing prior value from array");
                 unsafe { Rc::from_raw(existing.ptr) };
                 // implicitly drop RC here. Do not report as a string_in our out since it was
@@ -370,12 +368,12 @@ pub extern "C" fn array_assign(
             }
         }
     }
-    if key_tag == STRING_TAG {
+    if key_tag.has_ptr() {
         let rc = unsafe { Rc::from_raw(key_ptr) };
         data.string_in("array_access_key", &*rc);
         // implicitly drop here
     };
-    if tag == STRING_TAG {
+    if tag.has_ptr() {
         let val = unsafe { Rc::from_raw(ptr) };
         data.string_in("array_access_val", &*val);
         // We don't drop it here because it is now stored in the hashmap.
@@ -386,10 +384,10 @@ pub extern "C" fn array_assign(
 pub extern "C" fn array_access(
     data_ptr: *mut std::os::raw::c_void,
     array: i32,
-    in_tag: i8,
+    in_tag: Tag,
     in_float: f64,
     in_ptr: *const AwkStr,
-    out_tag: *mut i8,
+    out_tag: *mut Tag,
     out_float: *mut f64,
     out_value: *mut *mut AwkStr,
 ) {
@@ -399,13 +397,13 @@ pub extern "C" fn array_access(
     match data.arrays.access(array, MapValue::new(in_tag, in_float, in_ptr)) {
         None => unsafe {
             println!("\tarray access for non-existant key");
-            *out_tag = STRING_TAG;
+            *out_tag = Tag::StringTag;
             *out_value = empty_string(data_ptr) as *mut AwkStr;
         },
         Some(value) => unsafe {
             *out_tag = value.tag;
             *out_float = value.float;
-            if value.tag == STRING_TAG {
+            if value.tag.has_ptr() {
                 let rc = Rc::from_raw(value.ptr);
                 let cloned = rc.clone();
                 data.string_out("array_access", &*cloned);
@@ -416,7 +414,7 @@ pub extern "C" fn array_access(
             }
         },
     }
-    if in_tag == STRING_TAG {
+    if in_tag.has_ptr() {
         let rc = unsafe { Rc::from_raw(in_ptr) };
         data.string_in("input_str_to_array_access", &*rc);
     }
@@ -425,14 +423,14 @@ pub extern "C" fn array_access(
 pub extern "C" fn in_array(
     data_ptr: *mut std::os::raw::c_void,
     array: i32,
-    in_tag: i8,
+    in_tag: Tag,
     in_float: f64,
     in_ptr: *const AwkStr,
 ) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::InArray);
     let res = data.arrays.in_array(array, MapValue::new(in_tag, in_float, in_ptr));
-    if in_tag == STRING_TAG {
+    if in_tag.has_ptr() {
         let rc = unsafe { Rc::from_raw(in_ptr) };
         data.string_in("input_str_to_array_access", &*rc);
     }

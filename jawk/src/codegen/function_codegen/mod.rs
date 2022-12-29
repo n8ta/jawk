@@ -2,7 +2,7 @@ use crate::codegen::callable_function::CallableFunction;
 use crate::codegen::codegen_consts::CodegenConsts;
 use crate::codegen::function_scope::FunctionScope;
 use crate::codegen::globals::Globals;
-use crate::codegen::{ValuePtrT, ValueT, FLOAT_TAG, STRING_TAG};
+use crate::codegen::{ValuePtrT, ValueT, Tag};
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::parser::{ArgT, ScalarType, Stmt, TypedExpr};
 use crate::runtime::Runtime;
@@ -76,7 +76,7 @@ impl<'a> FunctionCodegen<'a> {
         let zero = Box::leak(Box::new(0)) as *mut i32;
 
         let tag_scratch = function
-            .create_void_ptr_constant((Box::leak(Box::new(FLOAT_TAG)) as *mut i8) as *mut c_void);
+            .create_void_ptr_constant((Box::leak(Box::new(Tag::FloatTag as i8)) as *mut i8) as *mut c_void);
         let float_scratch = function
             .create_void_ptr_constant(Box::leak(Box::new(0.0 as f64)) as *mut f64 as *mut c_void);
         let ptr_scratch_ptr = function
@@ -87,8 +87,8 @@ impl<'a> FunctionCodegen<'a> {
         let zero_ptr = ptr_scratch_ptr;
         let zero_f = function.create_float64_constant(0.0);
         let sentinel_float = function.create_float64_constant(123.123); // Used to init float portion of a string value
-        let float_tag = function.create_sbyte_constant(FLOAT_TAG as c_char);
-        let string_tag = function.create_sbyte_constant(STRING_TAG as c_char);
+        let float_tag = function.create_sbyte_constant(Tag::FloatTag as c_char);
+        let string_tag = function.create_sbyte_constant(Tag::StringTag as c_char);
         let c = CodegenConsts::new(zero_ptr, zero_f, float_tag, string_tag, sentinel_float);
 
         let function_scope = FunctionScope::new(globals, &mut function, ast_function.args());

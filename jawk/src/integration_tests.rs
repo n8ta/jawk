@@ -15,6 +15,8 @@ mod integration_tests {
     const FLOAT_NUMBERS: &'static str = "1.1 2.2 3.3\n4.4 5.5 6.6\n7.7 8.8 9.9";
     const NUMERIC_STRING: &'static str = "1 2 3\n04 005 6\n07 8 9";
     const ABC: &'static str = "abc\nabc\nabc";
+    const PI: &'static str = "    +3.14";
+    const NUM2: &'static str = "002";
 
     fn test_once(interpreter: &str, prog: &str, file: &PathBuf) -> (String, Duration) {
         // Run a single awk once and capture the output
@@ -113,7 +115,7 @@ mod integration_tests {
         );
     }
 
-    fn test_it<S: AsRef<str>>(test_name: &str, prog: &str, file: S, oracle_output: &str) {
+    fn test<S: AsRef<str>>(test_name: &str, prog: &str, file: S, oracle_output: &str) {
         println!("Program:\n{}", prog);
         let mut symbolizer = Symbolizer::new();
         let program =
@@ -156,7 +158,7 @@ mod integration_tests {
         ($name:ident,$prog:expr,$file:expr,$stdout:expr) => {
             #[test]
             fn $name() {
-                test_it(stringify!($name), $prog, $file, $stdout);
+                test(stringify!($name), $prog, $file, $stdout);
             }
         };
     }
@@ -742,32 +744,45 @@ mod integration_tests {
     test!(test_pattern_long, "$1 == $4", long_number_file(), "");
 
     // TODO: Numeric strings
-    // test!(
-    //     test_numeric_string1,
-    //     "{ print ($1 > 2 ) }",
-    //     NUMERIC_STRING,
-    //     "."
-    // );
+    test!(
+        test_numeric_string1,
+        "{ print ($1 > 2) }",
+        NUMERIC_STRING,
+        "."
+    );
 
-    // // const NUMERIC_STRING: &'static str = "1 2 3\n04 005 6\n07 8 9";
-    // test!(
-    //     test_numeric_string2,
-    //     "{ print ($0 < $1 ) }",
-    //     NUMERIC_STRING,
-    //     "0\n0\n0\n"
-    // );
-    // test!(
-    //     test_numeric_string3,
-    //     "{ print (\"04\" > \"005\") }",
-    //     NUMERIC_STRING,
-    //     "1\n1\n1\n"
-    // );
-    // test!(
-    //     test_numeric_string4,
-    //     "{ print (\"04\" >= \"005\") }",
-    //     NUMERIC_STRING,
-    //     "1\n1\n1\n"
-    // );
+
+    test!(gawk_strnum_0, "{ print($0 == \" +3.14\") }", PI, "1\n");
+    test!(gawk_strnum_3, "{ print($0 == 3.14) }", PI, "1\n");
+    test!(gawk_strnum_5, "{ print($1 == \"+3.14\") }", PI, "1\n");
+    test!(gawk_strnum_7, "{ print($1 == 3.14) }", PI, "1\n");
+
+    test!(gawk_strnum_1, "{ print($0 == \"+3.14\") }", PI, "0\n");
+    test!(gawk_strnum_2, "{ print($0 == \"3.14\") }", PI, "0\n");
+    test!(gawk_strnum_4, "{ print($1 == \" +3.14\") }", PI, "0\n");
+    test!(gawk_strnum_6, "{ print($1 == \"3.14\") }", PI, "0\n");
+
+    test!(split_numstr_0, "{ split($0, a); print a[0]; }", NUM2, "002\n");
+    test!(split_numstr_1, "{ split($0, a); print a[0]; print( a[0] < 2); print a[0]; }", NUM2, "0\n002\n");
+
+    test!(
+        test_numeric_string2,
+        "{ print ($0 < $1 ) }",
+        NUMERIC_STRING,
+        "0\n0\n0\n"
+    );
+    test!(
+        test_numeric_string3,
+        "{ print (\"04\" > \"005\") }",
+        NUMERIC_STRING,
+        "1\n1\n1\n"
+    );
+    test!(
+        test_numeric_string4,
+        "{ print (\"04\" >= \"005\") }",
+        NUMERIC_STRING,
+        "1\n1\n1\n"
+    );
     test!(
         test_post_increment,
         "BEGIN { a = 4; print a++ + a++}",

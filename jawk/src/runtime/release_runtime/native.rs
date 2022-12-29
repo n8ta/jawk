@@ -4,7 +4,7 @@ use std::rc::Rc;
 use lru_cache::LruCache;
 use mawk_regex::Regex;
 use crate::awk_str::AwkStr;
-use crate::codegen::{FLOAT_TAG, STRING_TAG};
+use crate::codegen::{Tag};
 use crate::lexer::BinOp;
 use crate::runtime::array_split::{split_on_regex, split_on_string};
 use crate::runtime::arrays::MapValue;
@@ -41,15 +41,14 @@ pub extern "C" fn next_line(data: *mut c_void) -> f64 {
 
 pub extern "C" fn column(
     data_ptr: *mut c_void,
-    tag: i8,
+    tag: Tag,
     value: f64,
     pointer: *const AwkStr,
 ) -> *mut AwkStr {
     let data = cast_to_runtime_data(data_ptr);
-    let idx = if tag == FLOAT_TAG {
-        value
-    } else {
-        string_to_number(data_ptr, pointer)
+    let idx = match tag {
+        Tag::FloatTag => value,
+        Tag::StringTag | Tag::StrnumTag => string_to_number(data_ptr, pointer),
     };
     let idx = idx.round() as usize;
     let str =
@@ -77,8 +76,8 @@ pub extern "C" fn free_string(data_ptr: *mut c_void, string: *const AwkStr) {
     }
 }
 
-pub extern "C" fn free_if_string(data_ptr: *mut c_void, tag: i8, string: *const AwkStr) {
-    if tag == STRING_TAG {
+pub extern "C" fn free_if_string(data_ptr: *mut c_void, tag: Tag, string: *const AwkStr) {
+    if tag.has_ptr()  {
         free_string(data_ptr, string);
     }
 }
@@ -102,7 +101,7 @@ pub extern "C" fn empty_string(_data_ptr: *mut c_void) -> *const AwkStr {
     Rc::into_raw(Rc::new(AwkStr::new(vec![])))
 }
 
-pub fn get_from_regex_cache<'a>(regex_cache: &'a mut LruCache<AwkStr, Regex>, reg_str: Rc<AwkStr>) -> &'a mut Regex {
+pub fn get_from_regex_cache(regex_cache: &mut LruCache<AwkStr, Regex>, reg_str: Rc<AwkStr>) -> &mut Regex {
     if regex_cache.contains_key(&*reg_str) {
         regex_cache.get_mut(&*reg_str).unwrap()
     }  else {
@@ -165,8 +164,8 @@ pub extern "C" fn copy_string(_data_ptr: *mut c_void, ptr: *mut AwkStr) -> *cons
     Rc::into_raw(copy)
 }
 
-pub extern "C" fn copy_if_string(data_ptr: *mut c_void, tag: i8, ptr: *mut AwkStr) -> *const AwkStr {
-    if tag == STRING_TAG {
+pub extern "C" fn copy_if_string(data_ptr: *mut c_void, tag: Tag, ptr: *mut AwkStr) -> *const AwkStr {
+    if tag.has_ptr() {
         copy_string(data_ptr, ptr)
     } else {
         ptr
@@ -180,10 +179,10 @@ pub extern "C" fn print_error(_data: *mut std::os::raw::c_void, code: ErrorCode)
 pub extern "C" fn array_assign(
     data_ptr: *mut std::os::raw::c_void,
     array: i32,
-    key_tag: i8,
+    key_tag: Tag,
     key_num: f64,
     key_ptr: *mut AwkStr,
-    tag: i8,
+    tag: Tag,
     float: f64,
     ptr: *mut AwkStr,
 ) {
@@ -194,18 +193,18 @@ pub extern "C" fn array_assign(
     match res {
         None => {}
         Some(existing) => {
-            if existing.tag == STRING_TAG {
+            if existing.tag.has_ptr() {
                 unsafe { Rc::from_raw(existing.ptr) };
                 // implicitly drop RC here. Do not report as a string_in our out since it was
-                // already stored in the runtime and droped from the runtime.
+                // already stored in the runtime and dropped from the runtime.
             }
         }
     }
-    if key_tag == STRING_TAG {
+    if key_tag.has_ptr() {
         let _rc = unsafe { Rc::from_raw(key_ptr) };
         // implicitly drop here
     };
-    if tag == STRING_TAG {
+    if tag.has_ptr() {
         let val = unsafe { Rc::from_raw(ptr) };
         // We don't drop it here because it is now stored in the hashmap.
         Rc::into_raw(val);
@@ -215,23 +214,23 @@ pub extern "C" fn array_assign(
 pub extern "C" fn array_access(
     data_ptr: *mut std::os::raw::c_void,
     array: i32,
-    in_tag: i8,
+    in_tag: Tag,
     in_float: f64,
     in_ptr: *mut AwkStr,
-    out_tag: *mut i8,
+    out_tag: *mut Tag,
     out_float: *mut f64,
     out_value: *mut *mut AwkStr,
 ) {
     let data = cast_to_runtime_data(data_ptr);
     match data.arrays.access(array, MapValue::new(in_tag, in_float, in_ptr)) {
         None => unsafe {
-            *out_tag = STRING_TAG;
+            *out_tag = Tag::StringTag;
             *out_value = empty_string(data_ptr) as *mut AwkStr;
         },
         Some(existing) => unsafe {
             *out_tag = existing.tag;
             *out_float = existing.float;
-            if existing.tag == STRING_TAG {
+            if existing.tag.has_ptr() {
                 let rc = Rc::from_raw(existing.ptr);
                 let cloned = rc.clone();
                 Rc::into_raw(rc);
@@ -239,7 +238,7 @@ pub extern "C" fn array_access(
             }
         },
     }
-    if in_tag == STRING_TAG {
+    if in_tag.has_ptr() {
         free_string(data_ptr, in_ptr);
     }
 }
@@ -247,13 +246,13 @@ pub extern "C" fn array_access(
 pub extern "C" fn in_array(
     data_ptr: *mut std::os::raw::c_void,
     array: i32,
-    in_tag: i8,
+    in_tag: Tag,
     in_float: f64,
     in_ptr: *const AwkStr,
 ) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     let res = data.arrays.in_array(array, MapValue::new(in_tag, in_float, in_ptr));
-    if in_tag == STRING_TAG {
+    if in_tag.has_ptr() {
         unsafe { Rc::from_raw(in_ptr) };
     }
     if res {
@@ -340,7 +339,7 @@ pub extern "C" fn split(data_ptr: *mut c_void, string: *const AwkStr, array: i32
     let rc = unsafe { Rc::from_raw(string) };
     let mut count: f64 = 0.0;
     for (_key, val) in data.arrays.clear(array) {
-        if val.tag == STRING_TAG {
+        if val.tag.has_ptr() {
             unsafe { Rc::from_raw(val.ptr) };
         }
     }
@@ -349,8 +348,8 @@ pub extern "C" fn split(data_ptr: *mut c_void, string: *const AwkStr, array: i32
         count += 1.0;
         let string = Rc::into_raw(Rc::new(AwkStr::new(elem.to_vec())));
         let _ = data.arrays.assign(array,
-                                     MapValue::new(FLOAT_TAG, (idx + 1) as f64, 0 as *const AwkStr),
-                                     MapValue::new(STRING_TAG, 0.0, string));
+                                   MapValue::new(Tag::FloatTag, (idx + 1) as f64, 0 as *const AwkStr),
+                                   MapValue::new(Tag::StrnumTag, 0.0, string));
     }
     count
 }
@@ -362,7 +361,7 @@ pub extern "C" fn split_ere(data_ptr: *mut c_void, string: *const AwkStr, array:
     let reg = get_from_regex_cache(&mut data.regex_cache, reg_str);
     let mut count: f64 = 0.0;
     for (_key, val) in data.arrays.clear(array) {
-        if val.tag == STRING_TAG {
+        if val.tag.has_ptr() {
             unsafe { Rc::from_raw(val.ptr) };
         }
     }
@@ -371,8 +370,8 @@ pub extern "C" fn split_ere(data_ptr: *mut c_void, string: *const AwkStr, array:
         count += 1.0;
         let string = Rc::into_raw(Rc::new(AwkStr::new(elem.to_vec())));
         let _ = data.arrays.assign(array,
-                                   MapValue::new(FLOAT_TAG, (idx + 1) as f64, 0 as *const AwkStr),
-                                   MapValue::new(STRING_TAG, 0.0, string));
+                                   MapValue::new(Tag::FloatTag, (idx + 1) as f64, 0 as *const AwkStr),
+                                   MapValue::new(Tag::StrnumTag, 0.0, string));
     }
     count
 }

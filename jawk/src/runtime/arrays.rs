@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Formatter};
-use crate::codegen::FLOAT_TAG;
+use crate::codegen::Tag;
 use hashbrown::HashMap;
 use std::rc::Rc;
 use hashbrown::hash_map::Drain;
@@ -46,26 +46,37 @@ impl Debug for MapKey {
 }
 
 pub struct MapValue {
-    pub tag: i8,
+    pub tag: Tag,
     pub float: f64,
     pub ptr: *const AwkStr,
 }
 
 impl MapValue {
-    pub fn new(tag: i8, float: f64, ptr: *const AwkStr) -> Self { Self { tag, float, ptr } }
+    pub fn new(tag: Tag, float: f64, ptr: *const AwkStr) -> Self { Self { tag, float, ptr } }
 }
 
 impl Debug for MapValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.tag == FLOAT_TAG {
-            write!(f, "float:{}", self.float)
-        } else {
-            let rced = unsafe { Rc::from_raw(self.ptr) };
-            let s = String::from_utf8(rced.bytes().to_vec()).unwrap();
-            Rc::into_raw(rced);
-            f.write_str("str:'").unwrap();
-            f.write_str(&s).unwrap();
-            f.write_str("'")
+        match self.tag {
+            Tag::FloatTag => {
+                write!(f, "float:{}", self.float)
+            }
+            Tag::StringTag => {
+                let rced = unsafe { Rc::from_raw(self.ptr) };
+                let s = String::from_utf8(rced.bytes().to_vec()).unwrap();
+                Rc::into_raw(rced);
+                f.write_str("str:'").unwrap();
+                f.write_str(&s).unwrap();
+                f.write_str("'")
+            }
+            Tag::StrnumTag => {
+                let rced = unsafe { Rc::from_raw(self.ptr) };
+                let s = String::from_utf8(rced.bytes().to_vec()).unwrap();
+                Rc::into_raw(rced);
+                f.write_str("strnum:'").unwrap();
+                f.write_str(&s).unwrap();
+                f.write_str("'")
+            }
         }
     }
 }
@@ -73,17 +84,18 @@ impl Debug for MapValue {
 impl MapKey {
     // Does not drop the Rc<String> count
     pub fn new(val: MapValue) -> Self {
-        if val.tag == FLOAT_TAG {
-            MapKey::Float(HashFloat::new(val.float))
-        } else {
-            let str = unsafe { Rc::from_raw(val.ptr) };
-            let res = if let Some(flt) = string_exactly_float(&str) {
-                MapKey::Float(HashFloat::new(flt))
-            } else {
-                MapKey::String(str.clone())
-            };
-            Rc::into_raw(str);
-            res
+        match val.tag {
+            Tag::FloatTag => MapKey::Float(HashFloat::new(val.float)),
+            Tag::StringTag | Tag::StrnumTag  => {
+                let str = unsafe { Rc::from_raw(val.ptr) };
+                let res = if let Some(flt) = string_exactly_float(&str) {
+                    MapKey::Float(HashFloat::new(flt))
+                } else {
+                    MapKey::String(str.clone())
+                };
+                Rc::into_raw(str);
+                res
+            }
         }
     }
 }
