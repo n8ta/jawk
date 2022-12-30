@@ -11,6 +11,7 @@ use crate::runtime::call_log::Call;
 use crate::runtime::debug_runtime::{cast_to_runtime_data, RuntimeData};
 use crate::runtime::ErrorCode;
 use crate::runtime::float_parser::string_to_float;
+use crate::runtime::debug_runtime::value::RuntimeValue;
 
 pub extern "C" fn print_string(data: *mut c_void, value: *mut AwkStr) {
     let data = cast_to_runtime_data(data);
@@ -301,42 +302,95 @@ pub extern "C" fn copy_if_string(_data: *mut c_void, tag: Tag, ptr: *mut AwkStr)
     }
 }
 
+fn to_number(data_ptr: *mut c_void, value: RuntimeValue) -> f64 {
+    let data = cast_to_runtime_data(data_ptr);
+    match value {
+        RuntimeValue::Float(f) => f,
+        RuntimeValue::Str(ptr) => {
+            data.string_in("to_number", &*ptr);
+            string_to_float(&*ptr)
+        }
+        RuntimeValue::StrNum(ptr) => {
+            data.string_in("to_number", &*ptr);
+            string_to_float(&*ptr)
+        }
+    }
+}
+
+
+fn to_string(data: *mut c_void, value: RuntimeValue) -> Rc<AwkStr> {
+    let data = cast_to_runtime_data(data);
+    match value {
+        RuntimeValue::Float(f) => {
+            let str = AwkStr::new(data.float_parser.parse(f));
+            Rc::new(str)
+        }
+        RuntimeValue::Str(ptr) => {
+            data.string_in("to_string", &*ptr);
+            ptr
+        },
+        RuntimeValue::StrNum(ptr) => {
+            data.string_in("to_string", &*ptr);
+            ptr
+        }
+    }
+}
+
 pub extern "C" fn binop(
-    data: *mut c_void,
+    data_ptr: *mut c_void,
+    l_tag: Tag,
+    l_flt: f64,
     l_ptr: *const AwkStr,
+    r_tag: Tag,
+    r_flt: f64,
     r_ptr: *const AwkStr,
     binop: BinOp,
 ) -> std::os::raw::c_double {
-    let data = cast_to_runtime_data(data);
-    data.calls.log(Call::BinOp);
-    let left = unsafe { Rc::from_raw(l_ptr) };
-    let right = unsafe { Rc::from_raw(r_ptr) };
+    let left = RuntimeValue::new(l_tag, l_flt, l_ptr);
+    let right = RuntimeValue::new(r_tag, r_flt, r_ptr);
 
-    let res = match binop {
-        BinOp::Greater => left > right,
-        BinOp::GreaterEq => left >= right,
-        BinOp::Less => left < right,
-        BinOp::LessEq => left <= right,
-        BinOp::BangEq => left != right,
-        BinOp::EqEq => left == right,
-        BinOp::MatchedBy => {
-            let regex = Regex::new(&right);
-            regex.matches(&left)
-        }
-        BinOp::NotMatchedBy => {
-            let regex = Regex::new(&right);
-            !regex.matches(&left)
-        }
-    };
+    let data = cast_to_runtime_data(data_ptr);
+    data.calls.log(Call::BinOp);
+
+
+    let res =
+
+        if left.is_numeric() && right.is_numeric() && binop != BinOp::MatchedBy && binop != BinOp::NotMatchedBy {
+            // to_number drops the string ptr if it's a strnum
+            let left = to_number(data_ptr, left);
+            let right = to_number(data_ptr, right);
+            match binop {
+                BinOp::Greater => left > right,
+                BinOp::GreaterEq => left >= right,
+                BinOp::Less => left < right,
+                BinOp::LessEq => left < right,
+                BinOp::BangEq => left != right,
+                BinOp::EqEq => left == right,
+                _ => unreachable!(),
+            }
+        } else {
+            // String comparisons
+            let left = to_string(data_ptr, left);
+            let right = to_string(data_ptr, right);
+            match binop {
+                BinOp::Greater => left > right,
+                BinOp::GreaterEq => left >= right,
+                BinOp::Less => left < right,
+                BinOp::LessEq => left <= right,
+                BinOp::BangEq => left != right,
+                BinOp::EqEq => left == right,
+                BinOp::MatchedBy => {
+                    let regex = Regex::new(&right);
+                    regex.matches(&left)
+                }
+                BinOp::NotMatchedBy => {
+                    let regex = Regex::new(&right);
+                    !regex.matches(&left)
+                }
+            }
+        };
     let res = if res { 1.0 } else { 0.0 };
     print!("\tBinop called: '");
-    stdout().write_all(left.bytes()).unwrap();
-    print!(" {} ", binop);
-    stdout().write_all(right.bytes()).unwrap();
-    println!(" = {}", res);
-    data.string_in("binop left", &*left);
-    data.string_in("binop right", &*right);
-    // Implicitly drop left and right
     res
 }
 

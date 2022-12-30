@@ -84,12 +84,12 @@ impl Runtime for ReleaseRuntime {
         empty_string(self.runtime_data as *mut c_void)
     }
 
-    fn binop(&mut self, func: &mut Function, ptr1: Value, ptr2: Value, binop_val: BinOp) -> Value {
+    fn binop(&mut self, func: &mut Function, left: ValueT, right: ValueT, binop_val: BinOp) -> Value {
         let binop_val = func.create_sbyte_constant(binop_val as i8);
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             binop as *mut c_void,
-            vec![data_ptr, ptr1, ptr2, binop_val],
+            vec![data_ptr, left.tag, left.float, left.pointer, right.tag, right.float, right.pointer, binop_val],
             Some(Context::float64_type()),
             Abi::Cdecl,
         )

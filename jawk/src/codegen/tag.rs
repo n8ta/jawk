@@ -24,4 +24,8 @@ impl Tag {
     pub fn has_ptr(&self) -> bool {
         *self != Tag::FloatTag
     }
+
+    pub fn is_numeric(&self) -> bool {
+        *self != Tag::StringTag
+    }
 }

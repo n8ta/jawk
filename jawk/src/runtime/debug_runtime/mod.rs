@@ -1,12 +1,13 @@
 mod native;
+mod value;
 
-use crate::codegen::{ValueT};
+use crate::codegen::ValueT;
 use crate::columns::Columns;
 use crate::lexer::BinOp;
 use crate::parser::ScalarType;
 use crate::runtime::arrays::Arrays;
-use crate::runtime::call_log::{CallLog};
-use crate::runtime::float_parser::{FloatParser};
+use crate::runtime::call_log::CallLog;
+use crate::runtime::float_parser::FloatParser;
 use crate::runtime::{ErrorCode, Runtime};
 use crate::{runtime_fn, runtime_fn_no_ret};
 use gnu_libjit::{Abi, Context, Function, Value};
@@ -14,7 +15,7 @@ use hashbrown::HashMap;
 use std::ffi::c_void;
 use std::io::{stdout, Write};
 use crate::awk_str::AwkStr;
-use crate::runtime::debug_runtime::native::{column, concat, array_assign, copy_string, copy_if_string, binop, print_float, print_string, print_error, printf, split, next_line, string_to_number, number_to_string, concat_array_indices, array_access, in_array, to_upper, to_lower, rand, srand, length, split_ere, free_string, free_if_string, empty_string};
+use crate::runtime::debug_runtime::native::{array_access, array_assign, binop, column, concat, concat_array_indices, copy_if_string, copy_string, empty_string, free_if_string, free_string, in_array, length, next_line, number_to_string, print_error, print_float, print_string, printf, rand, split, split_ere, srand, string_to_number, to_lower, to_upper};
 
 pub const CANARY: &str = "this is the canary!";
 
@@ -125,12 +126,12 @@ impl Runtime for DebugRuntime {
         empty_string(self.runtime_data as *mut c_void)
     }
 
-    fn binop(&mut self, func: &mut Function, ptr1: Value, ptr2: Value, binop_val: BinOp) -> Value {
+    fn binop(&mut self, func: &mut Function, left: ValueT, right: ValueT, binop_val: BinOp) -> Value {
         let binop_val = func.create_sbyte_constant(binop_val as i8);
         let data_ptr = self.data_ptr(func);
         func.insn_call_native(
             binop as *mut c_void,
-            vec![data_ptr, ptr1, ptr2, binop_val],
+            vec![data_ptr, left.tag, left.float, left.pointer, right.tag, right.float, right.pointer, binop_val],
             Some(Context::float64_type()),
             Abi::Cdecl,
         )

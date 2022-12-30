@@ -168,7 +168,7 @@ impl<'a> FunctionCodegen<'a> {
                 fill_in(
                     self.function.dump().unwrap(),
                     self.runtime,
-                    &self.function_scope
+                    &self.function_scope,
                 )
             );
         }
@@ -437,7 +437,7 @@ impl<'a> FunctionCodegen<'a> {
                 if left_expr.typ == ScalarType::Float && right_expr.typ == ScalarType::Float {
                     return Ok(ValueT::float(
                         tag,
-                        self.float_binop(&left.float, &right.float, *op),
+                        self.float_binop(&left, &right, *op),
                         self.zero_ptr(),
                     ));
                 }
@@ -451,12 +451,10 @@ impl<'a> FunctionCodegen<'a> {
                     .insn_branch_if(&both_float, &mut both_float_lbl);
 
                 // String/Float Float/String String/String case
-                let left_as_string = self.val_to_string(&left, left_expr.typ);
-                let right_as_string = self.val_to_string(&right, right_expr.typ);
                 let res = self.runtime.binop(
                     &mut self.function,
-                    left_as_string.clone(),
-                    right_as_string.clone(),
+                    left.clone(),
+                    right.clone(),
                     *op,
                 );
                 let result = ValueT::float(self.float_tag(), res, self.zero_ptr());
@@ -465,7 +463,7 @@ impl<'a> FunctionCodegen<'a> {
 
                 // Float/Float case
                 self.function.insn_label(&mut both_float_lbl);
-                let float_val = self.float_binop(&left.float, &right.float, *op);
+                let float_val = self.float_binop(&left, &right, *op);
                 let value = ValueT::float(tag, float_val, self.zero_ptr());
                 self.store(&mut self.binop_scratch.clone(), &value);
 
@@ -796,18 +794,16 @@ impl<'a> FunctionCodegen<'a> {
         self.runtime.copy_if_string(&mut self.function, value, typ)
     }
 
-    fn float_binop(&mut self, a: &Value, b: &Value, op: BinOp) -> Value {
+    fn float_binop(&mut self, a: &ValueT, b: &ValueT, op: BinOp) -> Value {
         let bool = match op {
-            BinOp::Greater => self.function.insn_gt(a, b),
-            BinOp::GreaterEq => self.function.insn_ge(a, b),
-            BinOp::Less => self.function.insn_lt(a, b),
-            BinOp::LessEq => self.function.insn_le(a, b),
-            BinOp::BangEq => self.function.insn_ne(a, b),
-            BinOp::EqEq => self.function.insn_eq(a, b),
+            BinOp::Greater => self.function.insn_gt(&a.float, &b.float),
+            BinOp::GreaterEq => self.function.insn_ge(&a.float, &b.float),
+            BinOp::Less => self.function.insn_lt(&a.float, &b.float),
+            BinOp::LessEq => self.function.insn_le(&a.float, &b.float),
+            BinOp::BangEq => self.function.insn_ne(&a.float, &b.float),
+            BinOp::EqEq => self.function.insn_eq(&a.float, &b.float),
             BinOp::MatchedBy | BinOp::NotMatchedBy => {
-                let a_str = self.runtime.number_to_string(&mut self.function, a.clone());
-                let b_str = self.runtime.number_to_string(&mut self.function, b.clone());
-                return self.runtime.binop(&mut self.function, a_str, b_str, op);
+                return self.runtime.binop(&mut self.function, a.clone(), b.clone(), op);
             }
         };
         let one = self.function.create_float64_constant(1.0);
