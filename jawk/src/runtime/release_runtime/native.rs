@@ -12,6 +12,7 @@ use crate::runtime::ErrorCode;
 use crate::runtime::release_runtime::{cast_to_runtime_data, RuntimeData};
 use crate::runtime::util::{clamp_to_max_len, clamp_to_slice_index};
 use crate::runtime::value::RuntimeValue;
+use crate::util::index_of;
 
 pub extern "C" fn print_string(data: *mut c_void, value: *mut AwkStr) {
     let data = cast_to_runtime_data(data);
@@ -430,4 +431,13 @@ pub extern "C" fn length(_data_ptr: *mut c_void, str: *const String) -> f64 {
     let str = unsafe { Rc::from_raw(str) };
     str.chars().count() as f64
     // Drop str
+}
+
+pub extern "C" fn index(_data_ptr: *mut c_void, needle: *const AwkStr, haystack: *const AwkStr) -> f64 {
+    let (needle, haystack) = unsafe { (Rc::from_raw(needle), Rc::from_raw(haystack)) };
+    if let Some(idx) = index_of(needle.bytes(), haystack.bytes()) {
+        (idx + 1) as f64
+    } else {
+        0.0
+    }
 }

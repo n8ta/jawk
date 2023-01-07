@@ -13,7 +13,7 @@ use lru_cache::LruCache;
 use mawk_regex::Regex;
 use std::ffi::c_void;
 use std::io::{BufWriter, StdoutLock, Write};
-use native::{column, concat, array_assign, copy_string, copy_if_string, binop, print_float, print_string, print_error, printf, split, next_line, string_to_number, number_to_string, concat_array_indices, array_access, in_array, to_upper, to_lower, rand, srand, length, split_ere, free_string, free_if_string, empty_string};
+use native::{column, concat, index, array_assign, copy_string, copy_if_string, binop, print_float, print_string, print_error, printf, split, next_line, string_to_number, number_to_string, concat_array_indices, array_access, in_array, to_upper, to_lower, rand, srand, length, split_ere, free_string, free_if_string, empty_string};
 
 
 use crate::{runtime_fn, runtime_fn_no_ret};
@@ -135,6 +135,7 @@ impl Runtime for ReleaseRuntime {
     runtime_fn!(rand, rand, Some(Context::float64_type()),);
     runtime_fn!(srand, srand, Some(Context::float64_type()), seed: Value);
     runtime_fn!(length, length, Some(Context::float64_type()), string: Value);
+    runtime_fn!(index, index, Some(Context::float64_type()), needle: Value, haystack: Value);
 
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType) {
         let data_ptr = self.data_ptr(func);

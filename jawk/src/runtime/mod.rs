@@ -64,6 +64,7 @@ pub trait Runtime {
     fn rand(&mut self, func: &mut Function) -> Value;
     fn srand(&mut self, func: &mut Function, flt: Value) -> Value;
     fn length(&mut self, func: &mut Function, ptr: Value) -> Value;
+    fn index(&mut self, func: &mut Function, needle: Value, haystack: Value) -> Value;
     fn column(&mut self, func: &mut Function, tag: Value, float: Value, ptr: Value) -> Value;
     fn free_if_string(&mut self, func: &mut Function, value: ValueT, typ: ScalarType);
     fn split(&mut self, func: &mut Function, string: Value, array: Value, ere_string: Option<Value>) -> Value;

@@ -22,6 +22,7 @@ pub enum Call {
     Rand,
     Srand,
     Length,
+    Index,
     Split,
     SplitEre,
     Substr,

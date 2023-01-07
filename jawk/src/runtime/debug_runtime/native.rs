@@ -12,6 +12,7 @@ use crate::runtime::debug_runtime::{cast_to_runtime_data, RuntimeData};
 use crate::runtime::ErrorCode;
 use crate::runtime::util::{clamp_to_max_len, clamp_to_slice_index};
 use crate::runtime::value::RuntimeValue;
+use crate::util::index_of;
 
 pub extern "C" fn print_string(data: *mut c_void, value: *mut AwkStr) {
     let data = cast_to_runtime_data(data);
@@ -140,7 +141,7 @@ pub extern "C" fn length(data_ptr: *mut c_void, str: *const AwkStr) -> f64 {
     data.calls.log(Call::Length);
     let str = unsafe { Rc::from_raw(str) };
     data.str_tracker.string_in("length ptr", str.bytes());
-    let len = match String::from_utf8(str.bytes().to_vec()) {
+    let len = match String::from_utf8(str.bytes().to_vec()) { // TODO: No alloc here
         Ok(s) => s.len(),
         Err(_err) => {
             eprintln!("String is not validate utf-8 falling back to length in bytes");
@@ -148,6 +149,19 @@ pub extern "C" fn length(data_ptr: *mut c_void, str: *const AwkStr) -> f64 {
         }
     };
     len as f64
+}
+
+pub extern "C" fn index(data_ptr: *mut c_void, needle: *const AwkStr, haystack: *const AwkStr) -> f64 {
+    let data = cast_to_runtime_data(data_ptr);
+    data.calls.log(Call::Index);
+    let (needle, haystack) = unsafe { (Rc::from_raw(needle), Rc::from_raw(haystack)) };
+    data.str_tracker.string_in("index needle", needle.bytes());
+    data.str_tracker.string_in("index haystack", haystack.bytes());
+    if let Some(idx) = index_of(needle.bytes(), haystack.bytes()) {
+        (idx + 1) as f64
+    } else {
+        0.0
+    }
 }
 
 pub extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const AwkStr) -> *const AwkStr {

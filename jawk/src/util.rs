@@ -132,6 +132,7 @@ mod index_of_tests {
         assert_eq!(index_of(&[1, 2, 3], &[]), None);
         assert_eq!(index_of(&[1, 2, 3], &[0, 1, 2, 3]), Some(1));
         assert_eq!(index_of(&[1, 2, 3, 4, 5, 6, 7, 8], &[0, 1, 2, 3]), None);
+        assert_eq!(index_of(&EMPTY_SLICE, &EMPTY_SLICE), Some(0));
     }
 
     #[test]

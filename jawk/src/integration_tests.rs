@@ -17,6 +17,7 @@ mod integration_tests {
     const ABC: &'static str = "abc\nabc\nabc";
     const NUM2: &'static str = "002";
     const PERF_ARRAY_PROGRAM: &'static str = "BEGIN { while (x<40000) { arr[x] = 1+x++  }; sum = 0; x = 0; while (x++ < 40000) { sum += arr[x] }; print sum}";
+    const EMPTY_INDEX_PROGRAM: &'static str = "BEGIN { a = \"\"; print index(a, \"\") }";
 
     fn test_once(interpreter: &str, prog: &str, file: &PathBuf) -> (String, Duration) {
         // Run a single awk once and capture the output
@@ -142,12 +143,15 @@ mod integration_tests {
         );
 
         test_against("awk", prog, oracle_output, &file_path);
+        test_against("goawk", prog, oracle_output, &file_path);
         if prog != PERF_ARRAY_PROGRAM {
             // Mawk rounds weirdly for this program it's not a bug in jawk
             test_against("mawk", prog, oracle_output, &file_path);
         }
-        test_against("goawk", prog, oracle_output, &file_path);
-        test_against("onetrueawk", prog, oracle_output, &file_path);
+        if prog != EMPTY_INDEX_PROGRAM {
+            // onetrue awk says index("", "") is 0 whereas everyone else says 1
+            test_against("onetrueawk", prog, oracle_output, &file_path);
+        }
 
         if std::env::vars().any(|f| f.0 == "jperf" && (f.1 == "true" || f.1 == "true\n")) {
             test_perf(test_name, "awk", prog, oracle_output, &file_path);
@@ -1322,4 +1326,13 @@ mod integration_tests {
     test!(test_native_substr_12, "BEGIN { a = \"abc\"; print substr(a, -1); }", ONE_LINE, "abc\n");
     test!(test_native_substr_13, "BEGIN { a = \"abc\"; print substr(a, 1.5); }", ONE_LINE, "abc\n");
     test!(test_native_substr_14, "BEGIN { a = \"abc\"; print substr(a, 1.99999); }", ONE_LINE, "abc\n");
+
+    test!(test_native_index_0, "BEGIN { a = \"abc111ee\"; print index(a, \"abc\") }", ONE_LINE, "1\n");
+    test!(test_native_index_1, "BEGIN { a = \"abc111ee\"; print index(a, \"abcD\") }", ONE_LINE, "0\n");
+    test!(test_native_index_2, "BEGIN { a = \"abc111ee\"; print index(a, \"bc111\") }", ONE_LINE, "2\n");
+    test!(test_native_index_3, "BEGIN { a = \"abc111ee\"; print index(a, \"e\") }", ONE_LINE, "7\n");
+    test!(test_native_index_4, "BEGIN { a = \"abc111ee\"; print index(a, \"ee\") }", ONE_LINE, "7\n");
+    test!(test_native_index_5, "BEGIN { a = \"a\"; print index(a, \"aaa\") }", ONE_LINE, "0\n");
+    test!(test_native_index_6, "BEGIN { a = \"\"; print index(a, \"aaa\") }", ONE_LINE, "0\n");
+    test!(test_native_index_7, EMPTY_INDEX_PROGRAM, ONE_LINE, "1\n");
 }

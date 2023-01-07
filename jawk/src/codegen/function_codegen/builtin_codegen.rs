@@ -110,9 +110,14 @@ impl<'a> FunctionCodegen<'a> {
                 };
                 Ok(self.mk_float(flt))
             },
+            BuiltinFunc::Index => {
+                let haystack = self.arg_to_str(args, 0)?;
+                let needle = self.arg_to_str(args, 1)?;
+                let index = self.runtime.index(&mut self.function, needle, haystack);
+                Ok(self.mk_float(index))
+            }
             BuiltinFunc::Close => todo!(),
             BuiltinFunc::Gsub => todo!(),
-            BuiltinFunc::Index => todo!(),
             BuiltinFunc::Matches => todo!(),
             BuiltinFunc::Sprintf => todo!(),
             BuiltinFunc::Sub => todo!(),
