@@ -19,6 +19,7 @@ use native::{column, concat, array_assign, copy_string, copy_if_string, binop, p
 use crate::{runtime_fn, runtime_fn_no_ret};
 use crate::awk_str::AwkStr;
 use crate::runtime::release_runtime::hacky_alloc::HackyAlloc;
+use crate::runtime::release_runtime::native::{substr, substr_max_chars};
 use crate::runtime::string_converter::Converter;
 
 pub struct ReleaseRuntime {
@@ -195,6 +196,25 @@ impl Runtime for ReleaseRuntime {
                 split as *mut c_void,
                 vec![data_ptr, string, array],
                 Some(Context::float64_type()),
+                Abi::Cdecl,
+            )
+        }
+    }
+
+    fn substr(&mut self, func: &mut Function, string: Value, start_idx: Value, max_chars: Option<Value>) -> Value{
+        let data_ptr = self.data_ptr(func);
+        if let Some(max) = max_chars {
+            func.insn_call_native(
+                substr_max_chars as *mut c_void,
+                vec![data_ptr, string, start_idx, max],
+                Some(Context::void_ptr_type()),
+                Abi::Cdecl,
+            )
+        } else {
+            func.insn_call_native(
+                substr as *mut c_void,
+                vec![data_ptr, string, start_idx],
+                Some(Context::void_ptr_type()),
                 Abi::Cdecl,
             )
         }

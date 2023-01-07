@@ -1,3 +1,4 @@
+use std::cmp::{max, min};
 use std::io::{stdout, Write};
 use std::os::raw::c_void;
 use std::rc::Rc;
@@ -9,6 +10,7 @@ use crate::runtime::array_split::{split_on_regex, split_on_string};
 use crate::runtime::call_log::Call;
 use crate::runtime::debug_runtime::{cast_to_runtime_data, RuntimeData};
 use crate::runtime::ErrorCode;
+use crate::runtime::util::{clamp_to_max_len, clamp_to_slice_index};
 use crate::runtime::value::RuntimeValue;
 
 pub extern "C" fn print_string(data: *mut c_void, value: *mut AwkStr) {
@@ -61,8 +63,8 @@ pub extern "C" fn split(data_ptr: *mut c_void, string: *const AwkStr, array: i32
         count += 1.0;
         let string = Rc::into_raw(Rc::new(AwkStr::new(elem.to_vec())));
         let _ = data.arrays.assign(array,
-                                     Rc::new(AwkStr::new(format!("{}", idx+1).into_bytes())),
-                                     RuntimeValue::new(Tag::StrnumTag, 0.0, string));
+                                   Rc::new(AwkStr::new(format!("{}", idx + 1).into_bytes())),
+                                   RuntimeValue::new(Tag::StrnumTag, 0.0, string));
     }
     count
 }
@@ -82,10 +84,37 @@ pub extern "C" fn split_ere(data_ptr: *mut c_void, string: *const AwkStr, array:
         count += 1.0;
         let string = Rc::into_raw(Rc::new(AwkStr::new(elem.to_vec())));
         let _ = data.arrays.assign(array,
-                                   Rc::new(AwkStr::new(format!("{}",idx+1).into_bytes())),
+                                   Rc::new(AwkStr::new(format!("{}", idx + 1).into_bytes())),
                                    RuntimeValue::new(Tag::StrnumTag, 0.0, string));
     }
     count
+}
+
+pub extern "C" fn substr(data_ptr: *mut c_void, string_ptr: *const AwkStr, start_idx: f64) -> *const AwkStr {
+    // TODO: utf-8 support for start_idx
+    let data = cast_to_runtime_data(data_ptr);
+    data.calls.log(Call::Substr);
+    let string = unsafe { Rc::from_raw(string_ptr) };
+    data.str_tracker.string_in("substr string", &string);
+    let start_idx = clamp_to_slice_index(start_idx-1.0, string.bytes().len());
+    let output = Rc::new(AwkStr::new(string.bytes()[start_idx..].to_vec()));
+    data.str_tracker.string_out("substr out", &*output);
+    Rc::into_raw(output)
+}
+
+pub extern "C" fn substr_max_chars(data_ptr: *mut c_void, string_ptr: *const AwkStr, start_idx: f64, max_chars: f64) -> *const AwkStr {
+    // TODO: utf-8 support for start_idx and max_chars
+    let data = cast_to_runtime_data(data_ptr);
+    data.calls.log(Call::SubstrMaxChars);
+    let string = unsafe { Rc::from_raw(string_ptr) };
+    data.str_tracker.string_in("substr_max_chars string", &string);
+
+    let str_len = string.bytes().len();
+    let start_idx = clamp_to_slice_index(start_idx-1.0, str_len);
+    let max_chars = clamp_to_max_len(max_chars, start_idx, str_len);
+    let output = Rc::new(AwkStr::new(string.bytes()[start_idx..start_idx+max_chars].to_vec()));
+    data.str_tracker.string_out("substr_max_chars out", &*output);
+    Rc::into_raw(output)
 }
 
 pub extern "C" fn srand(data_ptr: *mut c_void, seed: f64) -> f64 {
@@ -131,7 +160,7 @@ pub extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const AwkStr) -> *const 
             // TODO: non-ascii lower case
             str.make_ascii_lowercase();
             Rc::into_raw(Rc::new(str))
-        },
+        }
         Err(ptr) => Rc::into_raw(Rc::new(ptr.to_ascii_lowercase())),
     };
     let str = unsafe { Rc::from_raw(str) };
@@ -149,7 +178,7 @@ pub extern "C" fn to_upper(data_ptr: *mut c_void, ptr: *const AwkStr) -> *const 
             // TODO: non-ascii lower case
             str.make_ascii_uppercase();
             Rc::into_raw(Rc::new(str))
-        },
+        }
         Err(ptr) => Rc::into_raw(Rc::new(ptr.to_ascii_uppercase())),
     };
     let str = unsafe { Rc::from_raw(str) };
@@ -451,7 +480,7 @@ pub extern "C" fn concat_array_indices(
     let data = cast_to_runtime_data(data);
     data.calls.log(Call::ConcatArrayIndices);
     println!("\t{:?}, {:?}", left, right);
-    let lhs = data.str_tracker.string_from_ffi( left, "concat-indices lhs");
+    let lhs = data.str_tracker.string_from_ffi(left, "concat-indices lhs");
     let rhs = data.str_tracker.string_from_ffi(right, "concat-indices rhs");
 
     let mut lhs = match Rc::try_unwrap(lhs) {

@@ -24,6 +24,8 @@ pub enum Call {
     Length,
     Split,
     SplitEre,
+    Substr,
+    SubstrMaxChars,
     // Printf,
 }
 

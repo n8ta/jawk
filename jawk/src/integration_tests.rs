@@ -1201,45 +1201,15 @@ mod integration_tests {
         ONE_LINE,
         "1\n"
     );
-    test!(
-        test_scalar_call_str_const_var,
-        "function f(ss) { print ss; } BEGIN { s = \"s\";  f(s) }",
-        ONE_LINE,
-        "s\n"
-    );
+    test!(test_scalar_call_str_const_var,"function f(ss) { print ss; } BEGIN { s = \"s\";  f(s) }",ONE_LINE,"s\n");
 
-    test!(
-        test_simple_return,
-        "function a() { return 2 } BEGIN { print a() }",
-        ONE_LINE,
-        "2\n"
-    );
+    test!(test_simple_return,"function a() { return 2 } BEGIN { print a() }",ONE_LINE,"2\n");
 
-    test!(
-        test_ret_scalar_func_call,
-        "function a(b,c,d) {  print (b + c + d); }  BEGIN { print a(1,2,3); }",
-        ONE_LINE,
-        "6\n\n"
-    );
+    test!(test_ret_scalar_func_call,"function a(b,c,d) {  print (b + c + d); }  BEGIN { print a(1,2,3); }",ONE_LINE,"6\n\n");
 
-    test!(
-        test_ret_string_func_call,
-        "function a(b,c,d) { return b  c  d; }  BEGIN { print a(\"1\",\"2\",\"3\"); }",
-        ONE_LINE,
-        "123\n"
-    );
-
-    test!(
-        test_scalar_call_simple,
-        "function f(scl) { print scl; } BEGIN { scalar = 5;f(scalar) }",
-        ONE_LINE,
-        "5\n"
-    );
-
-    test!(test_mixed_call,
-"function f(arr, scalar, arr2) { print arr[0]; print scalar; print arr2[1] } BEGIN { global_a_1[0] = 1; scalar = \"scalar\"; global_arr_2[1] = 2; f(global_a_1, scalar, global_arr_2) }",
-    ONE_LINE,
-    "1\nscalar\n2\n"
+    test!(test_ret_string_func_call,"function a(b,c,d) { return b  c  d; }  BEGIN { print a(\"1\",\"2\",\"3\"); }",ONE_LINE,"123\n");
+    test!(test_scalar_call_simple,"function f(scl) { print scl; } BEGIN { scalar = 5;f(scalar) }",ONE_LINE,"5\n");
+    test!(test_mixed_call,"function f(arr, scalar, arr2) { print arr[0]; print scalar; print arr2[1] } BEGIN { global_a_1[0] = 1; scalar = \"scalar\"; global_arr_2[1] = 2; f(global_a_1, scalar, global_arr_2) }",ONE_LINE,"1\nscalar\n2\n"
 );
 
     test!(test_str_to_float_0, "BEGIN { print 1 + \"1a\" }", ONE_LINE, "2\n");
@@ -1335,4 +1305,19 @@ mod integration_tests {
     test!(test_idx_exact_noe, "BEGIN { a[\"1.1\"] = 4; a[1.1] = 3; print a[1.1]; print a[\"1.1\"] }", ONE_LINE, "3\n3\n");
     test!(test_idx_exact_e, "BEGIN { a[\"1.1e1\"] = 4; a[11] = 3; print a[\"1.1e1\"]; print a[11] }", ONE_LINE, "4\n3\n");
 
+    test!(test_native_substr_0, "BEGIN { a = \"abc\"; print substr(a, 1, 1); }", ONE_LINE, "a\n");
+    test!(test_native_substr_1, "BEGIN { a = \"abc\"; print substr(a, 1, 2); }", ONE_LINE, "ab\n");
+    test!(test_native_substr_2, "BEGIN { a = \"abc\"; print substr(a, 1, 3); }", ONE_LINE, "abc\n");
+    test!(test_native_substr_3, "BEGIN { a = \"abc\"; print substr(a, 1, 0); }", ONE_LINE, "\n");
+    test!(test_native_substr_4, "BEGIN { a = \"abc\"; print substr(a, 1, -1); }", ONE_LINE, "\n");
+    test!(test_native_substr_5, "BEGIN { a = \"abcdefghi\"; print substr(a, 2, 3); }", ONE_LINE, "bcd\n");
+    test!(test_native_substr_6, "BEGIN { a = \"abcdefghi\"; print substr(a, 2, 3000); }", ONE_LINE, "bcdefghi\n");
+    test!(test_native_substr_7, "BEGIN { a = \"abcdefghi\"; print substr(a, 2, 5); }", ONE_LINE, "bcdef\n");
+    test!(test_native_substr_8, "BEGIN { a = \"abc\"; print substr(a, 0); }", ONE_LINE, "abc\n");
+    test!(test_native_substr_9, "BEGIN { a = \"abc\"; print substr(a, 1); }", ONE_LINE, "abc\n");
+    test!(test_native_substr_10, "BEGIN { a = \"abc\"; print substr(a, 3); }", ONE_LINE, "c\n");
+    test!(test_native_substr_11, "BEGIN { a = \"abc\"; print substr(a, 4); }", ONE_LINE, "\n");
+    test!(test_native_substr_12, "BEGIN { a = \"abc\"; print substr(a, -1); }", ONE_LINE, "abc\n");
+    test!(test_native_substr_13, "BEGIN { a = \"abc\"; print substr(a, 1.5); }", ONE_LINE, "abc\n");
+    test!(test_native_substr_14, "BEGIN { a = \"abc\"; print substr(a, 1.99999); }", ONE_LINE, "abc\n");
 }

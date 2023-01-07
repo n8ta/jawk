@@ -1,4 +1,3 @@
-use std::io::{stdout, Write};
 use std::rc::Rc;
 use crate::awk_str::AwkStr;
 use crate::codegen::Tag;
@@ -11,7 +10,7 @@ pub struct StringTracker {
 
 impl StringTracker {
     pub fn new() -> Self { Self { strings_in: 0, string_out: 0 } }
-    pub fn string_out(&mut self, src: &str, string: &[u8]) {
+    pub fn string_out(&mut self, src: &str, _string: &[u8]) {
         // let mut stdout = stdout();
         println!("===> {}", src);
         // stdout.write_all("\t===> ".as_bytes()).unwrap();
@@ -21,7 +20,7 @@ impl StringTracker {
         // stdout.write_all(&[10]).unwrap();
         self.string_out += 1;
     }
-    pub fn string_in(&mut self, src: &str, string: &[u8]) {
+    pub fn string_in(&mut self, src: &str, _string: &[u8]) {
         println!("<=== {}", src);
         // let mut stdout = stdout();
         // stdout.write_all("\t<=== ".as_bytes()).unwrap();

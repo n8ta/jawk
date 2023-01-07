@@ -24,10 +24,6 @@ Reading a 300MB CSV file, storing every line in a variable, and then printing th
 The right chart omits onetrueawk to make distinctions clearer.
 ![Left is a histogram of mawk, gawk, goawk, jawk, and onetrue awk. Right omits onetrueawk since it s 10x slower than the others. Mean runtimes are mawk: 554ms gawk: 2042ms goawk: 747ms jawk: 448ms](./assets/practical.png)
 
-ATM this is an unfair comparison since jawk field splitting isn't implemented. Shout out to mawk it took me a lot of optimization
-to beat their runtime for io bound programs.
-
-
 ## Limitations
 
 jawk doesn't support all of awk yet. Lots of builtins are missing, statements must be terminated with a `;` not a new line, and numeric strings 
@@ -73,16 +69,34 @@ cargo run -- --debug 'BEGIN { print "this will print debug info including the AS
 ## Todo:
 
 1. Reading from stdin
-2. Native string functions gsub, index, length, match, split, sprintf, sub, substr, tolower, toupper
+2. Native string functions gsub, index, length, match, split, sprintf, sub, substr
 3. Redirect output to file
    - close() function
-4. ARGV / ARGC and other ENV vars
-Pattern Ranges 
+4. Pattern Ranges 
 5. Parser need to be able to print the where it was when shit went wrong and what happened
-6. Do we actually need numeric strings??? (Yes there are now commented tests for them)
-7. The columns runtime needs to be much faster and lazier.
-7. Make this compile on Windows!
-8. Divide by 0 needs to print an error
+6. The columns runtime should not duplicate work when the same field is looked up multiple times
+7. The columns runtime should support assignment
+8. Make this compile on Windows!
+9. Divide by 0 needs to print an error
+10. All the builtin variables that are read only:
+   1. ARGC (float)
+   1. FILENAME (str)
+   1. FNR (float)
+   1. NF (float)
+   1. NR (float)
+   1. RLENGTH (float)
+   1. RSTART (float)
+11. Builtins that are read/write
+    1. CONVFMT (str)
+    1. FS (str)
+    1. OFMT (str)
+    1. OFS (str)
+    1. ORS (str)
+    1. RS (str)
+    1. SUBSEP (str)
+12. Builtins that are arrays (in this impl read only)
+    1. ARGV
+    1. ENVIRON
 
 ## License
 GNU Libjit is GPLv2. (./gnu-libjit-sys/LICENSE)

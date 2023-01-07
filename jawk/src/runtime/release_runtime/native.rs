@@ -1,3 +1,4 @@
+use std::cmp::{max, min};
 use std::io::Write;
 use std::os::raw::c_void;
 use std::rc::Rc;
@@ -9,6 +10,7 @@ use crate::lexer::BinOp;
 use crate::runtime::array_split::{split_on_regex, split_on_string};
 use crate::runtime::ErrorCode;
 use crate::runtime::release_runtime::{cast_to_runtime_data, RuntimeData};
+use crate::runtime::util::{clamp_to_max_len, clamp_to_slice_index};
 use crate::runtime::value::RuntimeValue;
 
 pub extern "C" fn print_string(data: *mut c_void, value: *mut AwkStr) {
@@ -388,6 +390,26 @@ pub extern "C" fn split_ere(data_ptr: *mut c_void, string: *const AwkStr, array:
                                    RuntimeValue::new(Tag::StrnumTag, 0.0, string));
     }
     count
+}
+
+
+pub extern "C" fn substr(_data_ptr: *mut c_void, string_ptr: *const AwkStr, start_idx: f64) -> *const AwkStr {
+    // TODO: utf-8 support for start_idx
+    let string = unsafe { Rc::from_raw(string_ptr) };
+    let start_idx = clamp_to_slice_index(start_idx-1.0, string.bytes().len());
+    let output = Rc::new(AwkStr::new(string.bytes()[start_idx..].to_vec()));
+    Rc::into_raw(output)
+}
+
+pub extern "C" fn substr_max_chars(data_ptr: *mut c_void, string_ptr: *const AwkStr, start_idx: f64, max_chars: f64) -> *const AwkStr {
+    // TODO: utf-8 support for start_idx and max_chars
+    let data = cast_to_runtime_data(data_ptr);
+    let string = unsafe { Rc::from_raw(string_ptr) };
+    let str_len = string.bytes().len();
+    let start_idx = clamp_to_slice_index(start_idx-1.0, str_len);
+    let max_chars = clamp_to_max_len(max_chars, start_idx, str_len);
+    let awk_str = data.hacky_alloc.alloc_awkstr(&string.bytes()[start_idx..start_idx+max_chars]);
+    Rc::into_raw(awk_str)
 }
 pub extern "C" fn srand(data_ptr: *mut c_void, seed: f64) -> f64 {
     let data = cast_to_runtime_data(data_ptr);

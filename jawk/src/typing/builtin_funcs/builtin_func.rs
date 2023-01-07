@@ -47,12 +47,12 @@ impl BuiltinFunc {
             BuiltinFunc::Tolower => vec![Arg::new_scl(s.get("lower-arg-0"))],
             BuiltinFunc::Toupper => vec![Arg::new_scl(s.get("upper-arg-0"))],
             BuiltinFunc::Split => vec![Arg::new_scl(s.get("split-arg-0")), Arg::new_arr(s.get("split-arg-1")), Arg::new_optional(s.get("split-arg-2"), ArgT::Scalar)],
+            BuiltinFunc::Substr => vec![Arg::new_scl(s.get("substr-arg-0")), Arg::new_scl(s.get("substr-arg-1")), Arg::new_optional(s.get("substr-arg-2"), ArgT::Scalar)],
             BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Index => todo!(),
             BuiltinFunc::Matches => todo!(),
             BuiltinFunc::Sprintf => todo!(),
             BuiltinFunc::Sub => todo!(),
-            BuiltinFunc::Substr => todo!(),
             BuiltinFunc::Close => todo!(),
             BuiltinFunc::System => todo!(),
         }

@@ -13,7 +13,7 @@ use gnu_libjit::{Abi, Context, Function, Value};
 use hashbrown::HashMap;
 use std::ffi::c_void;
 use crate::awk_str::AwkStr;
-use crate::runtime::debug_runtime::native::{array_access, array_assign, binop, column, concat, concat_array_indices, copy_if_string, copy_string, empty_string, free_if_string, free_string, in_array, length, next_line, number_to_string, print_error, print_float, print_string, printf, rand, split, split_ere, srand, string_to_number, to_lower, to_upper};
+use crate::runtime::debug_runtime::native::{array_access, array_assign, binop, column, concat, concat_array_indices, copy_if_string, copy_string, empty_string, free_if_string, free_string, in_array, length, next_line, number_to_string, print_error, print_float, print_string, printf, rand, split, split_ere, srand, string_to_number, substr, substr_max_chars, to_lower, to_upper};
 use crate::runtime::debug_runtime::string_tracker::StringTracker;
 use crate::runtime::string_converter::Converter;
 
@@ -163,6 +163,25 @@ impl Runtime for DebugRuntime {
                 split as *mut c_void,
                 vec![data_ptr, string, array],
                 Some(Context::float64_type()),
+                Abi::Cdecl,
+            )
+        }
+    }
+
+    fn substr(&mut self, func: &mut Function, string: Value, start_idx: Value, max_chars: Option<Value>) -> Value{
+        let data_ptr = self.data_ptr(func);
+        if let Some(max) = max_chars {
+            func.insn_call_native(
+                substr_max_chars as *mut c_void,
+                vec![data_ptr, string, start_idx, max],
+                Some(Context::void_ptr_type()),
+                Abi::Cdecl,
+            )
+        } else {
+            func.insn_call_native(
+                substr as *mut c_void,
+                vec![data_ptr, string, start_idx],
+                Some(Context::void_ptr_type()),
                 Abi::Cdecl,
             )
         }

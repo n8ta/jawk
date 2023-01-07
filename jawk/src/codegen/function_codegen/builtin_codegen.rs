@@ -26,6 +26,8 @@ impl<'a> FunctionCodegen<'a> {
     fn mk_float(&self, flt: Value) -> ValueT {
         ValueT::new(self.float_tag(), flt, self.zero_ptr())
     }
+    fn mk_string(&self, str: Value) -> ValueT { ValueT::new(self.string_tag(), self.zero_f(), str) }
+
     pub fn compile_builtin(
         &mut self,
         builtin: &BuiltinFunc,
@@ -107,7 +109,19 @@ impl<'a> FunctionCodegen<'a> {
             BuiltinFunc::Matches => todo!(),
             BuiltinFunc::Sprintf => todo!(),
             BuiltinFunc::Sub => todo!(),
-            BuiltinFunc::Substr => todo!(),
+            BuiltinFunc::Substr => {
+                let string = self.arg_to_str(args, 0)?;
+                let start_idx = self.arg_to_float(args, 1)?;
+                let max_chars = if let Some(max_chars_expr) = args.get(2) {
+                    let max_chars = self.compile_expr(max_chars_expr, false)?;
+                    let max_chars = self.val_to_float(&max_chars, max_chars_expr.typ);
+                    Some(max_chars)
+                } else {
+                    None
+                };
+                let string = self.runtime.substr(&mut self.function, string, start_idx, max_chars);
+                Ok(self.mk_string(string))
+            }
             BuiltinFunc::System => todo!(),
             BuiltinFunc::Tolower => {
                 let compiled = self.compile_expr(&args[0], false)?;
