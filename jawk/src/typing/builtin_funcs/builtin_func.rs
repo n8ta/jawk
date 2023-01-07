@@ -43,7 +43,7 @@ impl BuiltinFunc {
             BuiltinFunc::Rand => vec![],
             BuiltinFunc::Srand => vec![Arg::new_scl(s.get("rand-arg-0"))],
             BuiltinFunc::Atan2 => vec![Arg::new_scl(s.get("atan2-arg-0")), Arg::new_scl(s.get("atan2-arg-1"))],
-            BuiltinFunc::Length => vec![Arg::new_scl(s.get("length-arg-0"))],
+            BuiltinFunc::Length => vec![Arg::new_optional(s.get("length-arg-0"), ArgT::Scalar)],
             BuiltinFunc::Tolower => vec![Arg::new_scl(s.get("lower-arg-0"))],
             BuiltinFunc::Toupper => vec![Arg::new_scl(s.get("upper-arg-0"))],
             BuiltinFunc::Split => vec![Arg::new_scl(s.get("split-arg-0")), Arg::new_arr(s.get("split-arg-1")), Arg::new_optional(s.get("split-arg-2"), ArgT::Scalar)],

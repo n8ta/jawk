@@ -1279,6 +1279,8 @@ mod integration_tests {
     test!(test_length_0, "BEGIN { print length(1111); print length(\"1234\"); print length(\"\") }", ONE_LINE, "4\n4\n0\n");
     test!(test_length_1, "BEGIN { print length(1) + length(12); }", ONE_LINE, "3\n");
     test!(test_length_2, "{ a += length($2); } END { print a }", "1 22 333\n4444 55555 666666\n7777777 88888888 999999999", "15\n");
+    test!(test_length_3, "{ print  length(); }", "123\n33345", "3\n5\n");
+    test!(test_length_4, "BEGIN { print  length(45e2); }", ONE_LINE, "4\n");
 
     test!(test_fs_0, "{ print $2; FS = \"b\"; }", ABC, "\nc\n");
     test!(test_fs_1, "{ print $2; FS = \"a\"; }", ABC, "\nbc\n");

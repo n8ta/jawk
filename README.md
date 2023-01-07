@@ -69,7 +69,13 @@ cargo run -- --debug 'BEGIN { print "this will print debug info including the AS
 ## Todo:
 
 1. Reading from stdin
-2. Native string functions gsub, index, length, match, split, sprintf, sub, substr
+2. Native string functions 
+   1. gsub
+   2. index
+   3. match
+   4. split
+   5. sprintf
+   6. sub
 3. Redirect output to file
    - close() function
 4. Pattern Ranges 

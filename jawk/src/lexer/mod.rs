@@ -109,13 +109,22 @@ impl<'a, 'b> Lexer<'a, 'b> {
         while self.peek().is_digit(10) {
             self.advance();
         }
+        // Awk allows floats like 3e but rust won't parse them.
+        // If we read an e but no numbers after we need to drop the e from the buffer
+        let mut buf_len = self.buffer.len();
+        if self.matches('e') {
+            while self.peek().is_digit(10) {
+                self.advance();
+                buf_len = self.buffer.len()
+            }
+        }
+        self.buffer.truncate(buf_len);
 
         let num = self.collect_buffer();
-        // TODO: scientific notation
         match num.parse::<f64>() {
             Ok(float) => Ok(Token::NumberF64(float)),
             Err(_) => {
-                return Err(PrintableError::new(format!("Unable to parse f64 {}", num)));
+                return Err(PrintableError::new(format!("Unable to parse f64 `{}`", num)));
             }
         }
     }
@@ -781,6 +790,23 @@ fn test_array_ops_slash_not() {
             Token::In,
             a,
             Token::EOF
+        ]
+    );
+}
+
+#[test]
+fn test_sci_notation() {
+    let mut symbolizer = Symbolizer::new();
+    let str = "1e1 2e2 3e 4.4e1 5.5e";
+    assert_eq!(
+        lex_test(str, &mut symbolizer).unwrap(),
+        vec![
+            Token::NumberF64(10.0),
+            Token::NumberF64(200.0),
+            Token::NumberF64(3.0),
+            Token::NumberF64(44.0),
+            Token::NumberF64(5.5),
+            Token::EOF,
         ]
     );
 }

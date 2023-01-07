@@ -82,8 +82,15 @@ impl<'a> FunctionCodegen<'a> {
                 Ok(self.mk_float(atan2))
             }
             BuiltinFunc::Length => {
-                let str = self.arg_to_str(args, 0)?;
-                let len = self.runtime.length(&mut self.function, str); //drops str
+                let string = if let Some(str_expr) = args.get(0) {
+                    let str = self.compile_expr(str_expr, false)?;
+                    self.val_to_string(&str, str_expr.typ)
+                } else {
+                    let zero = self.zero_f();
+                    let zero = self.mk_float(zero);
+                    self.runtime.column(&mut self.function, zero.tag, zero.float, zero.pointer)
+                };
+                let len = self.runtime.length(&mut self.function, string); //drops str
                 Ok(self.mk_float(len))
             }
             BuiltinFunc::Split => {

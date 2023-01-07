@@ -28,6 +28,7 @@ impl FloatWriter {
         lexical_core::write_with_options::<_, FORMAT>(flt, &mut self.buffer, &self.options);
 
         let res = unsafe {
+            // fuck it we'll do it live
             lexical_core::write_with_options_unchecked::<_, FORMAT>(
                 flt,
                 &mut self.buffer,
