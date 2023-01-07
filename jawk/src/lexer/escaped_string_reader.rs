@@ -6,37 +6,38 @@ use crate::printable_error::PrintableError;
 // https://pubs.opengroup.org/onlinepubs/009604499/basedefs/xbd_chap05.html
 // AWK specific ones:
 // https://pubs.opengroup.org/onlinepubs/009604499/utilities/awk.html "Table: Escape Sequences in awk"
+#[allow(dead_code)]
 pub fn escaped_string_reader(_chars: &mut Peekable<Chars>) -> Result<String, PrintableError> {
     todo!()
 }
 
 #[cfg(test)]
 mod string_read_tests {
-    use crate::lexer::escaped_string_reader::escaped_string_reader;
+    // use crate::lexer::escaped_string_reader::escaped_string_reader;
+    //
+    // fn test_helper(input: &str, oracle: &str, expected_err: &str) {
+    //     let res = escaped_string_reader(&mut input.chars().peekable());
+    //     match res {
+    //         Ok(result) => assert_eq!(oracle, result),
+    //         Err(err) => {
+    //             if expected_err == "" {
+    //                 assert!(false, "Failed, input {} expected output {} but got err {}", input, oracle, expected_err)
+    //             } else {
+    //                 let err_str = format!("{}", err);
+    //                 assert!(err_str.contains(expected_err), "Expected to get an error including msg {} but got: {}", expected_err, err_str)
+    //             }
+    //         }
+    //     }
+    // }
 
-    fn test_helper(input: &str, oracle: &str, expected_err: &str) {
-        let res = escaped_string_reader(&mut input.chars().peekable());
-        match res {
-            Ok(result) => assert_eq!(oracle, result),
-            Err(err) => {
-                if expected_err == "" {
-                    assert!(false, "Failed, input {} expected output {} but got err {}", input, oracle, expected_err)
-                } else {
-                    let err_str = format!("{}", err);
-                    assert!(err_str.contains(expected_err), "Expected to get an error including msg {} but got: {}", expected_err, err_str)
-                }
-            }
-        }
-    }
-
-    macro_rules! test {
-        ($name:ident,$input:expr,$oracle:expr,$expected_err:expr) => {
-            #[test]
-            fn $name() {
-                test_helper($input, $oracle, $expected_err);
-            }
-        };
-    }
+    // macro_rules! test {
+    //     ($name:ident,$input:expr,$oracle:expr,$expected_err:expr) => {
+    //         #[test]
+    //         fn $name() {
+    //             test_helper($input, $oracle, $expected_err);
+    //         }
+    //     };
+    // }
 
     // These look a little messed up b/c we're dealing with rust's escaping rules
     // and awk's. Luckily they mostly match!

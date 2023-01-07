@@ -1,5 +1,5 @@
 use mawk_regex::Regex;
-use crate::columns::index_in_slice;
+use crate::util::index_in_slice;
 
 
 // Used for the builtin split() function when splitting on an ERE

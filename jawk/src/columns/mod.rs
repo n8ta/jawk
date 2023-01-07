@@ -1,5 +1,4 @@
 mod lazily_split_line;
-mod index_of;
 mod borrowing_split;
 mod file_record_reader;
 
@@ -7,7 +6,6 @@ use std::fs::File;
 use crate::awk_str::AwkStr;
 use crate::columns::file_record_reader::FileReader;
 use crate::printable_error::PrintableError;
-pub use crate::columns::index_of::{index_in_slice};
 
 pub struct Columns {
     files: Vec<String>,
@@ -64,7 +62,8 @@ impl Columns {
         self.reader.set_rs(value.as_bytes().to_vec())
     }
 
-    pub fn set_field_sep(&mut self, value: String) {
+    #[allow(dead_code)]
+    pub fn set_field_sep(&mut self, _value: String) {
         // let bytes = value.as_bytes().to_vec();
         todo!()
     }

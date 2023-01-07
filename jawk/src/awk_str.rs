@@ -1,7 +1,5 @@
 use std::fmt::{Debug, Formatter};
-use std::mem;
 use std::ops::Deref;
-use std::str::Utf8Error;
 
 #[derive(PartialEq, PartialOrd, Clone, Eq, Hash)]
 pub struct AwkStr {
@@ -59,5 +57,8 @@ impl AwkStr {
     }
     pub fn as_mut_vec(&mut self) -> &mut Vec<u8> {
         &mut self.bytes
+    }
+    pub fn clear(&mut self) {
+        self.bytes.clear();
     }
 }

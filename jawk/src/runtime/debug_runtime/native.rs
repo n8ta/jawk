@@ -6,12 +6,10 @@ use crate::awk_str::AwkStr;
 use crate::codegen::{Tag};
 use crate::lexer::BinOp;
 use crate::runtime::array_split::{split_on_regex, split_on_string};
-use crate::runtime::arrays::MapValue;
 use crate::runtime::call_log::Call;
 use crate::runtime::debug_runtime::{cast_to_runtime_data, RuntimeData};
 use crate::runtime::ErrorCode;
-use crate::runtime::float_parser::string_to_float;
-use crate::runtime::debug_runtime::value::RuntimeValue;
+use crate::runtime::value::RuntimeValue;
 
 pub extern "C" fn print_string(data: *mut c_void, value: *mut AwkStr) {
     let data = cast_to_runtime_data(data);
@@ -27,7 +25,7 @@ pub extern "C" fn print_string(data: *mut c_void, value: *mut AwkStr) {
     };
     data.output.extend_from_slice(&res);
     stdout().write_all(&res).unwrap();
-    data.string_in("print_string", &*str)
+    data.str_tracker.string_in("print_string", &*str)
 }
 
 pub extern "C" fn print_float(data: *mut c_void, value: f64) {
@@ -55,45 +53,37 @@ pub extern "C" fn split(data_ptr: *mut c_void, string: *const AwkStr, array: i32
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::Split);
     let rc = unsafe { Rc::from_raw(string) };
-    data.string_in("split_ere string", &rc);
+    data.str_tracker.string_in("split_ere string", &rc);
     let mut count: f64 = 0.0;
-    for (_key, val) in data.arrays.clear(array) {
-        if val.tag.has_ptr() {
-            unsafe { Rc::from_raw(val.ptr) };
-        }
-    }
+    let _ = data.arrays.clear(array);
     for (idx, elem) in split_on_string(data.columns.get_field_sep(), &rc).enumerate()
     {
         count += 1.0;
         let string = Rc::into_raw(Rc::new(AwkStr::new(elem.to_vec())));
-        let res = data.arrays.assign(array,
-                                     MapValue::new(Tag::FloatTag, (idx + 1) as f64, 0 as *const AwkStr),
-                                     MapValue::new(Tag::StrnumTag, 0.0, string));
+        let _ = data.arrays.assign(array,
+                                     Rc::new(AwkStr::new(format!("{}", idx+1).into_bytes())),
+                                     RuntimeValue::new(Tag::StrnumTag, 0.0, string));
     }
     count
 }
 
 pub extern "C" fn split_ere(data_ptr: *mut c_void, string: *const AwkStr, array: i32, ere_split: *const AwkStr) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
-    data.calls.log(Call::Split);
+    data.calls.log(Call::SplitEre);
     let str = unsafe { Rc::from_raw(string) };
     let reg_str = unsafe { Rc::from_raw(ere_split) };
-    data.string_in("split_ere string", &str);
-    data.string_in("split_ere regex", &reg_str);
+    data.str_tracker.string_in("split_ere string", &str);
+    data.str_tracker.string_in("split_ere regex", &reg_str);
     let reg = Regex::new(&reg_str);
     let mut count: f64 = 0.0;
-    for (_key, val) in data.arrays.clear(array) {
-        if val.tag.has_ptr() {
-            unsafe { Rc::from_raw(val.ptr) };
-        }
-    }
+    let _ = data.arrays.clear(array);
     for (idx, elem) in split_on_regex(&reg, &str).enumerate()
     {
         count += 1.0;
         let string = Rc::into_raw(Rc::new(AwkStr::new(elem.to_vec())));
         let _ = data.arrays.assign(array,
-                                   MapValue::new(Tag::FloatTag, (idx + 1) as f64, 0 as *const AwkStr),
-                                   MapValue::new(Tag::StrnumTag, 0.0, string));
+                                   Rc::new(AwkStr::new(format!("{}",idx+1).into_bytes())),
+                                   RuntimeValue::new(Tag::StrnumTag, 0.0, string));
     }
     count
 }
@@ -120,10 +110,10 @@ pub extern "C" fn length(data_ptr: *mut c_void, str: *const AwkStr) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::Length);
     let str = unsafe { Rc::from_raw(str) };
-    data.string_in("length ptr", str.bytes());
+    data.str_tracker.string_in("length ptr", str.bytes());
     let len = match String::from_utf8(str.bytes().to_vec()) {
         Ok(s) => s.len(),
-        Err(err) => {
+        Err(_err) => {
             eprintln!("String is not validate utf-8 falling back to length in bytes");
             str.bytes().len()
         }
@@ -135,9 +125,9 @@ pub extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const AwkStr) -> *const 
     let ptr = unsafe { Rc::from_raw(ptr) };
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::ToLower);
-    data.string_in("to_lower", ptr.bytes());
+    data.str_tracker.string_in("to_lower", ptr.bytes());
     let str = match Rc::try_unwrap(ptr) {
-        Ok(mut str) => unsafe {
+        Ok(mut str) => {
             // TODO: non-ascii lower case
             str.make_ascii_lowercase();
             Rc::into_raw(Rc::new(str))
@@ -145,7 +135,7 @@ pub extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const AwkStr) -> *const 
         Err(ptr) => Rc::into_raw(Rc::new(ptr.to_ascii_lowercase())),
     };
     let str = unsafe { Rc::from_raw(str) };
-    data.string_out("to_lower", str.bytes());
+    data.str_tracker.string_out("to_lower", str.bytes());
     Rc::into_raw(str)
 }
 
@@ -153,9 +143,9 @@ pub extern "C" fn to_upper(data_ptr: *mut c_void, ptr: *const AwkStr) -> *const 
     let ptr = unsafe { Rc::from_raw(ptr) };
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::ToUpper);
-    data.string_in("to_lower", ptr.bytes());
+    data.str_tracker.string_in("to_lower", ptr.bytes());
     let str = match Rc::try_unwrap(ptr) {
-        Ok(mut str) => unsafe {
+        Ok(mut str) => {
             // TODO: non-ascii lower case
             str.make_ascii_uppercase();
             Rc::into_raw(Rc::new(str))
@@ -163,7 +153,7 @@ pub extern "C" fn to_upper(data_ptr: *mut c_void, ptr: *const AwkStr) -> *const 
         Err(ptr) => Rc::into_raw(Rc::new(ptr.to_ascii_uppercase())),
     };
     let str = unsafe { Rc::from_raw(str) };
-    data.string_out("to_upper", str.bytes());
+    data.str_tracker.string_out("to_upper", str.bytes());
     Rc::into_raw(str)
 }
 
@@ -181,8 +171,8 @@ pub extern "C" fn column(
     let idx = idx.round() as usize;
     let str = data.columns.get(idx);
     data.calls.log(Call::Column(idx as f64));
-    println!("\tgetting column tag:{} float:{} ptr:{:?}", tag, value, pointer);
-    data.string_out("column", str.bytes());
+    println!("\tgetting column tag:{} float:{} ptr:{:?} GOT: `{}`", tag, value, pointer, String::from_utf8(str.bytes().to_vec()).unwrap());
+    data.str_tracker.string_out("column", str.bytes());
     Rc::into_raw(Rc::new(str))
 }
 
@@ -192,7 +182,7 @@ pub extern "C" fn free_string(data_ptr: *mut c_void, ptr: *const AwkStr) -> f64 
     println!("\tfreeing ptr {:?}", ptr);
 
     let string_data = unsafe { Rc::from_raw(ptr) };
-    data.string_in("free_string", string_data.bytes());
+    data.str_tracker.string_in("free_string", string_data.bytes());
     if Rc::strong_count(&string_data) > 1000 {
         // This isn't truly an error condition but if we use-after-free a string this is often hit
         // and is great for catching uaf early.
@@ -230,14 +220,14 @@ pub extern "C" fn concat(
         }
         Err(rc) => (*rc).clone(),
     };
-    data.string_in("concat lhs", &*lhs);
-    data.string_in("concat rhs", &*rhs);
+    data.str_tracker.string_in("concat lhs", &*lhs);
+    data.str_tracker.string_in("concat rhs", &*rhs);
 
     lhs.push_str(&rhs);
     println!("\tResult: ");
     stdout().write_all(&*lhs).unwrap();
     println!();
-    data.string_out("concat result", &*lhs);
+    data.str_tracker.string_out("concat result", &*lhs);
     Rc::into_raw(Rc::new(lhs))
 }
 
@@ -245,7 +235,7 @@ pub extern "C" fn empty_string(data: *mut c_void) -> *const AwkStr {
     let data = cast_to_runtime_data(data);
     data.calls.log(Call::EmptyString);
     let rc = Rc::new(AwkStr::new(vec![]));
-    data.string_out("empty_string", rc.bytes());
+    data.str_tracker.string_out("empty_string", rc.bytes());
     let ptr = Rc::into_raw(rc);
     println!("\tempty string is {:?}", ptr);
     ptr
@@ -259,7 +249,7 @@ pub extern "C" fn string_to_number(data_ptr: *mut c_void, ptr: *const AwkStr) ->
     print!("\tstring_to_number '");
     stdout().write_all(string.bytes()).unwrap();
     println!("'{:?}", ptr);
-    let res = string_to_float(&*string);
+    let res = data.converter.str_to_num(&*string).unwrap_or(0.0);
     Rc::into_raw(string);
     println!("\tret {}", res);
     res
@@ -269,9 +259,9 @@ pub extern "C" fn number_to_string(data_ptr: *mut c_void, value: f64) -> *const 
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::NumberToString);
     println!("\tnum: {}", value);
-    let str = AwkStr::new(data.float_parser.parse(value));
+    let str = AwkStr::new(data.converter.num_to_str_internal(value).to_vec());
     let heap_alloc_string = Rc::new(str);
-    data.string_out("number_to_string", &*heap_alloc_string);
+    data.str_tracker.string_out("number_to_string", &*heap_alloc_string);
     let ptr = Rc::into_raw(heap_alloc_string);
     ptr
 }
@@ -281,7 +271,7 @@ pub extern "C" fn copy_string(data_ptr: *mut c_void, ptr: *mut AwkStr) -> *const
     data.calls.log(Call::CopyString);
 
     let original = unsafe { Rc::from_raw(ptr) };
-    data.string_out("copy_string", &*original);
+    data.str_tracker.string_out("copy_string", &*original);
     print!("\tCopying string {:?} '", ptr);
     stdout().write_all(original.bytes()).unwrap();
     println!("' count is {}", Rc::strong_count(&original));
@@ -302,37 +292,27 @@ pub extern "C" fn copy_if_string(_data: *mut c_void, tag: Tag, ptr: *mut AwkStr)
     }
 }
 
-fn to_number(data_ptr: *mut c_void, value: RuntimeValue) -> f64 {
-    let data = cast_to_runtime_data(data_ptr);
+fn to_number(data: &mut RuntimeData, value: RuntimeValue) -> Option<f64> {
     match value {
-        RuntimeValue::Float(f) => f,
+        RuntimeValue::Float(f) => Some(f),
         RuntimeValue::Str(ptr) => {
-            data.string_in("to_number", &*ptr);
-            string_to_float(&*ptr)
+            data.converter.str_to_num(&*ptr)
         }
         RuntimeValue::StrNum(ptr) => {
-            data.string_in("to_number", &*ptr);
-            string_to_float(&*ptr)
+            data.converter.str_to_num(&*ptr)
         }
     }
 }
 
 
-fn to_string(data: *mut c_void, value: RuntimeValue) -> Rc<AwkStr> {
-    let data = cast_to_runtime_data(data);
+fn to_string(data: &mut RuntimeData, value: RuntimeValue) -> Rc<AwkStr> {
     match value {
         RuntimeValue::Float(f) => {
-            let str = AwkStr::new(data.float_parser.parse(f));
+            let str = AwkStr::new(data.converter.num_to_str_internal(f).to_vec());
             Rc::new(str)
         }
-        RuntimeValue::Str(ptr) => {
-            data.string_in("to_string", &*ptr);
-            ptr
-        },
-        RuntimeValue::StrNum(ptr) => {
-            data.string_in("to_string", &*ptr);
-            ptr
-        }
+        RuntimeValue::Str(ptr) => ptr,
+        RuntimeValue::StrNum(ptr) => ptr,
     }
 }
 
@@ -346,19 +326,18 @@ pub extern "C" fn binop(
     r_ptr: *const AwkStr,
     binop: BinOp,
 ) -> std::os::raw::c_double {
-    let left = RuntimeValue::new(l_tag, l_flt, l_ptr);
-    let right = RuntimeValue::new(r_tag, r_flt, r_ptr);
-
     let data = cast_to_runtime_data(data_ptr);
+    let left = data.str_tracker.value_from_ffi(l_tag, l_flt, l_ptr, "binop-left");
+    let right = data.str_tracker.value_from_ffi(r_tag, r_flt, r_ptr, "binop-right");
     data.calls.log(Call::BinOp);
+    println!("\tBinop called {:?} {} {:?}", &left, binop, &right);
 
 
     let res =
-
-        if left.is_numeric() && right.is_numeric() && binop != BinOp::MatchedBy && binop != BinOp::NotMatchedBy {
+        if left.is_numeric(&mut data.converter) && right.is_numeric(&mut data.converter) && binop != BinOp::MatchedBy && binop != BinOp::NotMatchedBy {
             // to_number drops the string ptr if it's a strnum
-            let left = to_number(data_ptr, left);
-            let right = to_number(data_ptr, right);
+            let left = to_number(data, left);
+            let right = to_number(data, right);
             match binop {
                 BinOp::Greater => left > right,
                 BinOp::GreaterEq => left >= right,
@@ -370,8 +349,8 @@ pub extern "C" fn binop(
             }
         } else {
             // String comparisons
-            let left = to_string(data_ptr, left);
-            let right = to_string(data_ptr, right);
+            let left = to_string(data, left);
+            let right = to_string(data, right);
             match binop {
                 BinOp::Greater => left > right,
                 BinOp::GreaterEq => left >= right,
@@ -410,29 +389,10 @@ pub extern "C" fn array_assign(
 ) {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::ArrayAssign);
-    let res = data.arrays.assign(array, MapValue::new(key_tag, key_num, key_ptr), MapValue::new(tag, float, ptr));
-    match res {
-        None => {}
-        Some(existing) => {
-            if existing.tag.has_ptr() {
-                println!("\tfreeing prior value from array");
-                unsafe { Rc::from_raw(existing.ptr) };
-                // implicitly drop RC here. Do not report as a string_in our out since it was
-                // already stored in the runtime and droped from the runtime.
-            }
-        }
-    }
-    if key_tag.has_ptr() {
-        let rc = unsafe { Rc::from_raw(key_ptr) };
-        data.string_in("array_access_key", &*rc);
-        // implicitly drop here
-    };
-    if tag.has_ptr() {
-        let val = unsafe { Rc::from_raw(ptr) };
-        data.string_in("array_access_val", &*val);
-        // We don't drop it here because it is now stored in the hashmap.
-        Rc::into_raw(val);
-    }
+    let key = data.str_tracker.value_from_ffi(key_tag, key_num, key_ptr, "array_assign_key");
+    let key = to_string(data, key);
+    let value = data.str_tracker.value_from_ffi(tag, float, ptr, "array_assign_value");
+    let _ = data.arrays.assign(array, key, value);
 }
 
 pub extern "C" fn array_access(
@@ -443,34 +403,25 @@ pub extern "C" fn array_access(
     in_ptr: *const AwkStr,
     out_tag: *mut Tag,
     out_float: *mut f64,
-    out_value: *mut *mut AwkStr,
+    out_value: *mut *const AwkStr,
 ) {
     let data = cast_to_runtime_data(data_ptr);
-    data.calls.log(Call::ArrayAccess);
+    let idx = data.str_tracker.value_from_ffi(in_tag, in_float, in_ptr, "array_access_idx");
+    let idx = to_string(data, idx);
     println!("\tarray access for key tag:{} flt:{} ptr:{:?}", in_tag, in_float, in_ptr);
-    match data.arrays.access(array, MapValue::new(in_tag, in_float, in_ptr)) {
+    data.calls.log(Call::ArrayAccess);
+    match data.arrays.access(array, idx) {
         None => unsafe {
-            println!("\tarray access for non-existant key");
+            println!("\tarray access for non-existent key");
             *out_tag = Tag::StringTag;
             *out_value = empty_string(data_ptr) as *mut AwkStr;
         },
         Some(value) => unsafe {
-            *out_tag = value.tag;
-            *out_float = value.float;
-            if value.tag.has_ptr() {
-                let rc = Rc::from_raw(value.ptr);
-                let cloned = rc.clone();
-                data.string_out("array_access", &*cloned);
-
-                Rc::into_raw(rc);
-
-                *out_value = Rc::into_raw(cloned) as *mut AwkStr;
-            }
+            let cloned = data.str_tracker.clone_to_ffi(value, "array_access_value");
+            *out_tag = cloned.0;
+            *out_float = cloned.1;
+            *out_value = cloned.2;
         },
-    }
-    if in_tag.has_ptr() {
-        let rc = unsafe { Rc::from_raw(in_ptr) };
-        data.string_in("input_str_to_array_access", &*rc);
     }
 }
 
@@ -483,12 +434,9 @@ pub extern "C" fn in_array(
 ) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
     data.calls.log(Call::InArray);
-    let res = data.arrays.in_array(array, MapValue::new(in_tag, in_float, in_ptr));
-    if in_tag.has_ptr() {
-        let rc = unsafe { Rc::from_raw(in_ptr) };
-        data.string_in("input_str_to_array_access", &*rc);
-    }
-    if res {
+    let idx = data.str_tracker.value_from_ffi(in_tag, in_float, in_ptr, "in_array");
+    let idx = to_string(data, idx);
+    if data.arrays.in_array(array, idx) {
         1.0
     } else {
         0.0
@@ -503,8 +451,8 @@ pub extern "C" fn concat_array_indices(
     let data = cast_to_runtime_data(data);
     data.calls.log(Call::ConcatArrayIndices);
     println!("\t{:?}, {:?}", left, right);
-    let lhs = unsafe { Rc::from_raw(left) };
-    let rhs = unsafe { Rc::from_raw(right) };
+    let lhs = data.str_tracker.string_from_ffi( left, "concat-indices lhs");
+    let rhs = data.str_tracker.string_from_ffi(right, "concat-indices rhs");
 
     let mut lhs = match Rc::try_unwrap(lhs) {
         Ok(str) => {
@@ -515,12 +463,10 @@ pub extern "C" fn concat_array_indices(
         }
         Err(rc) => (*rc).clone(),
     };
-    data.string_in("concat-indices lhs", &*lhs);
-    data.string_in("concat-indices rhs", &*rhs);
 
     lhs.push_str("-".as_bytes());
     lhs.push_str(&rhs);
-    data.string_out("concat indices result", &lhs);
+    data.str_tracker.string_out("concat indices result", &lhs);
     let res = Rc::into_raw(Rc::new(lhs));
     println!("\treturning {:?}", res);
     res
@@ -532,7 +478,7 @@ pub extern "C" fn printf(data: *mut c_void, fstring: *mut AwkStr, nargs: i32, ar
     let base_ptr = args as *mut f64;
     unsafe {
         let fstring = Rc::from_raw(fstring);
-        data.string_in("printf fstring", &*fstring);
+        data.str_tracker.string_in("printf fstring", &*fstring);
         data.output.extend_from_slice(&*fstring);
         stdout().write_all(fstring.bytes()).unwrap();
         for i in 0..(nargs as isize) {
@@ -542,7 +488,7 @@ pub extern "C" fn printf(data: *mut c_void, fstring: *mut AwkStr, nargs: i32, ar
             // args.push((tag, float, ptr));
             let str = Rc::from_raw(ptr);
             data.output.extend_from_slice(&*str);
-            data.string_in("printf in arg", &*str);
+            data.str_tracker.string_in("printf in arg", &*str);
             stdout().write_all(str.bytes()).unwrap();
         }
         // Rc::from_raw(fstring)

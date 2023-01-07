@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::os::raw::c_void;
 use quick_drop_deque::QuickDropDeque;
 
 pub fn index_of<T: PartialEq>(needle: &[T], haystack: &[T]) -> Option<usize> {
@@ -8,22 +9,26 @@ pub fn index_of<T: PartialEq>(needle: &[T], haystack: &[T]) -> Option<usize> {
     haystack.windows(needle.len()).position(|subslice| subslice == needle)
 }
 
-fn memchr_libc(buf: &[u8], needle: u8) -> Option<usize> {
+pub fn memchr_libc(buf: &[u8], needle: u8) -> Option<usize> {
+    let len = buf.len();
+    let buf = buf.as_ptr() as *const u8;
+    memchr_libc_ptr(buf as *const c_void, len, needle)
+}
+
+pub fn memchr_libc_ptr(ptr: *const std::os::raw::c_void, len: usize, needle: u8) -> Option<usize> {
     let res = unsafe {
         libc::memchr(
-            buf.as_ptr() as *const std::os::raw::c_void,
+            ptr,
             needle as i32,
-            buf.len())
+            len)
     };
     if res == 0 as *mut std::os::raw::c_void {
         return None;
     }
-    let base = buf.as_ptr();
     let res = res as *const u8;
-    Some((unsafe { res.offset_from(base) }) as usize)
+    let ptr = ptr as *const u8;
+    Some((unsafe { res.offset_from(ptr) }) as usize)
 }
-
-const EMPTY_SLICE: &[u8] = &[];
 
 fn subslices_inner<'a, 'b>(left: &'a[u8], right: &'b[u8], start: usize, length: usize) -> (&'a[u8], &'b[u8]) {
     let llen = left.len();
@@ -41,7 +46,6 @@ fn subslices_inner<'a, 'b>(left: &'a[u8], right: &'b[u8], start: usize, length: 
 // Skip `start` elements and take `length` elements from the logical buffer made up
 // up of `dq`s two slices
 pub fn subslices(dq: &QuickDropDeque, start: usize, end: usize) -> (&[u8], &[u8]) {
-    debug_assert!(start >= 0);
     debug_assert!(end <= dq.len());
     let (left, right) = dq.as_slices();
     subslices_inner(left, right, start, end-start)
@@ -115,10 +119,11 @@ pub fn index_in_dq(needle: &[u8], haystack: &QuickDropDeque, start: usize, end: 
 #[cfg(test)]
 mod index_of_tests {
     use quick_drop_deque::QuickDropDeque;
-    use crate::columns::index_of::{index_of, index_in_dq, subslices_inner, EMPTY_SLICE};
+    use crate::util::{index_in_dq, index_of, subslices_inner};
 
     #[test]
     fn test_index_of() {
+        const EMPTY_SLICE: &'static [u8] = &[];
         assert_eq!(index_of(&[1, 2, 3], &[1, 2, 3]), Some(0));
         assert_eq!(index_of(&[2, 3], &[1, 2, 3]), Some(1));
         assert_eq!(index_of(&[1, 2], &[1, 2, 3]), Some(0));
@@ -228,6 +233,7 @@ mod index_of_tests {
         let b: &[u8] = &[4,5,6];
         let c: &[u8] = &[2,3];
         let d: &[u8] = &[4,5];
+        const EMPTY_SLICE: &'static [u8] = &[];
         assert_eq!(subslices_inner(a,b, 0, 6), (a,b));
         assert_eq!(subslices_inner(a,b, 3, 3), (EMPTY_SLICE,b));
         assert_eq!(subslices_inner(a,b, 0, 3), (a,EMPTY_SLICE));

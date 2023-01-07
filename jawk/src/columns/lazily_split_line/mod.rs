@@ -2,7 +2,7 @@
 mod test;
 
 use quick_drop_deque::QuickDropDeque;
-use crate::columns::index_of::{index_in_dq, subslices};
+use crate::util::{index_in_dq, subslices};
 
 pub struct LazilySplitLine {
     fs: Vec<u8>,
@@ -43,7 +43,6 @@ impl LazilySplitLine {
         return
     }
 
-    #[inline(never)]
     pub fn get_into(&mut self, dq: &QuickDropDeque, field_idx: usize, end_of_record_idx: usize, result: &mut Vec<u8>) {
         debug_assert!(field_idx != 0);
         let mut start_of_field = 0;
@@ -55,7 +54,7 @@ impl LazilySplitLine {
             }
             start_of_field = found_at + self.fs.len();
         }
-        if fields_found +1 == field_idx {
+        if fields_found + 1 == field_idx {
             // Trailing record
             LazilySplitLine::move_into_buf(dq, result, start_of_field, end_of_record_idx);
         }

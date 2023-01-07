@@ -7,10 +7,9 @@ use crate::awk_str::AwkStr;
 use crate::codegen::{Tag};
 use crate::lexer::BinOp;
 use crate::runtime::array_split::{split_on_regex, split_on_string};
-use crate::runtime::arrays::MapValue;
 use crate::runtime::ErrorCode;
-use crate::runtime::float_parser::string_to_float;
 use crate::runtime::release_runtime::{cast_to_runtime_data, RuntimeData};
+use crate::runtime::value::RuntimeValue;
 
 pub extern "C" fn print_string(data: *mut c_void, value: *mut AwkStr) {
     let data = cast_to_runtime_data(data);
@@ -26,7 +25,9 @@ pub extern "C" fn print_string(data: *mut c_void, value: *mut AwkStr) {
 
 pub extern "C" fn print_float(data: *mut c_void, value: f64) {
     let data = cast_to_runtime_data(data);
-    data.stdout.write_fmt(format_args!("{}\n", value)).unwrap();
+    let bytes = data.converter.num_to_str_output(value);
+    data.stdout.write_all(bytes).unwrap();
+    data.stdout.write_all("\n".as_bytes()).unwrap();
 }
 
 pub extern "C" fn next_line(data: *mut c_void) -> f64 {
@@ -52,13 +53,13 @@ pub extern "C" fn column(
     };
     let idx = idx.round() as usize;
     let str =
-        if let Some( mut current) = data.fast_alloc.take() {
+        if let Some( mut current) = data.hacky_alloc.take() {
             {
                 let mutable = match Rc::get_mut(&mut current) {
                     None => panic!("rc should be unique"),
                     Some(some) => some,
                 };
-                let mut buf = mutable.as_mut_vec();
+                let buf = mutable.as_mut_vec();
                 data.columns.get_into_buf(idx, buf);
             }
             current
@@ -71,9 +72,7 @@ pub extern "C" fn column(
 pub extern "C" fn free_string(data_ptr: *mut c_void, string: *const AwkStr) {
     let data = cast_to_runtime_data(data_ptr);
     let str = unsafe { Rc::from_raw(string) };
-    if Rc::strong_count(&str) == 1 && Rc::weak_count(&str) == 0 {
-        data.fast_alloc = Some(str);
-    }
+    data.hacky_alloc.drop(str);
 }
 
 pub extern "C" fn free_if_string(data_ptr: *mut c_void, tag: Tag, string: *const AwkStr) {
@@ -83,10 +82,11 @@ pub extern "C" fn free_if_string(data_ptr: *mut c_void, tag: Tag, string: *const
 }
 
 pub extern "C" fn concat(
-    _data_ptr: *mut c_void,
+    data_ptr: *mut c_void,
     left: *const AwkStr,
     right: *const AwkStr,
 ) -> *const AwkStr {
+    let data = cast_to_runtime_data(data_ptr);
     let lhs = unsafe { Rc::from_raw(left) };
     let rhs = unsafe { Rc::from_raw(right) };
     let mut lhs = match Rc::try_unwrap(lhs) {
@@ -94,11 +94,13 @@ pub extern "C" fn concat(
         Err(rc) => (*rc).clone(),
     };
     lhs.push_str(&rhs);
+    data.hacky_alloc.drop(rhs);
     Rc::into_raw(Rc::new(lhs))
 }
 
-pub extern "C" fn empty_string(_data_ptr: *mut c_void) -> *const AwkStr {
-    Rc::into_raw(Rc::new(AwkStr::new(vec![])))
+pub extern "C" fn empty_string(data_ptr: *mut c_void) -> *const AwkStr {
+    let data = cast_to_runtime_data(data_ptr);
+    Rc::into_raw(data.hacky_alloc.alloc_awkstr(&[]))
 }
 
 pub fn get_from_regex_cache(regex_cache: &mut LruCache<AwkStr, Regex>, reg_str: Rc<AwkStr>) -> &mut Regex {
@@ -111,50 +113,94 @@ pub fn get_from_regex_cache(regex_cache: &mut LruCache<AwkStr, Regex>, reg_str: 
     }
 }
 
+fn to_number(data: &mut RuntimeData, value: RuntimeValue) -> Option<f64> {
+    match value {
+        RuntimeValue::Float(f) => Some(f),
+        RuntimeValue::Str(ptr) => {
+            data.converter.str_to_num(&*ptr)
+        }
+        RuntimeValue::StrNum(ptr) => {
+            data.converter.str_to_num(&*ptr)
+        }
+    }
+}
+
+fn to_string(data: &mut RuntimeData, value: RuntimeValue) -> Rc<AwkStr> {
+    match value {
+        RuntimeValue::Float(f) => {
+            let bytes = data.converter.num_to_str_internal(f);
+            data.hacky_alloc.alloc_awkstr(bytes)
+        }
+        RuntimeValue::Str(ptr) => ptr,
+        RuntimeValue::StrNum(ptr) => ptr,
+    }
+}
+
 pub extern "C" fn binop(
-    data: *mut c_void,
+    data_ptr: *mut c_void,
+    l_tag: Tag,
+    l_flt: f64,
     l_ptr: *const AwkStr,
+    r_tag: Tag,
+    r_flt: f64,
     r_ptr: *const AwkStr,
     binop: BinOp,
 ) -> std::os::raw::c_double {
-    let left = unsafe { Rc::from_raw(l_ptr) };
-    let right = unsafe { Rc::from_raw(r_ptr) };
-    let data = cast_to_runtime_data(data);
+    let data = cast_to_runtime_data(data_ptr);
+    let left = RuntimeValue::new(l_tag, l_flt, l_ptr);
+    let right = RuntimeValue::new(r_tag, r_flt, r_ptr);
+    let res =
 
-    let res = match binop {
-        BinOp::Greater => left > right,
-        BinOp::GreaterEq => left >= right,
-        BinOp::Less => left < right,
-        BinOp::LessEq => left <= right,
-        BinOp::BangEq => left != right,
-        BinOp::EqEq => left == right,
-        BinOp::MatchedBy => {
-            let reg = get_from_regex_cache(&mut data.regex_cache, right);
-            reg.matches(&left)
-        }
-        BinOp::NotMatchedBy => {
-            let reg = get_from_regex_cache(&mut data.regex_cache, right);
-            !reg.matches(&left)
-        }
-    };
-    if res {
-        1.0
-    } else {
-        0.0
-    }
-    // Implicitly drop left and right
+        if left.is_numeric(&mut data.converter) && right.is_numeric(&mut data.converter) && binop != BinOp::MatchedBy && binop != BinOp::NotMatchedBy {
+            // to_number drops the string ptr if it's a strnum
+            let left = to_number(data,left);
+            let right = to_number(data, right);
+            match binop {
+                BinOp::Greater => left > right,
+                BinOp::GreaterEq => left >= right,
+                BinOp::Less => left < right,
+                BinOp::LessEq => left < right,
+                BinOp::BangEq => left != right,
+                BinOp::EqEq => left == right,
+                _ => unreachable!(),
+            }
+        } else {
+            // String comparisons
+            let left = to_string(data, left);
+            let right = to_string(data, right);
+            match binop {
+                BinOp::Greater => left > right,
+                BinOp::GreaterEq => left >= right,
+                BinOp::Less => left < right,
+                BinOp::LessEq => left <= right,
+                BinOp::BangEq => left != right,
+                BinOp::EqEq => left == right,
+                BinOp::MatchedBy => {
+                    let reg = get_from_regex_cache(&mut data.regex_cache, right);
+                    reg.matches(&left)
+                }
+                BinOp::NotMatchedBy => {
+                    let reg = get_from_regex_cache(&mut data.regex_cache, right);
+                    !reg.matches(&left)
+                }
+            }
+        };
+    let res = if res { 1.0 } else { 0.0 };
+    res
 }
 
-pub extern "C" fn string_to_number(_data: *mut c_void, ptr: *const AwkStr) -> f64 {
+pub extern "C" fn string_to_number(data_ptr: *mut c_void, ptr: *const AwkStr) -> f64 {
+    let data = cast_to_runtime_data(data_ptr);
     let string = unsafe { Rc::from_raw(ptr) };
-    let res = string_to_float(&*string);
+    let res = data.converter.str_to_num(&*string).unwrap_or(0.0);
     Rc::into_raw(string);
     res
 }
 
 pub extern "C" fn number_to_string(data_ptr: *mut c_void, value: f64) -> *const AwkStr {
-    let runtime_data = cast_to_runtime_data(data_ptr);
-    Rc::into_raw(Rc::new(AwkStr::new(runtime_data.float_parser.parse(value))))
+    let data = cast_to_runtime_data(data_ptr);
+    let str = data.converter.num_to_str_internal(value);
+    Rc::into_raw(data.hacky_alloc.alloc_awkstr(str))
 }
 
 pub extern "C" fn copy_string(_data_ptr: *mut c_void, ptr: *mut AwkStr) -> *const AwkStr {
@@ -187,28 +233,11 @@ pub extern "C" fn array_assign(
     ptr: *mut AwkStr,
 ) {
     let data = cast_to_runtime_data(data_ptr);
-    let res = data
-        .arrays
-        .assign(array, MapValue::new(key_tag, key_num, key_ptr), MapValue::new(tag, float, ptr));
-    match res {
-        None => {}
-        Some(existing) => {
-            if existing.tag.has_ptr() {
-                unsafe { Rc::from_raw(existing.ptr) };
-                // implicitly drop RC here. Do not report as a string_in our out since it was
-                // already stored in the runtime and dropped from the runtime.
-            }
-        }
-    }
-    if key_tag.has_ptr() {
-        let _rc = unsafe { Rc::from_raw(key_ptr) };
-        // implicitly drop here
-    };
-    if tag.has_ptr() {
-        let val = unsafe { Rc::from_raw(ptr) };
-        // We don't drop it here because it is now stored in the hashmap.
-        Rc::into_raw(val);
-    }
+    let key = RuntimeValue::new(key_tag, key_num, key_ptr);
+    let key = to_string(data, key);
+    let val = RuntimeValue::new(tag, float, ptr);
+    let res = data.arrays.assign(array, key, val);
+    data.hacky_alloc.drop_opt_rtval(res);
 }
 
 pub extern "C" fn array_access(
@@ -219,27 +248,22 @@ pub extern "C" fn array_access(
     in_ptr: *mut AwkStr,
     out_tag: *mut Tag,
     out_float: *mut f64,
-    out_value: *mut *mut AwkStr,
+    out_value: *mut *const AwkStr,
 ) {
     let data = cast_to_runtime_data(data_ptr);
-    match data.arrays.access(array, MapValue::new(in_tag, in_float, in_ptr)) {
+    let key = RuntimeValue::new(in_tag, in_float, in_ptr);
+    let key = to_string(data, key);
+    match data.arrays.access(array, key) {
         None => unsafe {
             *out_tag = Tag::StringTag;
             *out_value = empty_string(data_ptr) as *mut AwkStr;
         },
         Some(existing) => unsafe {
-            *out_tag = existing.tag;
-            *out_float = existing.float;
-            if existing.tag.has_ptr() {
-                let rc = Rc::from_raw(existing.ptr);
-                let cloned = rc.clone();
-                Rc::into_raw(rc);
-                *out_value = Rc::into_raw(cloned) as *mut AwkStr;
-            }
+            let cloned = existing.clone();
+            *out_tag = cloned.0;
+            *out_float = cloned.1;
+            *out_value = cloned.2;
         },
-    }
-    if in_tag.has_ptr() {
-        free_string(data_ptr, in_ptr);
     }
 }
 
@@ -251,11 +275,9 @@ pub extern "C" fn in_array(
     in_ptr: *const AwkStr,
 ) -> f64 {
     let data = cast_to_runtime_data(data_ptr);
-    let res = data.arrays.in_array(array, MapValue::new(in_tag, in_float, in_ptr));
-    if in_tag.has_ptr() {
-        unsafe { Rc::from_raw(in_ptr) };
-    }
-    if res {
+    let idx = RuntimeValue::new(in_tag, in_float, in_ptr);
+    let idx = to_string(data, idx);
+    if data.arrays.in_array(array, idx) {
         1.0
     } else {
         0.0
@@ -338,18 +360,14 @@ pub extern "C" fn split(data_ptr: *mut c_void, string: *const AwkStr, array: i32
     let data = cast_to_runtime_data(data_ptr);
     let rc = unsafe { Rc::from_raw(string) };
     let mut count: f64 = 0.0;
-    for (_key, val) in data.arrays.clear(array) {
-        if val.tag.has_ptr() {
-            unsafe { Rc::from_raw(val.ptr) };
-        }
-    }
+    let _ =  data.arrays.clear(array);
     for (idx, elem) in split_on_string(data.columns.get_field_sep(), &rc).enumerate()
     {
         count += 1.0;
         let string = Rc::into_raw(Rc::new(AwkStr::new(elem.to_vec())));
         let _ = data.arrays.assign(array,
-                                   MapValue::new(Tag::FloatTag, (idx + 1) as f64, 0 as *const AwkStr),
-                                   MapValue::new(Tag::StrnumTag, 0.0, string));
+                                   Rc::new(AwkStr::new(format!("{}", idx+1).into_bytes())),
+                                   RuntimeValue::new(Tag::StrnumTag, 0.0, string));
     }
     count
 }
@@ -360,18 +378,14 @@ pub extern "C" fn split_ere(data_ptr: *mut c_void, string: *const AwkStr, array:
     let reg_str = unsafe { Rc::from_raw(ere_split) };
     let reg = get_from_regex_cache(&mut data.regex_cache, reg_str);
     let mut count: f64 = 0.0;
-    for (_key, val) in data.arrays.clear(array) {
-        if val.tag.has_ptr() {
-            unsafe { Rc::from_raw(val.ptr) };
-        }
-    }
+    let _ = data.arrays.clear(array);
     for (idx, elem) in split_on_regex(&reg, &str).enumerate()
     {
         count += 1.0;
         let string = Rc::into_raw(Rc::new(AwkStr::new(elem.to_vec())));
         let _ = data.arrays.assign(array,
-                                   MapValue::new(Tag::FloatTag, (idx + 1) as f64, 0 as *const AwkStr),
-                                   MapValue::new(Tag::StrnumTag, 0.0, string));
+                                   Rc::new(AwkStr::new(format!("{}", idx+1).into_bytes())),
+                                   RuntimeValue::new(Tag::StrnumTag, 0.0, string));
     }
     count
 }

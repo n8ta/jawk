@@ -1,21 +1,21 @@
 mod native;
-mod value;
+mod string_tracker;
 
-use crate::codegen::ValueT;
+use crate::codegen::{ValueT};
 use crate::columns::Columns;
 use crate::lexer::BinOp;
 use crate::parser::ScalarType;
 use crate::runtime::arrays::Arrays;
 use crate::runtime::call_log::CallLog;
-use crate::runtime::float_parser::FloatParser;
 use crate::runtime::{ErrorCode, Runtime};
 use crate::{runtime_fn, runtime_fn_no_ret};
 use gnu_libjit::{Abi, Context, Function, Value};
 use hashbrown::HashMap;
 use std::ffi::c_void;
-use std::io::{stdout, Write};
 use crate::awk_str::AwkStr;
 use crate::runtime::debug_runtime::native::{array_access, array_assign, binop, column, concat, concat_array_indices, copy_if_string, copy_string, empty_string, free_if_string, free_string, in_array, length, next_line, number_to_string, print_error, print_float, print_string, printf, rand, split, split_ere, srand, string_to_number, to_lower, to_upper};
+use crate::runtime::debug_runtime::string_tracker::StringTracker;
+use crate::runtime::string_converter::Converter;
 
 pub const CANARY: &str = "this is the canary!";
 
@@ -36,31 +36,13 @@ pub struct RuntimeData {
     canary: String,
     output: Vec<u8>,
     calls: CallLog,
-    string_out: usize,
-    strings_in: usize,
+    str_tracker: StringTracker,
     arrays: Arrays,
-    float_parser: FloatParser,
+    converter: Converter,
 }
 
 impl RuntimeData {
-    pub fn string_out(&mut self, src: &str, string: &[u8]) {
-        let mut stdout = stdout();
-        stdout.write_all("\t===> ".as_bytes()).unwrap();
-        stdout.write_all(&src.as_bytes()).unwrap();
-        stdout.write_all(" ".as_bytes()).unwrap();
-        stdout.write_all(&string).unwrap();
-        stdout.write_all(&[10]).unwrap();
-        self.string_out += 1;
-    }
-    pub fn string_in(&mut self, src: &str, string: &[u8]) {
-        let mut stdout = stdout();
-        stdout.write_all("\t<=== ".as_bytes()).unwrap();
-        stdout.write_all(&src.as_bytes()).unwrap();
-        stdout.write_all(" ".as_bytes()).unwrap();
-        stdout.write_all(&string).unwrap();
-        stdout.write_all(&[10]).unwrap();
-        self.strings_in += 1;
-    }
+
     pub fn new(files: Vec<String>) -> RuntimeData {
         unsafe { libc::srand(09171998) }
         RuntimeData {
@@ -68,11 +50,10 @@ impl RuntimeData {
             columns: Columns::new(files),
             output: vec![],
             calls: CallLog::new(),
-            string_out: 0,
-            strings_in: 0,
+            str_tracker: StringTracker::new(),
             arrays: Arrays::new(),
-            float_parser: FloatParser::new(),
             srand_seed: 09171998.0,
+            converter: Converter::new(),
         }
     }
 }
@@ -89,11 +70,11 @@ impl DebugRuntime {
     }
     #[allow(dead_code)]
     pub fn strings_in(&self) -> usize {
-        cast_to_runtime_data(self.runtime_data).strings_in
+        cast_to_runtime_data(self.runtime_data).str_tracker.strings_in
     }
     #[allow(dead_code)]
     pub fn strings_out(&self) -> usize {
-        cast_to_runtime_data(self.runtime_data).string_out
+        cast_to_runtime_data(self.runtime_data).str_tracker.string_out
     }
 
     #[allow(dead_code)]
@@ -101,19 +82,6 @@ impl DebugRuntime {
         func.create_void_ptr_constant(self.runtime_data as *mut c_void)
     }
 }
-
-/*
-   fn string_to_number(&mut self, func: &mut Function, ptr: Value) -> Value {
-       let data_ptr = self.data_ptr(func);
-       func.insn_call_native(
-           string_to_number as *mut c_void,
-           vec![data_ptr, ptr],
-           Some(Context::float64_type()),
-           Abi::Cdecl,
-       )
-   }
-
-*/
 
 impl Runtime for DebugRuntime {
     fn new(_context: &Context, files: Vec<String>) -> DebugRuntime {

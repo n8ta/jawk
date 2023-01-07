@@ -1,4 +1,3 @@
-use std::fmt::{Display, Formatter};
 pub use value::{ValuePtrT, ValueT};
 
 mod callable_function;

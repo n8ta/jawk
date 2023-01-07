@@ -1,4 +1,5 @@
 mod native;
+mod hacky_alloc;
 
 use crate::codegen::{ValueT};
 use crate::columns::Columns;
@@ -12,13 +13,13 @@ use lru_cache::LruCache;
 use mawk_regex::Regex;
 use std::ffi::c_void;
 use std::io::{BufWriter, StdoutLock, Write};
-use std::rc::Rc;
 use native::{column, concat, array_assign, copy_string, copy_if_string, binop, print_float, print_string, print_error, printf, split, next_line, string_to_number, number_to_string, concat_array_indices, array_access, in_array, to_upper, to_lower, rand, srand, length, split_ere, free_string, free_if_string, empty_string};
 
 
-use crate::runtime::float_parser::{FloatParser};
 use crate::{runtime_fn, runtime_fn_no_ret};
 use crate::awk_str::AwkStr;
+use crate::runtime::release_runtime::hacky_alloc::HackyAlloc;
+use crate::runtime::string_converter::Converter;
 
 pub struct ReleaseRuntime {
     runtime_data: *mut RuntimeData,
@@ -43,8 +44,8 @@ pub struct RuntimeData {
     stdout: BufWriter<StdoutLock<'static>>,
     regex_cache: LruCache<AwkStr, Regex>,
     arrays: Arrays,
-    float_parser: FloatParser,
-    fast_alloc: Option<Rc<AwkStr>>,
+    converter: Converter,
+    hacky_alloc: HackyAlloc,
 }
 
 impl RuntimeData {
@@ -56,8 +57,8 @@ impl RuntimeData {
             stdout: BufWriter::new(std::io::stdout().lock()),
             regex_cache: LruCache::new(8),
             arrays: Arrays::new(),
-            float_parser: FloatParser::new(),
-            fast_alloc: None,
+            hacky_alloc: HackyAlloc::new(),
+            converter: Converter::new(),
         }
     }
 }
@@ -201,6 +202,7 @@ impl Runtime for ReleaseRuntime {
 
 }
 
+#[inline(always)]
 fn cast_to_runtime_data(data: *mut c_void) -> &'static mut RuntimeData {
     unsafe {
         let data = data as *mut RuntimeData;

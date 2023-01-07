@@ -1,11 +1,12 @@
 use std::cmp::min;
 use std::fs::File;
-use crate::columns::index_of::{index_in_full_dq};
 use crate::printable_error::PrintableError;
 
 use quick_drop_deque::QuickDropDeque;
 use crate::columns::lazily_split_line::LazilySplitLine;
+use crate::util::index_in_full_dq;
 
+#[allow(dead_code)]
 struct FileWithPath {
     path: String,
     file: File,
@@ -61,7 +62,7 @@ impl FileReader {
                 return Ok(true);
             }
             // Nope, then read some bytes into buf then copy to slop
-            let bytes_read = self.slop.read(&mut file.file).unwrap(); // TODO: unwrap
+            let bytes_read = self.slop.read(&mut file.file).unwrap(); // TODO: no-unwrap
 
             if bytes_read == 0 {
                 // No new data!

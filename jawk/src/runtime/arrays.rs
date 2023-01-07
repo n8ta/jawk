@@ -1,114 +1,30 @@
-use std::fmt::{Debug, Formatter};
-use crate::codegen::Tag;
 use hashbrown::HashMap;
 use std::rc::Rc;
 use hashbrown::hash_map::Drain;
-use mawk_regex::Regex;
 use crate::awk_str::AwkStr;
-use crate::runtime::array_split::split_on_regex;
-use crate::runtime::float_parser::string_exactly_float;
+use crate::runtime::value::RuntimeValue;
 
-#[derive(Hash, PartialEq, Eq, Clone)]
-struct HashFloat {
-    bytes: [u8; 8],
-}
-
-impl HashFloat {
-    pub fn new(num: f64) -> Self {
-        Self {
-            bytes: num.to_le_bytes(),
-        }
-    }
-    #[allow(dead_code)]
-    pub fn to_float64(&self) -> f64 {
-        f64::from_le_bytes(self.bytes)
-    }
-}
-
-#[derive(Hash, PartialEq, Eq, Clone)]
-pub enum MapKey {
-    String(Rc<AwkStr>),
-    Float(HashFloat),
-}
-
-impl Debug for MapKey {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MapKey::String(str) => {
-                let s = String::from_utf8(str.bytes().to_vec()).unwrap();
-                f.write_str(&s)
-            }
-            MapKey::Float(flt) => {
-                write!(f, "{}", flt.to_float64())
-            }
-        }
-    }
-}
-
-pub struct MapValue {
-    pub tag: Tag,
-    pub float: f64,
-    pub ptr: *const AwkStr,
-}
-
-impl MapValue {
-    pub fn new(tag: Tag, float: f64, ptr: *const AwkStr) -> Self { Self { tag, float, ptr } }
-}
-
-impl Debug for MapValue {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.tag {
-            Tag::FloatTag => {
-                write!(f, "float:{}", self.float)
-            }
-            Tag::StringTag => {
-                let rced = unsafe { Rc::from_raw(self.ptr) };
-                let s = String::from_utf8(rced.bytes().to_vec()).unwrap();
-                Rc::into_raw(rced);
-                f.write_str("str:'").unwrap();
-                f.write_str(&s).unwrap();
-                f.write_str("'")
-            }
-            Tag::StrnumTag => {
-                let rced = unsafe { Rc::from_raw(self.ptr) };
-                let s = String::from_utf8(rced.bytes().to_vec()).unwrap();
-                Rc::into_raw(rced);
-                f.write_str("strnum:'").unwrap();
-                f.write_str(&s).unwrap();
-                f.write_str("'")
-            }
-        }
-    }
+#[derive(Hash, Clone, Eq, PartialEq)]
+pub struct MapKey {
+    key: Rc<AwkStr>,
 }
 
 impl MapKey {
     // Does not drop the Rc<String> count
-    pub fn new(val: MapValue) -> Self {
-        match val.tag {
-            Tag::FloatTag => MapKey::Float(HashFloat::new(val.float)),
-            Tag::StringTag | Tag::StrnumTag  => {
-                let str = unsafe { Rc::from_raw(val.ptr) };
-                let res = if let Some(flt) = string_exactly_float(&str) {
-                    MapKey::Float(HashFloat::new(flt))
-                } else {
-                    MapKey::String(str.clone())
-                };
-                Rc::into_raw(str);
-                res
-            }
-        }
+    pub fn new(key: Rc<AwkStr>) -> Self {
+        Self { key }
     }
 }
 
 struct AwkMap {
-    map: HashMap<MapKey, MapValue>,
+    map: HashMap<MapKey, RuntimeValue>,
 }
 
 impl AwkMap {
-    fn access(&self, key: &MapKey) -> Option<&MapValue> {
+    fn access(&self, key: &MapKey) -> Option<&RuntimeValue> {
         self.map.get(key)
     }
-    fn assign(&mut self, key: &MapKey, val: MapValue) -> Option<MapValue> {
+    fn assign(&mut self, key: &MapKey, val: RuntimeValue) -> Option<RuntimeValue> {
         self.map.insert(key.clone(), val)
     }
     fn new() -> Self {
@@ -120,7 +36,7 @@ impl AwkMap {
         self.map.contains_key(key)
     }
 
-    fn drain(&mut self) -> Drain<'_, MapKey, MapValue> {
+    fn drain(&mut self) -> Drain<'_, MapKey, RuntimeValue> {
         self.map.drain()
     }
 }
@@ -139,12 +55,13 @@ impl Arrays {
             self.arrays.push(AwkMap::new())
         }
     }
-    pub fn clear(&mut self, array_id: i32) -> Drain<'_, MapKey, MapValue> {
+    pub fn clear(&mut self, array_id: i32) -> Drain<'_, MapKey, RuntimeValue> {
         let array = self.arrays.get_mut(array_id as usize).expect("array to exist based on id");
         array.drain()
     }
 
-    pub fn access(&mut self, array_id: i32, key: MapValue) -> Option<&MapValue> {
+    #[inline(never)]
+    pub fn access(&mut self, array_id: i32, key: Rc<AwkStr>) -> Option<&RuntimeValue> {
         let array = self.arrays.get_mut(array_id as usize).expect("array to exist based on id");
         array.access(&MapKey::new(key))
     }
@@ -152,14 +69,14 @@ impl Arrays {
     pub fn assign(
         &mut self,
         array_id: i32,
-        indices: MapValue,
-        value: MapValue,
-    ) -> Option<MapValue> {
+        indices: Rc<AwkStr>,
+        value: RuntimeValue,
+    ) -> Option<RuntimeValue> {
         let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize) };
         array.assign(&MapKey::new(indices), value)
     }
 
-    pub fn in_array(&mut self, array_id: i32, indices: MapValue) -> bool {
+    pub fn in_array(&mut self, array_id: i32, indices: Rc<AwkStr>) -> bool {
         let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize) };
         array.in_array(&MapKey::new(indices))
     }

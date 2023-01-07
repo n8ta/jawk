@@ -10,6 +10,7 @@ pub struct Regex {
     ptr: PTR,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Match {
     pub start: usize,
     pub len: usize,
@@ -43,7 +44,11 @@ impl Regex {
         } else {
             let idx = unsafe { result_ptr.offset_from(str.as_ptr() as *const c_char) };
             debug_assert!(idx >= 0);
-            Some(Match { start: idx as usize, len: (*match_len) as usize })
+            let idx = idx as usize;
+            let match_len = *match_len as usize;
+            let len = std::cmp::min(match_len, str.len()-idx); // TODO: why does mawk sometimes return len 1 longer than len of str
+
+            Some(Match { start: idx as usize, len})
         }
     }
 

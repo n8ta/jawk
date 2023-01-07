@@ -1,4 +1,4 @@
-use crate::columns::index_of::index_of;
+use crate::util::index_of;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Split {

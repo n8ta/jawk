@@ -19,7 +19,7 @@ pub fn reconcile(
             (Some(func_arg), Some(call_arg)) => {
                 reconcile_one_arg(func_arg, call_arg, update_callback)?;
             }
-            (None, Some(call_arg)) => {
+            (None, Some(_call_arg)) => {
                 // Extra args are a no-op
                 // todo!("print warning?")
             },

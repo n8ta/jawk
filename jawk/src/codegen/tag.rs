@@ -10,11 +10,11 @@ pub enum Tag {
 
 impl Display for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let s = (match self {
+        let s = match self {
             Tag::FloatTag => "flt",
             Tag::StringTag => "str",
             Tag::StrnumTag => "strnum",
-        });
+        };
         f.write_str(s)
     }
 }
@@ -25,6 +25,7 @@ impl Tag {
         *self != Tag::FloatTag
     }
 
+    #[allow(dead_code)]
     pub fn is_numeric(&self) -> bool {
         *self != Tag::StringTag
     }

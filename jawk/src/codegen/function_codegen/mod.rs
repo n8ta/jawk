@@ -12,8 +12,6 @@ use crate::{Expr, PrintableError, Symbolizer};
 use gnu_libjit::{Context, Function, Label, Value};
 use hashbrown::HashMap;
 use std::os::raw::{c_char, c_int, c_long, c_void};
-use std::rc::Rc;
-use crate::awk_str::AwkStr;
 
 mod builtin_codegen;
 
@@ -89,7 +87,8 @@ impl<'a> FunctionCodegen<'a> {
         let sentinel_float = function.create_float64_constant(123.123); // Used to init float portion of a string value
         let float_tag = function.create_sbyte_constant(Tag::FloatTag as c_char);
         let string_tag = function.create_sbyte_constant(Tag::StringTag as c_char);
-        let c = CodegenConsts::new(zero_ptr, zero_f, float_tag, string_tag, sentinel_float);
+        let strnum_tag = function.create_sbyte_constant(Tag::StrnumTag as c_char);
+        let c = CodegenConsts::new(zero_ptr, zero_f, float_tag, string_tag, strnum_tag, sentinel_float);
 
         let function_scope = FunctionScope::new(globals, &mut function, ast_function.args());
         let mut func_gen = Self {
@@ -541,7 +540,7 @@ impl<'a> FunctionCodegen<'a> {
                     column.float.clone(),
                     column.pointer.clone(),
                 );
-                let tag = self.string_tag();
+                let tag = self.strnum_tag();
                 self.drop_if_str(column, col.typ);
                 ValueT::string(tag, self.function.create_float64_constant(0.0), val)
             }
@@ -702,6 +701,9 @@ impl<'a> FunctionCodegen<'a> {
     }
     fn string_tag(&self) -> Value {
         self.c.string_tag.clone()
+    }
+    fn strnum_tag(&self) -> Value {
+        self.c.strnum_tag.clone()
     }
     fn zero_f(&self) -> Value {
         self.c.zero_f.clone()

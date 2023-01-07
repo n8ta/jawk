@@ -1,6 +1,6 @@
 use crate::codegen::function_codegen::FunctionCodegen;
 use crate::codegen::ValueT;
-use crate::parser::{ArgT, Expr, TypedExpr};
+use crate::parser::{Expr, TypedExpr};
 use crate::printable_error::PrintableError;
 use crate::typing::BuiltinFunc;
 use gnu_libjit::Value;
@@ -17,6 +17,7 @@ impl<'a> FunctionCodegen<'a> {
         let float = self.val_to_string(&arg, args[idx].typ);
         Ok(float)
     }
+    #[allow(dead_code)]
     fn arg_to_array(&mut self, args: &Vec<TypedExpr>, idx: usize) -> Result<Value, PrintableError> {
         let arg = self.compile_expr(&args[idx], false)?;
         let float = self.val_to_string(&arg, args[idx].typ);

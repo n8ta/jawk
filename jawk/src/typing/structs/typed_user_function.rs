@@ -15,6 +15,7 @@ pub struct TypedUserFunction {
     func: RefCell<Function>,
     callers: RefCell<HashSet<Rc<TypedUserFunction>>>,
     calls: RefCell<Vec<Call>>,
+    #[allow(dead_code)]
     return_type: RefCell<ScalarType>,
     globals_used: RefCell<HashSet<Symbol>>,
     args: RefCell<Vec<Arg>>,

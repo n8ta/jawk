@@ -15,8 +15,8 @@ mod integration_tests {
     const FLOAT_NUMBERS: &'static str = "1.1 2.2 3.3\n4.4 5.5 6.6\n7.7 8.8 9.9";
     const NUMERIC_STRING: &'static str = "1 2 3\n04 005 6\n07 8 9";
     const ABC: &'static str = "abc\nabc\nabc";
-    const PI: &'static str = "    +3.14";
     const NUM2: &'static str = "002";
+    const PERF_ARRAY_PROGRAM: &'static str = "BEGIN { while (x<40000) { arr[x] = 1+x++  }; sum = 0; x = 0; while (x++ < 40000) { sum += arr[x] }; print sum}";
 
     fn test_once(interpreter: &str, prog: &str, file: &PathBuf) -> (String, Duration) {
         // Run a single awk once and capture the output
@@ -48,7 +48,7 @@ mod integration_tests {
     fn test_against(interpreter: &str, prog: &str, oracle_output: &str, file: &PathBuf) {
         match std::process::Command::new(interpreter).output() {
             Ok(_) => {}
-            Err(_err) => return, // this interpreter doesn't exist
+            Err(_err) => eprintln!("unable to test against {}", prog), // this interpreter doesn't exist
         }
 
         let output = test_once(interpreter, prog, file);
@@ -60,7 +60,7 @@ mod integration_tests {
         );
     }
 
-    const PERF_RUNS: u128 = 15;
+    const PERF_RUNS: u128 = 25;
 
     fn append_result(test_name: &str, interp: &str, our_total: u128, other_total: u128) {
         let mut file = fs::OpenOptions::new()
@@ -142,7 +142,10 @@ mod integration_tests {
         );
 
         test_against("awk", prog, oracle_output, &file_path);
-        // test_against("mawk", prog, oracle_output, &file_path);
+        if prog != PERF_ARRAY_PROGRAM {
+            // Mawk rounds weirdly for this program it's not a bug in jawk
+            test_against("mawk", prog, oracle_output, &file_path);
+        }
         test_against("goawk", prog, oracle_output, &file_path);
         test_against("onetrueawk", prog, oracle_output, &file_path);
 
@@ -740,30 +743,33 @@ mod integration_tests {
         "4 5 6 4\n7 8 9 7\n"
     );
 
-    // TODO: Efficient IO
     test!(test_pattern_long, "$1 == $4", long_number_file(), "");
 
-    // TODO: Numeric strings
     test!(
         test_numeric_string1,
         "{ print ($1 > 2) }",
         NUMERIC_STRING,
-        "."
+        "0\n1\n1\n"
     );
 
+    const PI: &'static str = "    +3.14";
+    test!(space_rule_simple, "{ print length($1); }", "    abc", "abc");
+    test!(gawk_strnum_space_rule_0, "{ print($1 == \"+3.14\") }", PI, "1\n");
+    test!(gawk_strnum_space_rule_1, "{ print($1 == 3.14) }", PI, "1\n");
 
-    test!(gawk_strnum_0, "{ print($0 == \" +3.14\") }", PI, "1\n");
+    test!(gawk_strnum_5, "{ print($1 == \"+3.14\") }", "+3.14", "1\n");
+    test!(gawk_strnum_7, "{ print($1 == 3.14) }", "+3.14", "1\n");
+
+    test!(gawk_strnum_0, "{ print($0 == \"    +3.14\") }", PI, "1\n");
     test!(gawk_strnum_3, "{ print($0 == 3.14) }", PI, "1\n");
-    test!(gawk_strnum_5, "{ print($1 == \"+3.14\") }", PI, "1\n");
-    test!(gawk_strnum_7, "{ print($1 == 3.14) }", PI, "1\n");
-
     test!(gawk_strnum_1, "{ print($0 == \"+3.14\") }", PI, "0\n");
     test!(gawk_strnum_2, "{ print($0 == \"3.14\") }", PI, "0\n");
     test!(gawk_strnum_4, "{ print($1 == \" +3.14\") }", PI, "0\n");
     test!(gawk_strnum_6, "{ print($1 == \"3.14\") }", PI, "0\n");
 
-    test!(split_numstr_0, "{ split($0, a); print a[0]; }", NUM2, "002\n");
-    test!(split_numstr_1, "{ split($0, a); print a[0]; print( a[0] < 2); print a[0]; }", NUM2, "0\n002\n");
+    // "002"
+    test!(split_numstr_0, "{ split($0, a); print a[1]; }", NUM2, "002\n");
+    test!(split_numstr_1, "{ split($0, a); print a[1]; print( a[1] < 2); }", NUM2, "002\n0\n");
 
     test!(
         test_numeric_string2,
@@ -1015,7 +1021,7 @@ mod integration_tests {
 
     test!(
     test_perf_array,
-    "BEGIN { while (x<40000) { arr[x] = 1+x++  }; sum = 0; x = 0; while (x++ < 40000) { sum += arr[x] }; print sum}",
+    PERF_ARRAY_PROGRAM,
     ONE_LINE,
     "800020000\n"
 );
@@ -1323,4 +1329,10 @@ mod integration_tests {
     test!(test_array_exact_match_no_dec, "BEGIN { a[1] = 3; a[\"1\"] = 4; print a[1]; print a[\"1\"]; }", ONE_LINE, "4\n4\n");
     test!(test_array_exact_mismatch, "BEGIN { a[1.1] = 3; a[\"1\"] = 4; print a[1.1]; print a[\"1\"]; }", ONE_LINE, "3\n4\n");
     test!(test_array_exact_match_decimal, "BEGIN { a[1.0] = 3; a[\"1\"] = 4; print a[1.0]; print a[\"1\"]; }", ONE_LINE, "4\n4\n");
+
+    test!(test_idx_inexact_0, "BEGIN { a[\"1.1a\"] = 4; a[1.1] = 3; print a[1.1]; print a[\"1.1a\"] }", ONE_LINE, "3\n4\n");
+    test!(test_idx_inexact_1, "BEGIN { a[\"1.\"] = 4; a[1.] = 3; print a[\"1.\"]; print a[1.] }", ONE_LINE, "4\n3\n");
+    test!(test_idx_exact_noe, "BEGIN { a[\"1.1\"] = 4; a[1.1] = 3; print a[1.1]; print a[\"1.1\"] }", ONE_LINE, "3\n3\n");
+    test!(test_idx_exact_e, "BEGIN { a[\"1.1e1\"] = 4; a[11] = 3; print a[\"1.1e1\"]; print a[11] }", ONE_LINE, "4\n3\n");
+
 }

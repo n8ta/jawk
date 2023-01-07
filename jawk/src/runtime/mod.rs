@@ -1,9 +1,10 @@
 mod arrays;
 mod call_log;
 mod debug_runtime;
-mod float_parser;
 mod release_runtime;
 mod array_split;
+mod value;
+mod string_converter;
 
 use crate::codegen::ValueT;
 use crate::lexer::BinOp;

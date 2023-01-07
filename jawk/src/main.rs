@@ -35,8 +35,8 @@ mod printable_error;
 mod runtime;
 mod symbolizer;
 mod typing;
-mod optional_usize;
 mod awk_str;
+mod util;
 
 pub const PRINTF_MAX_ARGS: usize = 128;
 
