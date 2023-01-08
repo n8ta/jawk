@@ -49,10 +49,10 @@ impl BuiltinFunc {
             BuiltinFunc::Split => vec![Arg::new_scl(s.get("split-arg-0")), Arg::new_arr(s.get("split-arg-1")), Arg::new_optional(s.get("split-arg-2"), ArgT::Scalar)],
             BuiltinFunc::Substr => vec![Arg::new_scl(s.get("substr-arg-0")), Arg::new_scl(s.get("substr-arg-1")), Arg::new_optional(s.get("substr-arg-2"), ArgT::Scalar)],
             BuiltinFunc::Index => vec![Arg::new_scl(s.get("index-arg-0")), Arg::new_scl(s.get("index-arg-1"))],
+            BuiltinFunc::Sub => vec![Arg::new_scl(s.get("sub-arg-0")), Arg::new_scl(s.get("sub-arg-1")), Arg::new_optional(s.get("sub-arg-2"), ArgT::Scalar)],
             BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Matches => todo!(),
             BuiltinFunc::Sprintf => todo!(),
-            BuiltinFunc::Sub => todo!(),
             BuiltinFunc::Close => todo!(),
             BuiltinFunc::System => todo!(),
         }

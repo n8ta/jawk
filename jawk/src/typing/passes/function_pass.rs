@@ -1,5 +1,5 @@
 use crate::global_scalars::SymbolMapping;
-use crate::parser::{ArgT, Program, ScalarType, Stmt, TypedExpr};
+use crate::parser::{ArgT, LValue, Program, ScalarType, Stmt, TypedExpr};
 use crate::symbolizer::Symbol;
 use crate::typing::structs::{Call, CallArg, FunctionMap, TypedUserFunction};
 use crate::typing::{AnalysisResults, ITypedFunction, MapT, TypedProgram};
@@ -55,7 +55,7 @@ impl FunctionAnalysis {
         Ok(TypedProgram::new(self.functions, results))
     }
 
-    fn is_func_name(&mut self, sym: &Symbol) -> bool  {
+    fn is_func_name(&mut self, sym: &Symbol) -> bool {
         self.functions.get(sym).is_some()
     }
 
@@ -236,6 +236,17 @@ impl FunctionAnalysis {
                 function.add_call(call);
                 target_func.add_caller(function.clone())
             }
+            Expr::CallSub { arg1, arg2, arg3, global: _global } => {
+                self.analyze_expr(arg1, function, false)?;
+                self.analyze_expr(arg2, function, false)?;
+                if let Some(arg3) = arg3 {
+                    let expr: Expr = arg3.clone().into(); // TODO: Avoid the clone?
+                    let mut texpr = TypedExpr::new(expr);
+                    self.analyze_expr(&mut texpr, function, false)?;
+                    let mut analyze_arg3 = LValue::try_from(texpr.expr).unwrap();
+                    std::mem::swap(&mut analyze_arg3, arg3);
+                }
+            }
             Expr::NumberF64(_) => {
                 expr.typ = ScalarType::Float;
             }
@@ -342,11 +353,10 @@ impl FunctionAnalysis {
 
     fn merge_maps(children: &[&MapT]) -> MapT {
         let mut merged = vec![];
-        for var in  children.into_iter()
+        for var in children.into_iter()
             .map(|map| map.into_iter().map(|(k, _value)| k.clone()))
             .flatten() {
-
-            if merged.iter().find(|(var_name,_v)| *var_name == var).is_some() { continue };
+            if merged.iter().find(|(var_name, _v)| *var_name == var).is_some() { continue; };
             // Invariant: at least one map contains `var` and thus typ will be assigned a non-0
             // value at least one in the loop leaving it as a valid ScalarType enum.
             let mut typ: i32 = 0;
@@ -368,7 +378,7 @@ impl FunctionAnalysis {
         map
     }
     fn merge_types(a: &ScalarType, b: &ScalarType) -> ScalarType {
-        unsafe { std::mem::transmute::<i32, ScalarType>(*a as i32 | *b as i32 )}
+        unsafe { std::mem::transmute::<i32, ScalarType>(*a as i32 | *b as i32) }
     }
 }
 //

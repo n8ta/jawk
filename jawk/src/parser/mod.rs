@@ -11,7 +11,8 @@ use crate::typing::BuiltinFunc;
 use crate::{AnalysisResults, PRINTF_MAX_ARGS, Symbolizer};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-pub use types::{Arg, ArgT, Expr, Function, ScalarType, Stmt, TypedExpr};
+pub use types::{Arg, ArgT, Expr, LValue, Function, ScalarType, Stmt, TypedExpr};
+use crate::parser::Stmt::Print;
 
 // Pattern Action Type
 // Normal eg: $1 == "a" { doSomething() }
@@ -104,10 +105,14 @@ const STRING_CONCAT_SKIPS: u64 = TokenType::InplaceAssign as u64
     | TokenType::Printf as u64;
 
 pub fn parse(tokens: Vec<Token>, symbolizer: &mut Symbolizer) -> Result<Program, PrintableError> {
+    let sub = symbolizer.get("sub");
+    let gsub = symbolizer.get("gsub");
     let mut parser = Parser {
         tokens,
         current: 0,
         symbolizer,
+        sub,
+        gsub,
     };
     parser.parse()
 }
@@ -116,6 +121,8 @@ struct Parser<'a> {
     tokens: Vec<Token>,
     current: usize,
     symbolizer: &'a mut Symbolizer,
+    sub: Symbol,
+    gsub: Symbol,
 }
 
 macro_rules! flags {
@@ -874,7 +881,7 @@ impl<'a> Parser<'a> {
                 break;
             }
             if self.peek().ttype() == TokenType::EOF {
-                return Err(PrintableError::new("Hit EOF while parsing function args"))
+                return Err(PrintableError::new("Hit EOF while parsing function args"));
             }
             args.push(self.expression()?);
             if self.matches(flags!(TokenType::Comma)) {
@@ -886,6 +893,27 @@ impl<'a> Parser<'a> {
                 )?;
                 break;
             }
+        }
+        // sub and gsub take lvalue's as args. It's a PITA and handling these two funcs is done
+        // separate from the rest of the builtins
+        if target == self.sub || target == self.gsub {
+            let global = target == self.gsub;
+            let call = if args.len() == 2 || args.len() == 3 {
+                let arg3 = if args.len() == 3 {
+                    match LValue::try_from(args.pop().unwrap().expr) {
+                        Ok(lvalue) => Some(lvalue),
+                        Err(()) => return Err(PrintableError::new(format!("Argument #3 to the {} builtin function must be an lvalue: a variable `B`, an index into an array `B[1]`, or a column `$3`.", target)))
+                    }
+                } else {
+                    None
+                };
+                let arg2 = Box::new(args.pop().unwrap());
+                let arg1 = Box::new(args.pop().unwrap());
+                Expr::CallSub { arg1, arg2, arg3, global }
+            } else {
+                return Err(PrintableError::new(format!("Builtin function {} can only be called with 2 or 3 arguments", target)));
+            };
+            return Ok(call.into());
         }
         Ok(Expr::Call { target, args }.into())
     }

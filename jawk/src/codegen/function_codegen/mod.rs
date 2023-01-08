@@ -693,6 +693,9 @@ impl<'a> FunctionCodegen<'a> {
                     result_copy
                 }
             }
+            Expr::CallSub { .. } => {
+                todo!("Call sub and gsub codegen")
+            }
         })
     }
 

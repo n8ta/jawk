@@ -1,6 +1,7 @@
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::symbolizer::Symbol;
 use std::fmt::{Display, Formatter};
+use crate::printable_error::PrintableError;
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 #[repr(i32)]
@@ -112,7 +113,7 @@ pub struct TypedExpr {
 impl TypedExpr {
     pub fn new(expr: Expr) -> TypedExpr {
         TypedExpr {
-            typ: ScalarType::Variable.into(),
+            typ: ScalarType::Variable,
             expr,
         }
     }
@@ -155,6 +156,62 @@ pub enum Expr {
         target: Symbol,
         args: Vec<TypedExpr>,
     },
+    // Sub is unqiue in it takes an LValue as an arg.
+    // I could built out a whole LValue RValue system but it seems not worth
+    // it just for this
+    CallSub {
+        arg1: Box<TypedExpr>,
+        arg2: Box<TypedExpr>,
+        arg3: Option<LValue>,
+        global: bool, // true => gsub() else sub()
+    },
+}
+
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub enum LValue {
+    Variable(Symbol),
+    ArrayIndex {
+        name: Symbol,
+        indices: Vec<TypedExpr>,
+    },
+    Column(Box<TypedExpr>),
+}
+
+impl Display for LValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LValue::Variable(n) => write!(f, "{}", n),
+            LValue::Column(col) => write!(f, "${}", col),
+            LValue::ArrayIndex { name, indices } => {
+                write!(f, "{}[", name)?;
+                display_comma_sep_list(f, indices)?;
+                write!(f, "]")
+            }
+        }
+    }
+}
+
+impl Into<Expr> for LValue {
+    fn into(self) -> Expr {
+        match self {
+            LValue::Variable(var) => Expr::Variable(var),
+            LValue::ArrayIndex { name, indices } => Expr::ArrayIndex { name, indices },
+            LValue::Column(expr) => Expr::Column(expr)
+        }
+    }
+}
+
+impl TryFrom<Expr> for LValue {
+    type Error = ();
+
+    fn try_from(expr: Expr) -> Result<Self, ()> {
+        match expr {
+            Expr::Variable(name) => Ok(LValue::Variable(name)),
+            Expr::Column(col) => Ok(LValue::Column(col)),
+            Expr::ArrayIndex { name, indices } => Ok(LValue::ArrayIndex { name, indices }),
+            _ => Err(()),
+        }
+    }
 }
 
 impl Display for TypedExpr {
@@ -226,6 +283,16 @@ impl Display for Expr {
                 write!(f, "{}[", name)?;
                 display_comma_sep_list(f, indices)?;
                 write!(f, "] = {}", value)
+            }
+
+            Expr::CallSub { arg1, arg2, arg3, global } => {
+                let name = if *global { "gsub"} else { "sub"};
+                let arg3 = if let Some(arg3) = arg3 {
+                    format!(",{}", arg3)
+                } else {
+                    String::new()
+                };
+                write!(f, "{}({},{}{})", name, arg1, arg2, arg3)
             }
         }
     }

@@ -28,6 +28,13 @@ impl<'a> FunctionCodegen<'a> {
     }
     fn mk_string(&self, str: Value) -> ValueT { ValueT::new(self.string_tag(), self.zero_f(), str) }
 
+    fn col_0(&mut self) -> ValueT {
+        let zero = self.zero_f();
+        let zero = self.mk_float(zero);
+        let ptr = self.runtime.column(&mut self.function, zero.tag, zero.float, zero.pointer);
+        self.mk_string(ptr)
+    }
+
     pub fn compile_builtin(
         &mut self,
         builtin: &BuiltinFunc,
@@ -120,7 +127,18 @@ impl<'a> FunctionCodegen<'a> {
             BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Matches => todo!(),
             BuiltinFunc::Sprintf => todo!(),
-            BuiltinFunc::Sub => todo!(),
+            BuiltinFunc::Sub => {
+                todo!()
+                // let ere = self.arg_to_str(args, 0)?;
+                // let replacement = self.arg_to_str(args, 1)?;
+                // let string = if let Some(arg) = args.get(2) {
+                //     let str = self.compile_expr(arg, false)?;
+                //     self.val_to_string(&str, arg.typ)
+                // } else {
+                //     self.col_0()
+                // };
+                // self.runtime.sub(&mut self.function, ere, replacement, string)
+            },
             BuiltinFunc::Substr => {
                 let string = self.arg_to_str(args, 0)?;
                 let start_idx = self.arg_to_float(args, 1)?;

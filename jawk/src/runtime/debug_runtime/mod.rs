@@ -149,6 +149,7 @@ impl Runtime for DebugRuntime {
     runtime_fn!(srand, srand, Some(Context::float64_type()), seed: Value);
     runtime_fn!(length, length, Some(Context::float64_type()), string: Value);
     runtime_fn!(index, index, Some(Context::float64_type()), needle: Value, haystack: Value);
+    // runtime_fn!(sub, sub, Some(Context::void_ptr_type()), needle: Value, haystack: Value);
 
     fn split(&mut self, func: &mut Function, string: Value, array: Value, split_ere_val: Option<Value>) -> Value{
         let data_ptr = self.data_ptr(func);
@@ -266,11 +267,13 @@ impl Runtime for DebugRuntime {
         insert(&mut mapping, array_access as *mut c_void, "array_access");
         insert(&mut mapping, array_assign as *mut c_void, "array_assign");
         insert(&mut mapping, in_array as *mut c_void, "in_array");
-        insert(
-            &mut mapping,
-            concat_array_indices as *mut c_void,
-            "concat_array_indices",
-        );
+        insert(&mut mapping, copy_if_string as *mut c_void, "copy_if_string");
+        insert(&mut mapping, free_if_string as *mut c_void, "free_if_string");
+        insert(&mut mapping, substr as *mut c_void, "substr");
+        insert(&mut mapping, split as *mut c_void, "split");
+        insert(&mut mapping, index as *mut c_void, "index");
+        // insert(&mut mapping, sub as *mut c_void, "sub");
+        insert(&mut mapping, concat_array_indices as *mut c_void, "concat_array_indices", );
         insert(&mut mapping, printf as *mut c_void, "printf");
         mapping
     }
