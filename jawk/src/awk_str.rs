@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use std::ops::Deref;
+use std::rc::Rc;
 
 #[derive(PartialEq, PartialOrd, Clone, Eq, Hash)]
 pub struct AwkStr {
@@ -36,6 +37,9 @@ impl AwkStr {
     pub fn new(bytes: Vec<u8>) -> AwkStr {
         Self { bytes }
     }
+    pub fn with_capacity(cap: usize) -> AwkStr {
+        Self { bytes: Vec::with_capacity(cap) }
+    }
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
@@ -60,5 +64,13 @@ impl AwkStr {
     }
     pub fn clear(&mut self) {
         self.bytes.clear();
+    }
+}
+
+// Clone underlying bytes if needed OR if Rc has 1 reference downgrade into AwkStr
+pub fn unwrap_awkstr_rc(str: Rc<AwkStr>) -> AwkStr {
+    match Rc::try_unwrap(str) {
+        Ok(str) => str,
+        Err(rc) => (*rc).clone(),
     }
 }

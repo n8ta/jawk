@@ -3,8 +3,8 @@ use crate::codegen::codegen_consts::CodegenConsts;
 use crate::codegen::function_scope::FunctionScope;
 use crate::codegen::globals::Globals;
 use crate::codegen::{ValuePtrT, ValueT, Tag};
-use crate::lexer::{BinOp, LogicalOp, MathOp};
-use crate::parser::{ArgT, ScalarType, Stmt, TypedExpr};
+use crate::lexer::{LogicalOp, MathOp};
+use crate::parser::{ArgT, LValue, ScalarType, Stmt, TypedExpr};
 use crate::runtime::Runtime;
 use crate::symbolizer::Symbol;
 use crate::typing::{BuiltinFunc, ITypedFunction, TypedUserFunction};
@@ -12,8 +12,10 @@ use crate::{Expr, PrintableError, Symbolizer};
 use gnu_libjit::{Context, Function, Label, Value};
 use hashbrown::HashMap;
 use std::os::raw::{c_char, c_int, c_long, c_void};
+use crate::codegen::function_codegen::helpers::fill_in;
 
 mod builtin_codegen;
+mod helpers;
 
 #[allow(dead_code)]
 pub struct FunctionCodegen<'a> {
@@ -39,17 +41,6 @@ pub struct FunctionCodegen<'a> {
     var_arg_scratch: &'a Value,
 }
 
-fn fill_in(mut body: String, runtime: &dyn Runtime, scope: &FunctionScope) -> String {
-    let var_name_mapping = scope.debug_mapping();
-    let runtime_mapping = runtime.pointer_to_name_mapping();
-    for (from, to) in var_name_mapping
-        .into_iter()
-        .chain(runtime_mapping.into_iter())
-    {
-        body = body.replace(&from, &to)
-    }
-    body
-}
 
 impl<'a> FunctionCodegen<'a> {
     pub fn build_function(
@@ -380,18 +371,7 @@ impl<'a> FunctionCodegen<'a> {
                     });
                 }
                 let new_value = self.compile_expr(value, false)?;
-                let old_value = self
-                    .function_scope
-                    .get_scalar(&mut self.function, var)?
-                    .clone();
-                self.drop_if_str(old_value, ScalarType::Variable);
-                self.function_scope
-                    .set_scalar(&mut self.function, &var, &new_value);
-                if side_effect_only {
-                    self.no_op_value()
-                } else {
-                    self.copy_if_string(new_value, value.typ)
-                }
+                self.assign_to_variable(var, new_value, value.typ,  side_effect_only)?
             }
             Expr::NumberF64(num) => ValueT::float(
                 self.float_tag(),
@@ -647,234 +627,45 @@ impl<'a> FunctionCodegen<'a> {
                 indices: indices_arr,
                 value,
             } => {
-                let array_id = self.function_scope.get_array(&mut self.function, name)?;
                 let rhs = self.compile_expr(value, false)?;
-                if indices_arr.len() == 1 {
-                    let indices = self.compile_expr(&indices_arr[0], false)?;
-
-                    let result_copy = if side_effect_only {
-                        self.no_op_value()
-                    } else {
-                        self.copy_if_string(rhs.clone(), value.typ)
-                    };
-                    self.runtime.array_assign(
-                        &mut self.function,
-                        array_id,
-                        indices.tag,
-                        indices.float,
-                        indices.pointer,
-                        rhs.tag,
-                        rhs.float,
-                        rhs.pointer,
-                    );
-                    result_copy
-                } else {
-                    let values = self.compile_expressions_to_str(indices_arr)?;
-                    let indices = self.concat_indices(&values);
-                    // Skip copying assigned value if this side_effect_only
-                    let result_copy = if side_effect_only {
-                        self.no_op_value()
-                    } else {
-                        self.copy_if_string(rhs.clone(), value.typ)
-                    };
-                    let str_tag = self.string_tag();
-                    let zero_f = self.zero_f();
-
-                    self.runtime.array_assign(
-                        &mut self.function,
-                        array_id,
-                        str_tag,
-                        zero_f,
-                        indices,
-                        rhs.tag,
-                        rhs.float,
-                        rhs.pointer,
-                    );
-                    result_copy
-                }
+                self.assign_to_array(name, indices_arr, rhs, value.typ, side_effect_only)?
             }
-            Expr::CallSub { .. } => {
-                todo!("Call sub and gsub codegen")
+            Expr::CallSub { arg1, arg2, arg3, global } => {
+                let ere_val = self.compile_expr(arg1, false)?;
+                let repl_val = self.compile_expr(arg2, false)?;
+                let ere_str = self.val_to_string(&ere_val, arg1.typ);
+                let repr_str = self.val_to_string(&repl_val, arg2.typ);
+
+                let texpr = TypedExpr::new(arg3.clone().into()); // TODO: remove clone
+                let arg3_value = self.compile_expr(&texpr, false)?;
+                let input_ptr = self.val_to_string(&arg3_value, ScalarType::Variable);
+
+                let is_global = self.function.create_int_constant(if *global { 1 } else { 0 });
+                let new_str_ptr = self.runtime.sub(
+                    &mut self.function,
+                    ere_str,
+                    repr_str,
+                    input_ptr,
+                    is_global,
+                    self.ptr_scratch.float.clone(),
+                );
+                let new_str_ptr = self.mk_string(new_str_ptr);
+                let num_replacements = self.function.insn_load_relative(&self.ptr_scratch.float, 0, &Context::float64_type());
+
+                match arg3 {
+                    LValue::Variable(name) => {
+                        self.assign_to_variable(name, new_str_ptr, ScalarType::String, true)?;
+                    }
+                    LValue::ArrayIndex { name, indices } => {
+                        self.assign_to_array(name, indices, new_str_ptr, ScalarType::String, true)?;
+                    }
+                    LValue::Column(_col) => {
+                        todo!("sub with col")
+                    }
+                }
+                self.mk_float(num_replacements)
             }
         })
-    }
-
-    fn float_tag(&self) -> Value {
-        self.c.float_tag.clone()
-    }
-    fn string_tag(&self) -> Value {
-        self.c.string_tag.clone()
-    }
-    fn strnum_tag(&self) -> Value {
-        self.c.strnum_tag.clone()
-    }
-    fn zero_f(&self) -> Value {
-        self.c.zero_f.clone()
-    }
-    fn zero_ptr(&self) -> Value {
-        self.c.zero_ptr.clone()
-    }
-
-    fn cases(
-        &mut self,
-        input: &ValueT,
-        input_type: ScalarType,
-        is_ptr: bool,
-        emit_float_code: fn(&mut Function, &mut dyn Runtime, &ValueT) -> Value,
-        emit_string_code: fn(&mut Function, &mut dyn Runtime, &ValueT) -> Value,
-    ) -> Value {
-        match input_type {
-            ScalarType::String => return emit_string_code(&mut self.function, self.runtime, input),
-            ScalarType::Float => return emit_float_code(&mut self.function, self.runtime, input),
-            _ => {}
-        }
-        let mut temp_storage = if is_ptr {
-            self.binop_scratch.pointer.clone()
-        } else {
-            self.binop_scratch.float.clone()
-        };
-
-        let string_tag = self.string_tag();
-        let mut string_lbl = Label::new();
-        let mut done_lbl = Label::new();
-        let is_string = self.function.insn_eq(&input.tag, &string_tag);
-        self.function.insn_branch_if(&is_string, &mut string_lbl);
-        let res = emit_float_code(&mut self.function, self.runtime, input);
-        self.function.insn_store(&mut temp_storage, &res);
-        self.function.insn_branch(&mut done_lbl);
-        self.function.insn_label(&mut string_lbl);
-        let res = emit_string_code(&mut self.function, self.runtime, input);
-        self.function.insn_store(&mut temp_storage, &res);
-        self.function.insn_label(&mut done_lbl);
-        self.function.insn_load(&temp_storage)
-    }
-
-    fn val_to_float(&mut self, value: &ValueT, typ: ScalarType) -> Value {
-        if typ == ScalarType::Float {
-            return value.float.clone();
-        }
-
-        let zero = self.function.create_sbyte_constant(0);
-        let mut done_lbl = Label::new();
-        self.function.insn_store(&&self.binop_scratch.float, &value.float);
-        let is_float = self.function.insn_eq(&value.tag, &zero);
-        self.function.insn_branch_if(&is_float, &mut done_lbl);
-
-        let res = self.runtime.string_to_number(&mut self.function, value.pointer.clone());
-        self.function.insn_store(&&self.binop_scratch.float, &res);
-
-        self.function.insn_label(&mut done_lbl);
-        self.function.insn_load(&self.binop_scratch.float)
-    }
-
-    fn val_to_string(&mut self, value: &ValueT, typ: ScalarType) -> Value {
-        if typ == ScalarType::String {
-            return value.pointer.clone();
-        }
-        self.cases(value, typ, true, float_to_string, string_to_string)
-    }
-
-    // Free the value if it's a string
-    fn drop_if_str(&mut self, value: ValueT, typ: ScalarType) {
-        self.runtime.free_if_string(&mut self.function, value, typ);
-    }
-
-    fn drop(&mut self, value: &Value) {
-        self.drop_if_str(
-            ValueT::new(self.string_tag(), self.zero_f(), value.clone()),
-            ScalarType::String,
-        );
-    }
-
-    // Take a value and return an int 0 or 1
-    fn truthy_ret_integer(&mut self, value: &ValueT, typ: ScalarType) -> Value {
-        self.cases(value, typ, false, truthy_float, truthy_string)
-    }
-
-    fn no_op_value(&self) -> ValueT {
-        ValueT::new(self.float_tag(), self.zero_f(), self.zero_ptr())
-    }
-
-    pub fn copy_if_string(&mut self, value: ValueT, typ: ScalarType) -> ValueT {
-        self.runtime.copy_if_string(&mut self.function, value, typ)
-    }
-
-    fn float_binop(&mut self, a: &ValueT, b: &ValueT, op: BinOp) -> Value {
-        let bool = match op {
-            BinOp::Greater => self.function.insn_gt(&a.float, &b.float),
-            BinOp::GreaterEq => self.function.insn_ge(&a.float, &b.float),
-            BinOp::Less => self.function.insn_lt(&a.float, &b.float),
-            BinOp::LessEq => self.function.insn_le(&a.float, &b.float),
-            BinOp::BangEq => self.function.insn_ne(&a.float, &b.float),
-            BinOp::EqEq => self.function.insn_eq(&a.float, &b.float),
-            BinOp::MatchedBy | BinOp::NotMatchedBy => {
-                return self.runtime.binop(&mut self.function, a.clone(), b.clone(), op);
-            }
-        };
-        let one = self.function.create_float64_constant(1.0);
-        let zero = self.function.create_float64_constant(0.0);
-        let mut true_lbl = Label::new();
-        let mut done_lbl = Label::new();
-        self.function.insn_branch_if(&bool, &mut true_lbl);
-        self.function.insn_store(&self.binop_scratch.float, &zero);
-        self.function.insn_branch(&mut done_lbl);
-        self.function.insn_label(&mut true_lbl);
-        self.function.insn_store(&self.binop_scratch.float, &one);
-
-        self.function.insn_label(&mut done_lbl);
-        self.function.insn_load(&self.binop_scratch.float)
-    }
-
-    fn compile_expressions_to_str(
-        &mut self,
-        expressions: &Vec<TypedExpr>,
-    ) -> Result<Vec<Value>, PrintableError> {
-        let mut strings = Vec::with_capacity(expressions.len());
-        for expr in expressions {
-            let val = self.compile_expr(expr, false)?;
-            let string = self.val_to_string(&val, expr.typ);
-            strings.push(string)
-        }
-        Ok(strings)
-    }
-
-    // Call runtime and combine values. All values MUST be strings.
-    fn concat_values(&mut self, compiled: &Vec<Value>) -> ValueT {
-        let mut result = self.runtime.concat(
-            &mut self.function,
-            compiled.get(0).unwrap().clone(),
-            compiled.get(1).unwrap().clone(),
-        );
-        if compiled.len() >= 3 {
-            for var in &compiled[2..] {
-                result = self.runtime.concat(&mut self.function, result, var.clone());
-            }
-        }
-        ValueT::string(self.string_tag(), self.zero_f(), result)
-    }
-
-    // Concat indices all values MUST be strings
-    fn concat_indices(&mut self, compiled: &Vec<Value>) -> Value {
-        if compiled.len() == 1 {
-            return compiled[0].clone();
-        }
-        let mut result = self.runtime.concat_array_indices(
-            &mut self.function,
-            compiled.get(0).unwrap().clone(),
-            compiled.get(1).unwrap().clone(),
-        );
-        if compiled.len() >= 3 {
-            for var in &compiled[2..] {
-                result = self.runtime.concat(&mut self.function, result, var.clone());
-            }
-        }
-        result
-    }
-
-    fn store(&mut self, ptr: &mut ValuePtrT, value: &ValueT) {
-        self.function.insn_store(&ptr.tag, &value.tag);
-        self.function.insn_store(&ptr.float, &value.float);
-        self.function.insn_store(&ptr.pointer, &value.pointer);
     }
 }
 

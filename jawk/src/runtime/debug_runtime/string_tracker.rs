@@ -10,9 +10,9 @@ pub struct StringTracker {
 
 impl StringTracker {
     pub fn new() -> Self { Self { strings_in: 0, string_out: 0 } }
-    pub fn string_out(&mut self, src: &str, _string: &[u8]) {
-        // let mut stdout = stdout();
-        println!("===> {}", src);
+    pub fn string_out(&mut self, src: &str, str: &[u8]) {
+        let str = unsafe { String::from_utf8_unchecked(str.to_vec()) };
+        println!("\t===> {} '{}'", src, str);
         // stdout.write_all("\t===> ".as_bytes()).unwrap();
         // stdout.write_all(&src.as_bytes()).unwrap();
         // stdout.write_all(" ".as_bytes()).unwrap();
@@ -20,8 +20,9 @@ impl StringTracker {
         // stdout.write_all(&[10]).unwrap();
         self.string_out += 1;
     }
-    pub fn string_in(&mut self, src: &str, _string: &[u8]) {
-        println!("<=== {}", src);
+    pub fn string_in(&mut self, src: &str, str: &[u8]) {
+        let str = unsafe { String::from_utf8_unchecked(str.to_vec()) };
+        println!("\t<=== {} '{}'", src, str);
         // let mut stdout = stdout();
         // stdout.write_all("\t<=== ".as_bytes()).unwrap();
         // stdout.write_all(&src.as_bytes()).unwrap();

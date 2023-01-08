@@ -23,10 +23,10 @@ impl<'a> FunctionCodegen<'a> {
         let float = self.val_to_string(&arg, args[idx].typ);
         Ok(float)
     }
-    fn mk_float(&self, flt: Value) -> ValueT {
+    pub(crate) fn mk_float(&self, flt: Value) -> ValueT {
         ValueT::new(self.float_tag(), flt, self.zero_ptr())
     }
-    fn mk_string(&self, str: Value) -> ValueT { ValueT::new(self.string_tag(), self.zero_f(), str) }
+    pub(crate) fn mk_string(&self, str: Value) -> ValueT { ValueT::new(self.string_tag(), self.zero_f(), str) }
 
     fn col_0(&mut self) -> ValueT {
         let zero = self.zero_f();
@@ -124,21 +124,8 @@ impl<'a> FunctionCodegen<'a> {
                 Ok(self.mk_float(index))
             }
             BuiltinFunc::Close => todo!(),
-            BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Matches => todo!(),
             BuiltinFunc::Sprintf => todo!(),
-            BuiltinFunc::Sub => {
-                todo!()
-                // let ere = self.arg_to_str(args, 0)?;
-                // let replacement = self.arg_to_str(args, 1)?;
-                // let string = if let Some(arg) = args.get(2) {
-                //     let str = self.compile_expr(arg, false)?;
-                //     self.val_to_string(&str, arg.typ)
-                // } else {
-                //     self.col_0()
-                // };
-                // self.runtime.sub(&mut self.function, ere, replacement, string)
-            },
             BuiltinFunc::Substr => {
                 let string = self.arg_to_str(args, 0)?;
                 let start_idx = self.arg_to_float(args, 1)?;

@@ -1,9 +1,8 @@
-use std::cmp::{max, min};
 use std::io::{stdout, Write};
 use std::os::raw::c_void;
 use std::rc::Rc;
 use mawk_regex::Regex;
-use crate::awk_str::AwkStr;
+use crate::awk_str::{AwkStr, unwrap_awkstr_rc};
 use crate::codegen::{Tag};
 use crate::lexer::BinOp;
 use crate::runtime::array_split::{split_on_regex, split_on_string};
@@ -97,7 +96,7 @@ pub extern "C" fn substr(data_ptr: *mut c_void, string_ptr: *const AwkStr, start
     data.calls.log(Call::Substr);
     let string = unsafe { Rc::from_raw(string_ptr) };
     data.str_tracker.string_in("substr string", &string);
-    let start_idx = clamp_to_slice_index(start_idx-1.0, string.bytes().len());
+    let start_idx = clamp_to_slice_index(start_idx - 1.0, string.bytes().len());
     let output = Rc::new(AwkStr::new(string.bytes()[start_idx..].to_vec()));
     data.str_tracker.string_out("substr out", &*output);
     Rc::into_raw(output)
@@ -111,9 +110,9 @@ pub extern "C" fn substr_max_chars(data_ptr: *mut c_void, string_ptr: *const Awk
     data.str_tracker.string_in("substr_max_chars string", &string);
 
     let str_len = string.bytes().len();
-    let start_idx = clamp_to_slice_index(start_idx-1.0, str_len);
+    let start_idx = clamp_to_slice_index(start_idx - 1.0, str_len);
     let max_chars = clamp_to_max_len(max_chars, start_idx, str_len);
-    let output = Rc::new(AwkStr::new(string.bytes()[start_idx..start_idx+max_chars].to_vec()));
+    let output = Rc::new(AwkStr::new(string.bytes()[start_idx..start_idx + max_chars].to_vec()));
     data.str_tracker.string_out("substr_max_chars out", &*output);
     Rc::into_raw(output)
 }
@@ -162,6 +161,42 @@ pub extern "C" fn index(data_ptr: *mut c_void, needle: *const AwkStr, haystack: 
     } else {
         0.0
     }
+}
+
+pub extern "C" fn sub(data_ptr: *mut c_void,
+                      ere: *const AwkStr,
+                      repl: *const AwkStr,
+                      input_str: *const AwkStr,
+                      is_global: i32,
+                      out_float_ptr: *mut f64) -> *const AwkStr {
+    let data = cast_to_runtime_data(data_ptr);
+    data.calls.log(Call::Sub);
+    let is_global = is_global == 1;
+    let (ere, repl, input_str) = unsafe { (Rc::from_raw(ere), Rc::from_raw(repl), Rc::from_raw(input_str)) };
+    data.str_tracker.string_in("sub ere", &*ere);
+    data.str_tracker.string_in("sub repl", &*repl);
+    data.str_tracker.string_in("sub input_str", &*input_str);
+
+    let regex = Regex::new(&*ere);
+    let input_str = unwrap_awkstr_rc(input_str);
+
+    let (num_substitutions, result_str) = if is_global {
+        todo!()
+    } else {
+        let matched = regex.match_idx(&*input_str);
+        if let Some(mtc) = matched {
+            let input_bytes = input_str.bytes();
+            let mut new_string = AwkStr::new((&input_bytes[0..mtc.start]).to_vec());
+            new_string.push_str(repl.bytes());
+            new_string.push_str(&input_bytes[mtc.start + mtc.len..]);
+            (1.0, new_string)
+        } else {
+            (0.0, input_str)
+        }
+    };
+    unsafe { *out_float_ptr = num_substitutions; };
+    data.str_tracker.string_out("sub result", &*result_str);
+    Rc::into_raw(Rc::new(result_str))
 }
 
 pub extern "C" fn to_lower(data_ptr: *mut c_void, ptr: *const AwkStr) -> *const AwkStr {
@@ -253,19 +288,9 @@ pub extern "C" fn concat(
     println!("\t{:?}, {:?}", left, right);
     let lhs = unsafe { Rc::from_raw(left) };
     let rhs = unsafe { Rc::from_raw(right) };
-
-    let mut lhs: AwkStr = match Rc::try_unwrap(lhs) {
-        Ok(str) => {
-            print!("\tDowngraded RC into box for: ");
-            stdout().write_all(&str.bytes()).unwrap();
-            println!();
-            str
-        }
-        Err(rc) => (*rc).clone(),
-    };
+    let mut lhs = unwrap_awkstr_rc(lhs);
     data.str_tracker.string_in("concat lhs", &*lhs);
     data.str_tracker.string_in("concat rhs", &*rhs);
-
     lhs.push_str(&rhs);
     println!("\tResult: ");
     stdout().write_all(&*lhs).unwrap();
@@ -332,30 +357,6 @@ pub extern "C" fn copy_if_string(_data: *mut c_void, tag: Tag, ptr: *mut AwkStr)
         copy_string(_data, ptr)
     } else {
         ptr
-    }
-}
-
-fn to_number(data: &mut RuntimeData, value: RuntimeValue) -> Option<f64> {
-    match value {
-        RuntimeValue::Float(f) => Some(f),
-        RuntimeValue::Str(ptr) => {
-            data.converter.str_to_num(&*ptr)
-        }
-        RuntimeValue::StrNum(ptr) => {
-            data.converter.str_to_num(&*ptr)
-        }
-    }
-}
-
-
-fn to_string(data: &mut RuntimeData, value: RuntimeValue) -> Rc<AwkStr> {
-    match value {
-        RuntimeValue::Float(f) => {
-            let str = AwkStr::new(data.converter.num_to_str_internal(f).to_vec());
-            Rc::new(str)
-        }
-        RuntimeValue::Str(ptr) => ptr,
-        RuntimeValue::StrNum(ptr) => ptr,
     }
 }
 
@@ -536,4 +537,27 @@ pub extern "C" fn printf(data: *mut c_void, fstring: *mut AwkStr, nargs: i32, ar
         }
         // Rc::from_raw(fstring)
     };
+}
+
+fn to_number(data: &mut RuntimeData, value: RuntimeValue) -> Option<f64> {
+    match value {
+        RuntimeValue::Float(f) => Some(f),
+        RuntimeValue::Str(ptr) => {
+            data.converter.str_to_num(&*ptr)
+        }
+        RuntimeValue::StrNum(ptr) => {
+            data.converter.str_to_num(&*ptr)
+        }
+    }
+}
+
+fn to_string(data: &mut RuntimeData, value: RuntimeValue) -> Rc<AwkStr> {
+    match value {
+        RuntimeValue::Float(f) => {
+            let str = AwkStr::new(data.converter.num_to_str_internal(f).to_vec());
+            Rc::new(str)
+        }
+        RuntimeValue::Str(ptr) => ptr,
+        RuntimeValue::StrNum(ptr) => ptr,
+    }
 }

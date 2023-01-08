@@ -239,13 +239,12 @@ impl FunctionAnalysis {
             Expr::CallSub { arg1, arg2, arg3, global: _global } => {
                 self.analyze_expr(arg1, function, false)?;
                 self.analyze_expr(arg2, function, false)?;
-                if let Some(arg3) = arg3 {
-                    let expr: Expr = arg3.clone().into(); // TODO: Avoid the clone?
-                    let mut texpr = TypedExpr::new(expr);
-                    self.analyze_expr(&mut texpr, function, false)?;
-                    let mut analyze_arg3 = LValue::try_from(texpr.expr).unwrap();
-                    std::mem::swap(&mut analyze_arg3, arg3);
-                }
+
+                let expr: Expr = arg3.clone().into(); // TODO: Avoid the clone?
+                let mut texpr = TypedExpr::new(expr);
+                self.analyze_expr(&mut texpr, function, false)?;
+                let mut analyze_arg3 = LValue::try_from(texpr.expr).unwrap();
+                std::mem::swap(&mut analyze_arg3, arg3);
             }
             Expr::NumberF64(_) => {
                 expr.typ = ScalarType::Float;

@@ -12,7 +12,6 @@ use crate::{AnalysisResults, PRINTF_MAX_ARGS, Symbolizer};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 pub use types::{Arg, ArgT, Expr, LValue, Function, ScalarType, Stmt, TypedExpr};
-use crate::parser::Stmt::Print;
 
 // Pattern Action Type
 // Normal eg: $1 == "a" { doSomething() }
@@ -901,11 +900,11 @@ impl<'a> Parser<'a> {
             let call = if args.len() == 2 || args.len() == 3 {
                 let arg3 = if args.len() == 3 {
                     match LValue::try_from(args.pop().unwrap().expr) {
-                        Ok(lvalue) => Some(lvalue),
+                        Ok(lvalue) => lvalue,
                         Err(()) => return Err(PrintableError::new(format!("Argument #3 to the {} builtin function must be an lvalue: a variable `B`, an index into an array `B[1]`, or a column `$3`.", target)))
                     }
                 } else {
-                    None
+                    LValue::Column(Box::new(Expr::NumberF64(0.0).into()))
                 };
                 let arg2 = Box::new(args.pop().unwrap());
                 let arg1 = Box::new(args.pop().unwrap());

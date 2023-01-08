@@ -1,7 +1,6 @@
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::symbolizer::Symbol;
 use std::fmt::{Display, Formatter};
-use crate::printable_error::PrintableError;
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 #[repr(i32)]
@@ -162,7 +161,7 @@ pub enum Expr {
     CallSub {
         arg1: Box<TypedExpr>,
         arg2: Box<TypedExpr>,
-        arg3: Option<LValue>,
+        arg3: LValue,
         global: bool, // true => gsub() else sub()
     },
 }
@@ -287,12 +286,7 @@ impl Display for Expr {
 
             Expr::CallSub { arg1, arg2, arg3, global } => {
                 let name = if *global { "gsub"} else { "sub"};
-                let arg3 = if let Some(arg3) = arg3 {
-                    format!(",{}", arg3)
-                } else {
-                    String::new()
-                };
-                write!(f, "{}({},{}{})", name, arg1, arg2, arg3)
+                write!(f, "{}({},{},{})", name, arg1, arg2, arg3)
             }
         }
     }

@@ -1335,4 +1335,29 @@ mod integration_tests {
     test!(test_native_index_5, "BEGIN { a = \"a\"; print index(a, \"aaa\") }", ONE_LINE, "0\n");
     test!(test_native_index_6, "BEGIN { a = \"\"; print index(a, \"aaa\") }", ONE_LINE, "0\n");
     test!(test_native_index_7, EMPTY_INDEX_PROGRAM, ONE_LINE, "1\n");
+
+    test!(test_native_sub_var_0, "BEGIN { a = \"aaa\"; print sub(\"a\", \"b\", a); print a; }", ONE_LINE, "1\nbaa\n");
+    test!(test_native_sub_var_1, "BEGIN { a = \"aaa\"; print sub(\"a\", \"bbb\", a); print a; }", ONE_LINE, "1\nbbbaa\n");
+    test!(test_native_sub_var_2, "BEGIN { a = \"caa\"; print sub(\"a\", \"bbb\", a); print a; }", ONE_LINE, "1\ncbbba\n");
+    test!(test_native_sub_var_3, "BEGIN { a = \"aab\"; print sub(\"b\", \"ZZZZ\", a); print a; }", ONE_LINE, "1\naaZZZZ\n");
+    test!(test_native_sub_var_4, "BEGIN { a = \"aaa\"; print sub(\"a\", \"\", a); print a; }", ONE_LINE, "1\naa\n");
+    test!(test_native_sub_var_5, "BEGIN { a = \"aaa\"; print sub(\"aaa\", \"\", a); print a; }", ONE_LINE, "1\n\n");
+    test!(test_native_sub_var_6, "BEGIN { a = \"aaa\"; print sub(\"aaaa\", \"\", a); print a; }", ONE_LINE, "0\naaa\n");
+
+    test!(test_native_sub_array_0, "BEGIN { a[1] = \"aaa\"; print sub(\"a\", \"b\", a[1]); print a[1]; }", ONE_LINE, "1\nbaa\n");
+    test!(test_native_sub_array_1, "BEGIN { a[1] = \"aaa\"; print sub(\"a\", \"bbb\", a[1]); print a[1]; }", ONE_LINE, "1\nbbbaa\n");
+    test!(test_native_sub_array_2, "BEGIN { a[1] = \"caa\"; print sub(\"a\", \"bbb\", a[1]); print a[1]; }", ONE_LINE, "1\ncbbba\n");
+    test!(test_native_sub_array_3, "BEGIN { a[1] = \"aab\"; print sub(\"b\", \"ZZZZ\", a[1]); print a[1]; }", ONE_LINE, "1\naaZZZZ\n");
+    test!(test_native_sub_array_4, "BEGIN { a[1] = \"aaa\"; print sub(\"a\", \"\", a[1]); print a[1]; }", ONE_LINE, "1\naa\n");
+    test!(test_native_sub_array_5, "BEGIN { a[1] = \"aaa\"; print sub(\"aaa\", \"\", a[1]); print a[1]; }", ONE_LINE, "1\n\n");
+    test!(test_native_sub_array_6, "BEGIN { a[1] = \"aaa\"; print sub(\"aaaa\", \"\", a[1]); print a[1]; }", ONE_LINE, "0\naaa\n");
+
+    //test!(test_native_col_0_sub_0, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+    //test!(test_native_col_0_sub_1, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+    //test!(test_native_col_0_sub_2, "{ sub(\"a\", \"b\"); print $0; }", "caa", "baa\n");
+    //test!(test_native_col_0_sub_3, "{ sub(\"a\", \"b\"); print $0; }", "aab", "baa\n");
+    //test!(test_native_col_0_sub_4, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+    //test!(test_native_col_0_sub_5, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+    //test!(test_native_col_0_sub_6, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+
 }

@@ -1,10 +1,9 @@
-use std::cmp::{max, min};
 use std::io::Write;
 use std::os::raw::c_void;
 use std::rc::Rc;
 use lru_cache::LruCache;
 use mawk_regex::Regex;
-use crate::awk_str::AwkStr;
+use crate::awk_str::{AwkStr, unwrap_awkstr_rc};
 use crate::codegen::{Tag};
 use crate::lexer::BinOp;
 use crate::runtime::array_split::{split_on_regex, split_on_string};
@@ -84,6 +83,15 @@ pub extern "C" fn free_if_string(data_ptr: *mut c_void, tag: Tag, string: *const
     }
 }
 
+pub extern "C" fn sub(data_ptr: *mut c_void,
+                      ere: *const AwkStr,
+                      repl: *const AwkStr,
+                      input_str: *const AwkStr,
+                      is_global: i32,
+                      out_float_ptr: *mut f64) -> *const AwkStr {
+    todo!()
+}
+
 pub extern "C" fn concat(
     data_ptr: *mut c_void,
     left: *const AwkStr,
@@ -92,10 +100,7 @@ pub extern "C" fn concat(
     let data = cast_to_runtime_data(data_ptr);
     let lhs = unsafe { Rc::from_raw(left) };
     let rhs = unsafe { Rc::from_raw(right) };
-    let mut lhs = match Rc::try_unwrap(lhs) {
-        Ok(str) => str,
-        Err(rc) => (*rc).clone(),
-    };
+    let mut lhs = unwrap_awkstr_rc(lhs);
     lhs.push_str(&rhs);
     data.hacky_alloc.drop(rhs);
     Rc::into_raw(Rc::new(lhs))

@@ -38,7 +38,7 @@ impl BuiltinFactory {
             shared: Rc::new(BuiltinShared::new()),
             cache: [
                 None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-                None, None, None, None, None, None, None,
+                None, None, None, None, None
             ],
             names: BuiltinFunc::names_as_symbols(&mut symbolizer),
             symbolizer,

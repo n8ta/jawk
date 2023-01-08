@@ -4,7 +4,7 @@ use crate::symbolizer::Symbol;
 use crate::Symbolizer;
 use std::fmt::{Display, Formatter};
 
-pub const NUM_BUILTIN_VARIANTS: usize = 21;
+pub const NUM_BUILTIN_VARIANTS: usize = 19;
 
 #[derive(Debug, Clone, Copy)]
 pub enum BuiltinFunc {
@@ -12,7 +12,9 @@ pub enum BuiltinFunc {
     Close,
     Cos,
     Exp,
-    Gsub,
+    // Gsub Handled separately from rest of the builtin type system since their out variables are complex
+    // Sub ^ same
+    Substr,
     Index,
     Int,
     Length,
@@ -24,8 +26,6 @@ pub enum BuiltinFunc {
     Sprintf,
     Sqrt,
     Srand,
-    Sub,
-    Substr,
     System,
     Tolower,
     Toupper, // Must stay as last (see builtin_factory.rs)
@@ -49,8 +49,6 @@ impl BuiltinFunc {
             BuiltinFunc::Split => vec![Arg::new_scl(s.get("split-arg-0")), Arg::new_arr(s.get("split-arg-1")), Arg::new_optional(s.get("split-arg-2"), ArgT::Scalar)],
             BuiltinFunc::Substr => vec![Arg::new_scl(s.get("substr-arg-0")), Arg::new_scl(s.get("substr-arg-1")), Arg::new_optional(s.get("substr-arg-2"), ArgT::Scalar)],
             BuiltinFunc::Index => vec![Arg::new_scl(s.get("index-arg-0")), Arg::new_scl(s.get("index-arg-1"))],
-            BuiltinFunc::Sub => vec![Arg::new_scl(s.get("sub-arg-0")), Arg::new_scl(s.get("sub-arg-1")), Arg::new_optional(s.get("sub-arg-2"), ArgT::Scalar)],
-            BuiltinFunc::Gsub => todo!(),
             BuiltinFunc::Matches => todo!(),
             BuiltinFunc::Sprintf => todo!(),
             BuiltinFunc::Close => todo!(),
@@ -63,7 +61,6 @@ impl BuiltinFunc {
             symbolizer.get("Close"),
             symbolizer.get("Cos"),
             symbolizer.get("Exp"),
-            symbolizer.get("Gsub"),
             symbolizer.get("Index"),
             symbolizer.get("Int"),
             symbolizer.get("Length"),
@@ -75,7 +72,6 @@ impl BuiltinFunc {
             symbolizer.get("Sprintf"),
             symbolizer.get("Sqrt"),
             symbolizer.get("Srand"),
-            symbolizer.get("Sub"),
             symbolizer.get("Substr"),
             symbolizer.get("System"),
             symbolizer.get("Tolower"),
@@ -88,7 +84,6 @@ impl BuiltinFunc {
             BuiltinFunc::Close => "Close",
             BuiltinFunc::Cos => "Cos",
             BuiltinFunc::Exp => "Exp",
-            BuiltinFunc::Gsub => "Gsub",
             BuiltinFunc::Index => "Index",
             BuiltinFunc::Int => "Int",
             BuiltinFunc::Length => "Length",
@@ -100,7 +95,6 @@ impl BuiltinFunc {
             BuiltinFunc::Sprintf => "Sprintf",
             BuiltinFunc::Sqrt => "Sqrt",
             BuiltinFunc::Srand => "Srand",
-            BuiltinFunc::Sub => "Sub",
             BuiltinFunc::Substr => "Substr",
             BuiltinFunc::System => "System",
             BuiltinFunc::Tolower => "Tolower",
@@ -113,7 +107,6 @@ impl BuiltinFunc {
             "close" => BuiltinFunc::Close,
             "cos" => BuiltinFunc::Cos,
             "exp" => BuiltinFunc::Exp,
-            "gsub" => BuiltinFunc::Gsub,
             "index" => BuiltinFunc::Index,
             "int" => BuiltinFunc::Int,
             "length" => BuiltinFunc::Length,
@@ -125,7 +118,6 @@ impl BuiltinFunc {
             "sprintf" => BuiltinFunc::Sprintf,
             "sqrt" => BuiltinFunc::Sqrt,
             "srand" => BuiltinFunc::Srand,
-            "sub" => BuiltinFunc::Sub,
             "substr" => BuiltinFunc::Substr,
             "system" => BuiltinFunc::System,
             "tolower" => BuiltinFunc::Tolower,
