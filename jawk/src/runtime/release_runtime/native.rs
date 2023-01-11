@@ -83,12 +83,12 @@ pub extern "C" fn free_if_string(data_ptr: *mut c_void, tag: Tag, string: *const
     }
 }
 
-pub extern "C" fn sub(data_ptr: *mut c_void,
-                      ere: *const AwkStr,
-                      repl: *const AwkStr,
-                      input_str: *const AwkStr,
-                      is_global: i32,
-                      out_float_ptr: *mut f64) -> *const AwkStr {
+pub extern "C" fn sub(_data_ptr: *mut c_void,
+                      _ere: *const AwkStr,
+                      _repl: *const AwkStr,
+                      _input_str: *const AwkStr,
+                      _is_global: i32,
+                      _out_float_ptr: *mut f64) -> *const AwkStr {
     todo!()
 }
 

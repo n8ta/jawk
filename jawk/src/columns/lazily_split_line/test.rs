@@ -19,7 +19,7 @@ mod test {
     fn test_non_space_behavior() {
         let dq = QuickDropDeque::from(vec![A, B, A, A, B, B, A]);
         let mut split = LazilySplitLine::new();
-        split.set_fs(vec![B]);
+        split.set_field_sep(&vec![B]);
         split.next_record();
         assert_eq!(split.nf(&dq, dq.len()), 4);
     }
@@ -63,7 +63,7 @@ mod test {
     fn test_changing_fs() {
         let mut line = LazilySplitLine::new();
         let mut dq = QuickDropDeque::from(vec![A, SPACE, B, NL, B, A, C]);
-        line.set_fs(vec![A]);
+        line.set_field_sep(&vec![A]);
         assert_eq!(line.get(&dq, 1, 3).to_vec(), vec![A]);
         assert_eq!(line.get(&dq, 2, 3).to_vec(), vec![B]);
         assert_eq!(line.get(&dq, 3, 3).to_vec(), vec![]);

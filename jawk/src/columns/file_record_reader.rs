@@ -102,11 +102,17 @@ impl FileReader {
         result
     }
 
-    pub fn set_rs(&mut self, rs: Vec<u8>) {
+    pub fn set_record_sep(&mut self, rs: Vec<u8>) {
         self.rs = rs;
+    }
+    pub fn get_record_sep(&mut self) -> &[u8] {
+        &self.rs
     }
 
     pub fn get_field_sep(&mut self) -> &[u8] {
         self.line.get_field_sep()
+    }
+    pub fn set_field_sep(&mut self, bytes: &[u8]) {
+        self.line.set_field_sep(bytes)
     }
 }

@@ -23,10 +23,10 @@ impl<'a> FunctionCodegen<'a> {
         let float = self.val_to_string(&arg, args[idx].typ);
         Ok(float)
     }
-    pub(crate) fn mk_float(&self, flt: Value) -> ValueT {
+    pub fn mk_float(&self, flt: Value) -> ValueT {
         ValueT::new(self.float_tag(), flt, self.zero_ptr())
     }
-    pub(crate) fn mk_string(&self, str: Value) -> ValueT { ValueT::new(self.string_tag(), self.zero_f(), str) }
+    pub fn mk_string(&self, str: Value) -> ValueT { ValueT::new(self.string_tag(), self.zero_f(), str) }
 
     fn col_0(&mut self) -> ValueT {
         let zero = self.zero_f();

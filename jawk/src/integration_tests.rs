@@ -1352,6 +1352,12 @@ mod integration_tests {
     test!(test_native_sub_array_5, "BEGIN { a[1] = \"aaa\"; print sub(\"aaa\", \"\", a[1]); print a[1]; }", ONE_LINE, "1\n\n");
     test!(test_native_sub_array_6, "BEGIN { a[1] = \"aaa\"; print sub(\"aaaa\", \"\", a[1]); print a[1]; }", ONE_LINE, "0\naaa\n");
 
+    test!(test_native_sub_amp_0, "BEGIN { a = \"a\"; sub(\"a\", \"-&-\", a); print a; }", ONE_LINE, "-a-");
+    test!(test_native_sub_amp_esc_1, "BEGIN { a = \"a\"; sub(\"a\", \"-\\&-\", a); print a; }", ONE_LINE, "-&-");
+    test!(test_native_sub_amp_esc_2, "BEGIN { a = \"a\"; sub(\"a\", \"-\\&&-\", a); print a; }", ONE_LINE, "-&a-");
+    test!(test_native_sub_amp_esc_4, "BEGIN { a = \"a\"; sub(\"a\", \"-\\\\\\&-\", a); print a; }", ONE_LINE, "-\\a-");
+    test!(test_native_sub_amp_4, "BEGIN { a = \"aaabc\"; sub(\"a+\", \"-&.&REPL-\", a); print a; }", ONE_LINE, "-aaa.aaaREPL-bc");
+
     //test!(test_native_col_0_sub_0, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
     //test!(test_native_col_0_sub_1, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
     //test!(test_native_col_0_sub_2, "{ sub(\"a\", \"b\"); print $0; }", "caa", "baa\n");
