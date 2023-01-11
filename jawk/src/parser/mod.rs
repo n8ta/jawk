@@ -863,11 +863,11 @@ impl<'a> Parser<'a> {
             }
             Token::String(string) => {
                 self.consume(TokenType::String, "Expected to parse a string here")?;
-                Expr::String(self.symbolizer.get_from_string(string)).into()
+                Expr::String(string).into()
             }
             Token::Regex(string) => {
                 self.consume(TokenType::Regex, "Expected to parse a string here")?;
-                Expr::Regex(self.symbolizer.get_from_string(string)).into()
+                Expr::Regex(string).into()
             }
             t => return Err(PrintableError::new(format!("Unexpected token {:?} {}", t, TokenType::name(t.ttype()))))
         })

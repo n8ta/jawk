@@ -7,7 +7,6 @@ use crate::PrintableError;
 use gnu_libjit::{Function, Value};
 use hashbrown::HashMap;
 use std::cell::Ref;
-use std::os::raw::c_void;
 
 // Global variables are stored on the heap. Loading and storing to the heap is expensive so
 // the function scopes acts as a cache of the globals by storing a copy of needed globals as
@@ -145,10 +144,6 @@ impl<'a> FunctionScope<'a> {
             return Ok(val.clone());
         }
         self.globals.get_array(function, name)
-    }
-
-    pub fn get_const_str(&self, name: &Symbol) -> Result<*mut c_void, PrintableError> {
-        self.globals.get_const_str(name)
     }
 
     pub fn debug_mapping(&self) -> HashMap<String, String> {

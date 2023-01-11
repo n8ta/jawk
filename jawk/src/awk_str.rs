@@ -37,6 +37,12 @@ impl AwkStr {
     pub fn new(bytes: Vec<u8>) -> AwkStr {
         Self { bytes }
     }
+    pub fn new_rc(bytes: Vec<u8>) -> Rc<AwkStr> {
+        Rc::new(Self { bytes })
+    }
+    pub fn new_rc_str(s: &str) -> Rc<AwkStr> {
+        Self::new_rc(s.to_string().into_bytes())
+    }
     pub fn with_capacity(cap: usize) -> AwkStr {
         Self { bytes: Vec::with_capacity(cap) }
     }

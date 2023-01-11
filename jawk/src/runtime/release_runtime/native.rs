@@ -83,15 +83,36 @@ pub extern "C" fn free_if_string(data_ptr: *mut c_void, tag: Tag, string: *const
     }
 }
 
-pub extern "C" fn sub(_data_ptr: *mut c_void,
-                      _ere: *const AwkStr,
-                      _repl: *const AwkStr,
-                      _input_str: *const AwkStr,
-                      _is_global: i32,
-                      _out_float_ptr: *mut f64) -> *const AwkStr {
-    todo!()
-}
+pub extern "C" fn sub(data_ptr: *mut c_void,
+                      ere: *const AwkStr,
+                      repl: *const AwkStr,
+                      input_str: *const AwkStr,
+                      is_global: i32,
+                      out_float_ptr: *mut f64) -> *const AwkStr {
+    let data = cast_to_runtime_data(data_ptr);
+    let is_global = is_global == 1;
+    let (ere, repl, input_str) = unsafe { (Rc::from_raw(ere), Rc::from_raw(repl), Rc::from_raw(input_str)) };
 
+    let regex = get_from_regex_cache(&mut data.regex_cache, ere);
+    let input_str = unwrap_awkstr_rc(input_str);
+
+    let (num_substitutions, result_str) = if is_global {
+        todo!()
+    } else {
+        let matched = regex.match_idx(&*input_str);
+        if let Some(mtc) = matched {
+            let input_bytes = input_str.bytes();
+            let mut new_string = AwkStr::new((&input_bytes[0..mtc.start]).to_vec());
+            new_string.push_str(repl.bytes());
+            new_string.push_str(&input_bytes[mtc.start + mtc.len..]);
+            (1.0, new_string)
+        } else {
+            (0.0, input_str)
+        }
+    };
+    unsafe { *out_float_ptr = num_substitutions; };
+    Rc::into_raw(Rc::new(result_str))
+}
 pub extern "C" fn concat(
     data_ptr: *mut c_void,
     left: *const AwkStr,

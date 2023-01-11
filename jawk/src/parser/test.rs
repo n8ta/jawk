@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod parser_tests {
+    use crate::awk_str::AwkStr;
     use crate::lexer::Token;
     use crate::lexer::{BinOp, LogicalOp, MathOp};
     use crate::parser::{parse, Expr, Function, PatternAction, Program, Stmt, TypedExpr};
@@ -598,8 +599,8 @@ mod parser_tests {
     #[test]
     fn string_concat2() {
         actual!(actual, "{ print (\"a\" \"b\") } ", symbolizer);
-        let a = texpr!(Expr::String(symbolizer.get("a")));
-        let b = texpr!(Expr::String(symbolizer.get("b")));
+        let a = texpr!(Expr::String(AwkStr::new_rc("a".to_string().into_bytes())));
+        let b = texpr!(Expr::String(AwkStr::new_rc("b".to_string().into_bytes())));
         let print = Stmt::Print(texpr!(Expr::Concatenation(vec![a, b])));
         assert_eq!(actual, sprogram!(print, &mut symbolizer));
     }
@@ -765,7 +766,7 @@ mod parser_tests {
             indices: vec![num!(0.0), num!(2.0)],
             value: Box::new(num!(1.0)),
         }
-        .into();
+            .into();
         assert_eq!(actual, sprogram!(Stmt::Expr(expr), &mut symbolizer));
     }
 
@@ -799,7 +800,7 @@ mod parser_tests {
             target: a,
             args: vec![num!(1.0), num!(3.0), num!(5.0)],
         }
-        .into();
+            .into();
         assert_eq!(actual, sprogram!(Stmt::Expr(expr), &mut symbolizer));
     }
 
@@ -814,7 +815,7 @@ mod parser_tests {
             name: a,
             indices: vec![num!(0.0)],
         }
-        .into();
+            .into();
         let expr = texpr!(Expr::ArrayIndex {
             name: symbolizer.get("a"),
             indices: vec![op, a_zero]
@@ -830,7 +831,7 @@ mod parser_tests {
             fstring: num!(1.0),
             args: vec![],
         }
-        .into();
+            .into();
         assert_eq!(actual, sprogram!(stmt, &mut symbolizer));
     }
 
@@ -838,10 +839,10 @@ mod parser_tests {
     fn test_printf_multi() {
         actual!(actual, "{ printf \"%s%s%s\", 1, 2, 3 }", symbolizer);
         let stmt = Stmt::Printf {
-            fstring: Expr::String(symbolizer.get("%s%s%s")).into(),
+            fstring: Expr::String(AwkStr::new_rc("%s%s%s".to_string().into_bytes())).into(),
             args: vec![num!(1.0), num!(2.0), num!(3.0)],
         }
-        .into();
+            .into();
         assert_eq!(actual, sprogram!(stmt, &mut symbolizer));
     }
 
@@ -877,7 +878,7 @@ mod parser_tests {
         let a = symbolizer.get("a");
         let args = vec![
             Expr::NumberF64(1.0).into(),
-            Expr::String(symbolizer.get("2")).into(),
+            Expr::String(AwkStr::new_rc_str("2")).into(),
         ];
         let begin = Stmt::Expr(Expr::Call { target: a, args }.into());
         assert_eq!(

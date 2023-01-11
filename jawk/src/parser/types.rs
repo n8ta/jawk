@@ -1,6 +1,9 @@
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::symbolizer::Symbol;
 use std::fmt::{Display, Formatter};
+use std::rc::Rc;
+use libc::write;
+use crate::awk_str::AwkStr;
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 #[repr(i32)]
@@ -133,7 +136,8 @@ pub enum Expr {
         value: Box<TypedExpr>,
     },
     NumberF64(f64),
-    String(Symbol),
+    String(Rc<AwkStr>),
+    Regex(Rc<AwkStr>),
     Concatenation(Vec<TypedExpr>),
     BinOp(Box<TypedExpr>, BinOp, Box<TypedExpr>),
     MathOp(Box<TypedExpr>, MathOp, Box<TypedExpr>),
@@ -142,7 +146,6 @@ pub enum Expr {
     Column(Box<TypedExpr>),
     NextLine,
     Ternary(Box<TypedExpr>, Box<TypedExpr>, Box<TypedExpr>),
-    Regex(Symbol),
     ArrayIndex {
         name: Symbol,
         indices: Vec<TypedExpr>,
@@ -236,6 +239,10 @@ fn display_comma_sep_list<T: Display>(f: &mut Formatter<'_>, indices: &[T]) -> s
 
 impl Display for Expr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+
+        #[cfg(not(debug_assertions))]
+        panic!("compiler bug: displaying u8 strings cannot use rust format! it is not utf-8 safe");
+
         match self {
             Expr::Call { target, args } => {
                 write!(f, "{}(", target)?;
@@ -247,7 +254,15 @@ impl Display for Expr {
             Expr::ScalarAssign(var, expr) => write!(f, "{} = {}", var, expr),
             Expr::NextLine => write!(f, "check_if_there_is_another_line"),
             Expr::Variable(n) => write!(f, "{}", n),
-            Expr::String(str) => write!(f, "\"{}\"", str),
+            Expr::String(str) => {
+                let str = unsafe { String::from_utf8_unchecked(str.bytes().to_vec()) };
+                write!(f, "\"{}\"", str)
+            },
+            Expr::Regex(reg) => {
+                let reg = unsafe { String::from_utf8_unchecked(reg.bytes().to_vec()) };
+                write!(f, "\"{}\"", reg)
+            }
+
             Expr::NumberF64(n) => write!(f, "{}", n),
             Expr::BinOp(left, op, right) => write!(f, "{}{}{}", left, op, right),
             Expr::Ternary(cond, expr1, expr2) => write!(f, "{} ? {} : {}", cond, expr1, expr2),
@@ -262,7 +277,6 @@ impl Display for Expr {
                 let str = vals.join(" ");
                 write!(f, "{}", str)
             }
-            Expr::Regex(str) => write!(f, "\"{}\"", str),
 
             Expr::ArrayIndex { name, indices } => {
                 write!(f, "{}[", name)?;

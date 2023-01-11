@@ -6,11 +6,12 @@ use crate::typing::{AnalysisResults, ITypedFunction, MapT, TypedProgram};
 use crate::{Expr, PrintableError};
 use hashbrown::{HashMap, HashSet};
 use std::rc::Rc;
+use crate::awk_str::AwkStr;
 
 pub struct FunctionAnalysis {
     global_scalars: MapT,
     global_arrays: SymbolMapping,
-    str_consts: HashSet<Symbol>,
+    str_consts: HashSet<Rc<AwkStr>>,
     functions: FunctionMap,
 }
 
@@ -253,6 +254,10 @@ impl FunctionAnalysis {
                 self.str_consts.insert(str.clone());
                 expr.typ = ScalarType::String;
             }
+            Expr::Regex(reg) => {
+                self.str_consts.insert(reg.clone());
+                expr.typ = ScalarType::String;
+            }
             Expr::BinOp(left, _op, right) => {
                 self.analyze_expr(left, function, false)?;
                 self.analyze_expr(right, function, false)?;
@@ -272,10 +277,6 @@ impl FunctionAnalysis {
                 self.analyze_expr(value, function, false)?;
                 self.use_as_scalar(var, value.typ, function)?;
                 expr.typ = value.typ;
-            }
-            Expr::Regex(sym) => {
-                self.str_consts.insert(sym.clone());
-                expr.typ = ScalarType::String;
             }
             Expr::Ternary(cond, expr1, expr2) => {
                 self.analyze_expr(cond, function, false)?;

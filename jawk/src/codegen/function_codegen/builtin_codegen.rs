@@ -28,6 +28,7 @@ impl<'a> FunctionCodegen<'a> {
     }
     pub fn mk_string(&self, str: Value) -> ValueT { ValueT::new(self.string_tag(), self.zero_f(), str) }
 
+    #[allow(dead_code)]
     fn col_0(&mut self) -> ValueT {
         let zero = self.zero_f();
         let zero = self.mk_float(zero);

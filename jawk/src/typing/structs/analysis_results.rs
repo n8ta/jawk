@@ -4,6 +4,8 @@ use crate::symbolizer::Symbol;
 use hashbrown::HashSet;
 use immutable_chunkmap::map::Map;
 use std::fmt::Debug;
+use std::rc::Rc;
+use crate::awk_str::AwkStr;
 
 pub type MapT = Map<Symbol, ScalarType, 1000>;
 
@@ -11,7 +13,7 @@ pub type MapT = Map<Symbol, ScalarType, 1000>;
 pub struct AnalysisResults {
     pub global_scalars: SymbolMapping,
     pub global_arrays: SymbolMapping,
-    pub str_consts: HashSet<Symbol>,
+    pub str_consts: HashSet<Rc<AwkStr>>,
 }
 
 impl AnalysisResults {

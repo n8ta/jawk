@@ -92,7 +92,7 @@ mod integration_tests {
         let mut our_total = 0;
         let mut other_total = 0;
 
-        for _ in 0..PERF_RUNS {
+        for idx in 0..PERF_RUNS {
             let our_result = test_once("./target/release/jawk", prog, file);
             other_total += test_once(interpreter, prog, file).1.as_micros();
             our_total += our_result.1.as_micros();
@@ -100,6 +100,10 @@ mod integration_tests {
                 our_result.0, oracle_output,
                 "perf-test : LEFT jawk, RIGHT oracle didn't match. DID YOU DO A RELEASE BUILD?"
             );
+            // This test is to fast for perf measurement bail!
+            if idx == 3 && our_total < 3 * 6000 && other_total < 3 * 6000 {
+                return
+            }
         }
 
         // 6ms per run

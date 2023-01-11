@@ -5,6 +5,8 @@ use crate::{PrintableError, Symbolizer};
 use std::iter::Peekable;
 use std::str::Chars;
 pub use types::{BinOp, LogicalOp, MathOp, Token, TokenType};
+use crate::awk_str::AwkStr;
+use crate::lexer::escaped_string_reader::escaped_string_reader;
 
 type LexerResult = Result<Vec<Token>, PrintableError>;
 
@@ -57,26 +59,6 @@ impl<'a, 'b> Lexer<'a, 'b> {
         self.tokens.push(tt);
     }
 
-    fn string(&mut self) -> Result<(), PrintableError> {
-        self.buffer.clear();
-        while self.peek() != '"' && !self.is_at_end() {
-            if self.peek() == '\n' {
-                self.line += 1;
-            }
-            self.advance();
-        }
-        if self.is_at_end() {
-            let string = self.collect_buffer();
-            return Err(PrintableError::new(format!(
-                "Unterminated String: `{}`",
-                string
-            )));
-        }
-        let str = self.collect_buffer();
-        self.advance();
-        self.add_token(Token::String(str));
-        return Ok(());
-    }
     fn regex(&mut self) -> Result<(), PrintableError> {
         // a ~ b
         // a ~ /match/'
@@ -98,7 +80,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
         }
         let regex = self.collect_buffer();
         self.advance();
-        self.add_token(Token::Regex(regex));
+        self.add_token(Token::Regex(AwkStr::new_rc(regex.into_bytes())));
         return Ok(());
     }
     fn number(&mut self) -> Result<Token, PrintableError> {
@@ -300,7 +282,10 @@ impl<'a, 'b> Lexer<'a, 'b> {
             '(' => self.add_token(Token::LeftParen),
             ')' => self.add_token(Token::RightParen),
             ';' => self.add_token(Token::Semicolon),
-            '"' => self.string()?,
+            '"' => {
+                let str = escaped_string_reader(&mut self.src)?;
+                self.add_token(Token::String(AwkStr::new_rc(str)))
+            },
             '\r' => (),
             '\t' => (),
             ' ' => (),
@@ -598,7 +583,7 @@ fn test_string() {
         lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::LeftBrace,
-            Token::String("x".to_string()),
+            Token::String(AwkStr::new_rc("x".to_string().into_bytes())),
             Token::RightBrace,
             Token::EOF
         ]
@@ -613,7 +598,7 @@ fn test_string_2() {
         lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::LeftBrace,
-            Token::String("abc123 444".to_string()),
+            Token::String(AwkStr::new_rc("abc123 444".to_string().into_bytes())),
             Token::RightBrace,
             Token::EOF
         ]
@@ -737,7 +722,7 @@ fn test_regex_slash() {
         vec![
             Token::Ident(symbolizer.get("a")),
             Token::BinOp(BinOp::MatchedBy),
-            Token::Regex(String::from("match")),
+            Token::Regex(AwkStr::new_rc("match".to_string().into_bytes())),
             Token::EOF
         ]
     );
@@ -752,7 +737,7 @@ fn test_regex_slash_not() {
         vec![
             Token::Ident(symbolizer.get("a")),
             Token::BinOp(BinOp::NotMatchedBy),
-            Token::Regex("match".to_string()),
+            Token::Regex(AwkStr::new_rc("match".to_string().into_bytes())),
             Token::EOF
         ]
     );

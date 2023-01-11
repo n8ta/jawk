@@ -12,6 +12,7 @@ use crate::{Expr, PrintableError, Symbolizer};
 use gnu_libjit::{Context, Function, Label, Value};
 use hashbrown::HashMap;
 use std::os::raw::{c_char, c_int, c_long, c_void};
+use std::rc::Rc;
 use crate::codegen::function_codegen::helpers::fill_in;
 
 mod builtin_codegen;
@@ -379,12 +380,14 @@ impl<'a> FunctionCodegen<'a> {
                 self.zero_ptr(),
             ),
             Expr::String(str) => {
-                let ptr = self.function.create_void_ptr_constant(self.function_scope.get_const_str(&str)?);
+                let ptr = Rc::into_raw(str.clone()) as *mut c_void;
+                let ptr = self.function.create_void_ptr_constant(ptr);
                 let val = ValueT::new(self.string_tag(), self.zero_f(), ptr);
                 self.runtime.copy_if_string(&mut self.function, val, ScalarType::String)
             }
-            Expr::Regex(str) => {
-                let ptr = self.function.create_void_ptr_constant(self.function_scope.get_const_str(&str)?);
+            Expr::Regex(reg) => {
+                let ptr = Rc::into_raw(reg.clone()) as *mut c_void;
+                let ptr = self.function.create_void_ptr_constant(ptr);
                 let val = ValueT::new(self.string_tag(), self.zero_f(), ptr);
                 self.runtime.copy_if_string(&mut self.function, val, ScalarType::String)
             }

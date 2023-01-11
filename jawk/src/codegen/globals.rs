@@ -6,15 +6,11 @@ use crate::{AnalysisResults, PrintableError, Symbolizer};
 use gnu_libjit::{Context, Function, Value};
 use hashbrown::HashMap;
 use std::os::raw::c_void;
-use std::rc::Rc;
-use crate::awk_str::AwkStr;
 
 pub struct Globals {
     mapping: SymbolMapping,
     global_scalar_allocation: Vec<i64>,
     arrays: SymbolMapping,
-    const_str_allocation: Vec<*mut AwkStr>,
-    const_str_mapping: HashMap<Symbol, usize>,
     global_return_value: Vec<i64>,
 }
 
@@ -25,28 +21,16 @@ impl Globals {
         function: &mut Function,
         _symbolizer: &mut Symbolizer,
     ) -> Self {
-        // global scalars + str_consts + return_value
         let scalar_memory = 3 * analysis.global_scalars.len();
-        let const_str_memory = analysis.str_consts.len();
 
         let global_scalar_allocation: Vec<i64> = Vec::with_capacity(scalar_memory);
         let global_return_value: Vec<i64> = Vec::with_capacity(3);
-        let mut const_str_allocation: Vec<*mut AwkStr> = Vec::with_capacity(const_str_memory);
-
-        let mut const_str_mapping = HashMap::new();
-        for (idx, str) in analysis.str_consts.iter().enumerate() {
-            const_str_mapping.insert(str.clone(), idx);
-            let str = Rc::new(AwkStr::new(str.as_bytes().to_vec()));
-            const_str_allocation.push(Rc::into_raw(str) as *mut AwkStr)
-        }
 
         let init = Self {
             global_scalar_allocation,
             mapping: analysis.global_scalars,
             arrays: analysis.global_arrays,
             global_return_value,
-            const_str_allocation,
-            const_str_mapping,
         };
 
         for (name, _) in init.mapping.mapping().clone() {
@@ -137,12 +121,6 @@ impl Globals {
         let float = function.insn_load_relative(&ptrs.float, 0, &Context::float64_type());
         let ptr = function.insn_load_relative(&ptrs.pointer, 0, &Context::void_ptr_type());
         ValueT::var(tag, float, ptr)
-    }
-
-    pub fn get_const_str(&self, name: &Symbol) -> Result<*mut c_void, PrintableError> {
-        let idx = self.const_str_mapping.get(name).unwrap();
-        let alloc_ptr = self.const_str_allocation[*idx];
-        Ok(alloc_ptr as *mut c_void)
     }
 
     pub fn get_array(

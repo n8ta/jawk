@@ -5,7 +5,6 @@ use crate::printable_error::PrintableError;
 
 const ZERO: char = 0x30 as char;
 const SEVEN: char = 0x37 as char;
-const NINE: char = 0x39 as char;
 
 // Escape chars:
 // https://pubs.opengroup.org/onlinepubs/009604499/basedefs/xbd_chap05.html
@@ -160,16 +159,16 @@ mod string_read_tests {
     test!(test_octal_escape_0, r#"\1""#, "\x01", "");
     test!(test_octal_escape_1, r#"start\1end""#, "start\x01end", "");
     test!(test_octal_escape_2, r#"\12""#, "\x0a", ""); // Octal 12 = Dec 10 = Hex 0a
-test!(test_octal_escape_3, r#"start\123end""#, "start\x53end", ""); // Octal 123 = Dec 64+16+3 == 83 = Hex 53
-test!(test_octal_escape_long, r#"start\1234end""#, "start\x534end", ""); // 4 is not part of the octal escape seq
-test!(test_three_ocals, r#"start\1\2\3end""#, "start\x01\x02\x03end", "");
+    test!(test_octal_escape_3, r#"start\123end""#, "start\x53end", ""); // Octal 123 = Dec 64+16+3 == 83 = Hex 53
+    test!(test_octal_escape_long, r#"start\1234end""#, "start\x534end", ""); // 4 is not part of the octal escape seq
+    test!(test_three_ocals, r#"start\1\2\3end""#, "start\x01\x02\x03end", "");
     test!(test_octal_max_utf8_0, r#"\177\1""#, "\x7f\x01", ""); // max allowed utf-8 byte
-test!(test_octal_max_utf8_1, r#"start\177\1end""#, "start\x7f\x01end", ""); // max allowed utf-8 byte
-test!(test_octal_null_byte, r#"a\000a""#, "a\x00a", "");
+    test!(test_octal_max_utf8_1, r#"start\177\1end""#, "start\x7f\x01end", ""); // max allowed utf-8 byte
+    test!(test_octal_null_byte, r#"a\000a""#, "a\x00a", "");
 
     test!(test_overflowing_octal_0, r#"\777""#, vec![0xff], ""); // higher than max byte
-test!(test_overflowing_octal_1, r#"\377""#, vec![0xff], " "); // higher than max byte
-test!(test_overflowing_octal_2, r#"\376""#, vec![0xfe], " "); // one lower than max byte
+    test!(test_overflowing_octal_1, r#"\377""#, vec![0xff], " "); // higher than max byte
+    test!(test_overflowing_octal_2, r#"\376""#, vec![0xfe], " "); // one lower than max byte
 
     test!(test_newline_in_str, "abc\n", "", "String literals may not contains a new line"); // max utf-8 byte + 1
 }
