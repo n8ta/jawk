@@ -9,24 +9,24 @@ gnu-libjit = { path = "../gnu-libjit" }
 # A fast dropping deque
 quick-drop-deque = { path = "../quick-drop-deque" }
 # Mawk regex is very fast just steal it
-mawk-regex = { path = "../mawk-regex" }
+mawk-regex = { path = "../mawk-regex", features = [] }
 # Immutable map very helpful for typechecking scopes
 immutable-chunkmap = "1.0.4"
 # Lots of stuff using this
 libc = "0.2.127"
 # Used in a few places to speed up access where a hashmap is overkill
 lru-cache = "0.1.2"
-# Default rust hashmap is resistant against DOS we don't need that
-hashbrown = {version = "0.13.1", features = []}
-# 50% perf improvement over default allocator
+# Default rust hashmap is slow
+hashbrown = { version = "0.13.1", features = [] }
+# Large perf improvement over default allocator
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 jemallocator = { version = "^0.5.0", default-features = false }
-# Faster than stdlib convert float to string
+# Much faster than stdlib convert float to string
 lexical-core = { version = "^0.8.0", features = ["format", "write-floats"] }
 
 [dev-dependencies]
-# Used in tests
 tempfile = "3.3.0"
+mawk-regex = { path = "../mawk-regex", features = ["thread_safe"] } # comment this out before releasing
 
 [[bin]]
 name = "jawk"

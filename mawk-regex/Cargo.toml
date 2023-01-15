@@ -10,3 +10,7 @@ description = "A safe rust wrapper around mawk's regular expressions"
 [dependencies]
 mawk-regex-sys = { path = "../mawk-regex-sys" }
 libc = "0.2"
+once_cell = { version = "^1.0.0", optional = true }
+
+[features]
+thread_safe = ["dep:once_cell"] # when this is enabled mawk-regex thread-unsafe code is protected by rust

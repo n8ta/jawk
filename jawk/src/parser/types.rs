@@ -2,7 +2,6 @@ use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::symbolizer::Symbol;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
-use libc::write;
 use crate::awk_str::AwkStr;
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]

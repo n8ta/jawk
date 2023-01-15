@@ -10,8 +10,50 @@ const SEVEN: char = 0x37 as char;
 // https://pubs.opengroup.org/onlinepubs/009604499/basedefs/xbd_chap05.html
 // AWK specific ones:
 // https://pubs.opengroup.org/onlinepubs/009604499/utilities/awk.html "Table: Escape Sequences in awk"
+
 // The starting " is already consumed from the iterator and a non-escaped closing quote must exist or returns Err
 pub fn escaped_string_reader(characters: &mut Peekable<Chars>) -> Result<Vec<u8>, PrintableError> {
+    let msg = match escaped_reader::<'"'>(characters, false) {
+        Ok(v) => return Ok(v),
+        Err(err) => {
+            match err {
+                EscapingError::UnknownEscapeSeq(chr) => format!("\\{} is an unknown awk escape sequence", chr),
+                EscapingError::NewLine => "String literals may not contain a line break".to_string(),
+                EscapingError::Unterminated => "Unterminated string literal".to_string(),
+                EscapingError::ForwardSlash => "\\/ is an unknown awk escape sequence".to_string()
+            }
+        }
+    };
+    Err(PrintableError::new(msg))
+}
+
+// The starting / is already consumed from the iterator and a non-escaped closing / must exist or returns Err
+pub fn escaped_regex_reader(characters: &mut Peekable<Chars>) -> Result<Vec<u8>, PrintableError> {
+    let msg = match escaped_reader::<'/'>(characters, true) {
+        Ok(v) => return Ok(v),
+        Err(err) => {
+            match err {
+                EscapingError::UnknownEscapeSeq(chr) => format!("\\{} is an unknown awk escape sequence", chr),
+                EscapingError::NewLine => "Regex literals may not contain a line break".to_string(),
+                EscapingError::Unterminated => "Unterminated regex literal".to_string(),
+                EscapingError::ForwardSlash => panic!("Compiler bug: escaped regex should allow forward slash"),
+            }
+        }
+    };
+    Err(PrintableError::new(msg))
+}
+
+
+enum EscapingError {
+    UnknownEscapeSeq(char),
+    NewLine,
+    Unterminated,
+    ForwardSlash
+}
+
+// Used for ERE and string parsing by swapping terminator.
+// escaped_fwd_slash is false for string but true for regex
+fn escaped_reader<const TERMINATOR: char>(characters: &mut Peekable<Chars>, escaped_fwd_slash: bool) -> Result<Vec<u8>, EscapingError> {
     let mut output = vec![];
     let mut escaped = false;
     let mut scratch_bytes: [u8; 4] = [0; 4];
@@ -19,9 +61,9 @@ pub fn escaped_string_reader(characters: &mut Peekable<Chars>) -> Result<Vec<u8>
     while let Some(char) = characters.next() {
         if escaped {
             let result: u8 = match char {
-                '\\' => 0x5c, // back slash
+                '\\' => 0x5c,// back slash
                 '"' => 0x22, // quote
-                '/' => 0x2f, // forward slash
+                '/' => if escaped_fwd_slash { 0x2f } else { return Err(EscapingError::ForwardSlash)},
                 'a' => 0x7,  // alert
                 'b' => 0x8,  // backspace
                 't' => 0x9,  // tab
@@ -31,19 +73,19 @@ pub fn escaped_string_reader(characters: &mut Peekable<Chars>) -> Result<Vec<u8>
                 'r' => 0xd,  // carriage return
                 ZERO..=SEVEN => octal_escape(char as u8 - ZERO as u8, characters),
                 _ => {
-                    return Err(PrintableError::new(format!("\\{} is not a known ask escape sequence", char)));
-                }
+                    return Err(EscapingError::UnknownEscapeSeq(char));
+                },
             };
             output.push(result);
             escaped = false;
         } else {
             if char == '\\' {
                 escaped = true;
-            } else if char == '\"' {
+            } else if char == TERMINATOR {
                 finished = true;
                 break;
             } else if char == '\n' {
-                return Err(PrintableError::new("String literals may not contains a new line"));
+                return Err(EscapingError::NewLine)
             } else {
                 let str = char.encode_utf8(&mut scratch_bytes);
                 let bytes_used = str.as_bytes().len();
@@ -54,7 +96,7 @@ pub fn escaped_string_reader(characters: &mut Peekable<Chars>) -> Result<Vec<u8>
         }
     }
     if !finished {
-        return Err(PrintableError::new(format!("Unterminated string literal")));
+        return Err(EscapingError::Unterminated);
     }
     Ok(output)
 }
@@ -96,7 +138,7 @@ fn octal_escape(char1: u8, characters: &mut Peekable<Chars>) -> u8 {
 
 #[cfg(test)]
 mod string_read_tests {
-    use crate::lexer::escaped_string_reader::{escaped_string_reader, saturating_octal_parse};
+    use crate::lexer::escaped_string_reader::{escaped_regex_reader, escaped_string_reader, saturating_octal_parse};
 
     #[test]
     fn test_parse_octals() {
@@ -110,9 +152,25 @@ mod string_read_tests {
         assert_eq!(saturating_octal_parse(4, 0, 0), 255);
     }
 
-    fn test_helper<T: Into<Vec<u8>>>(input: &str, oracle: T, expected_err: &str) {
+    fn test_helper_strings<T: Into<Vec<u8>>>(input: &str, oracle: T, expected_err: &str) {
         let oracle = oracle.into();
         let res = escaped_string_reader(&mut input.chars().peekable());
+        match res {
+            Ok(result) => assert_eq!(oracle, result),
+            Err(err) => {
+                if expected_err == "" {
+                    assert!(false, "Failed, input {} expected output {:?} but got err {}", input, oracle, expected_err)
+                } else {
+                    let err_str = format!("{}", err);
+                    assert!(err_str.contains(expected_err), "Expected to get an error including msg {} but got: {}", expected_err, err_str)
+                }
+            }
+        }
+    }
+
+    fn test_helper_reg<T: Into<Vec<u8>>>(input: &str, oracle: T, expected_err: &str) {
+        let oracle = oracle.into();
+        let res = escaped_regex_reader(&mut input.chars().peekable());
         match res {
             Ok(result) => assert_eq!(oracle, result),
             Err(err) => {
@@ -130,7 +188,15 @@ mod string_read_tests {
         ($name:ident,$input:expr,$oracle:expr,$expected_err:expr) => {
             #[test]
             fn $name() {
-                test_helper($input, $oracle, $expected_err);
+                test_helper_strings($input, $oracle, $expected_err);
+            }
+        };
+    }
+    macro_rules! test_reg {
+        ($name:ident,$input:expr,$oracle:expr,$expected_err:expr) => {
+            #[test]
+            fn $name() {
+                test_helper_reg($input, $oracle, $expected_err);
             }
         };
     }
@@ -154,6 +220,7 @@ mod string_read_tests {
     test!(test_quote_0, r#"\"""#, "\"", "");
     test!(test_quoted_str, r#"\"abc\"""#, "\"abc\"", "");
     test!(test_backslash, r#"\\""#, r"\", "");
+    test!(test_fwd_slash, r#"\/""#, "", "\\/ is an unknown awk escape sequence");
 
     // Octal escapes
     test!(test_octal_escape_0, r#"\1""#, "\x01", "");
@@ -170,6 +237,9 @@ mod string_read_tests {
     test!(test_overflowing_octal_1, r#"\377""#, vec![0xff], " "); // higher than max byte
     test!(test_overflowing_octal_2, r#"\376""#, vec![0xfe], " "); // one lower than max byte
 
-    test!(test_newline_in_str, "abc\n", "", "String literals may not contains a new line"); // max utf-8 byte + 1
+    test!(test_newline_in_str, "abc\n", "", "String literals may not contain a line break"); // max utf-8 byte + 1
+
+    test_reg!(test_reg_unescaped, r#"abc/"#, "abc", "");
+    test_reg!(test_reg_escaping, r#"\a\b\t\n\v\f\r/"#, vec![0x7,0x8,0x9,0xa,0xb,0xc,0xd], "");
 }
 

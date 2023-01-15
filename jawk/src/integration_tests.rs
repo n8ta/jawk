@@ -19,7 +19,7 @@ mod integration_tests {
     const PERF_ARRAY_PROGRAM: &'static str = "BEGIN { while (x<40000) { arr[x] = 1+x++  }; sum = 0; x = 0; while (x++ < 40000) { sum += arr[x] }; print sum}";
     const EMPTY_INDEX_PROGRAM: &'static str = "BEGIN { a = \"\"; print index(a, \"\") }";
 
-    fn test_once(interpreter: &str, prog: &str, file: &PathBuf) -> (String, Duration) {
+    fn test_once(interpreter: &str, prog: &str, file: &PathBuf) -> (Vec<u8>, Duration) {
         // Run a single awk once and capture the output
         let start = Instant::now();
         let output = std::process::Command::new(interpreter)
@@ -27,10 +27,7 @@ mod integration_tests {
             .output()
             .unwrap();
         let dir = start.elapsed();
-        (
-            String::from_utf8(output.stdout).expect("cannot convert output to utf8"),
-            dir,
-        )
+        (output.stdout, dir)
     }
 
     fn long_number_file() -> String {
@@ -46,7 +43,7 @@ mod integration_tests {
         string
     }
 
-    fn test_against(interpreter: &str, prog: &str, oracle_output: &str, file: &PathBuf) {
+    fn test_against(interpreter: &str, prog: &str, oracle_output: &[u8], file: &PathBuf) {
         match std::process::Command::new(interpreter).output() {
             Ok(_) => {}
             Err(_err) => eprintln!("unable to test against {}", prog), // this interpreter doesn't exist
@@ -82,7 +79,7 @@ mod integration_tests {
         test_name: &str,
         interpreter: &str,
         prog: &str,
-        oracle_output: &str,
+        oracle_output: &[u8],
         file: &PathBuf,
     ) {
         match std::process::Command::new(interpreter).output() {
@@ -120,7 +117,8 @@ mod integration_tests {
         );
     }
 
-    fn test<S: AsRef<str>>(test_name: &str, prog: &str, file: S, oracle_output: &str) {
+    fn test<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog: &str, file: S, oracle_output: StdoutT) {
+        let oracle_output: Vec<u8> = oracle_output.into();
         println!("Program:\n{}", prog);
         let mut symbolizer = Symbolizer::new();
         let program =
@@ -146,22 +144,22 @@ mod integration_tests {
             "LEFT jawk -- RIGHT oracle, did not match"
         );
 
-        test_against("awk", prog, oracle_output, &file_path);
-        test_against("goawk", prog, oracle_output, &file_path);
+        test_against("awk", prog, &oracle_output, &file_path);
+        test_against("goawk", prog, &oracle_output, &file_path);
         if prog != PERF_ARRAY_PROGRAM {
             // Mawk rounds weirdly for this program it's not a bug in jawk
-            test_against("mawk", prog, oracle_output, &file_path);
+            test_against("mawk", prog, &oracle_output, &file_path);
         }
         if prog != EMPTY_INDEX_PROGRAM {
             // onetrue awk says index("", "") is 0 whereas everyone else says 1
-            test_against("onetrueawk", prog, oracle_output, &file_path);
+            test_against("onetrueawk", prog, &oracle_output, &file_path);
         }
 
         if std::env::vars().any(|f| f.0 == "jperf" && (f.1 == "true" || f.1 == "true\n")) {
-            test_perf(test_name, "awk", prog, oracle_output, &file_path);
-            test_perf(test_name, "mawk", prog, oracle_output, &file_path);
-            test_perf(test_name, "goawk", prog, oracle_output, &file_path);
-            test_perf(test_name, "onetrueawk", prog, oracle_output, &file_path);
+            test_perf(test_name, "awk", prog, &oracle_output, &file_path);
+            test_perf(test_name, "mawk", prog, &oracle_output, &file_path);
+            test_perf(test_name, "goawk", prog, &oracle_output, &file_path);
+            test_perf(test_name, "onetrueawk", prog, &oracle_output, &file_path);
         }
     }
 
@@ -1369,5 +1367,9 @@ mod integration_tests {
     //test!(test_native_col_0_sub_4, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
     //test!(test_native_col_0_sub_5, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
     //test!(test_native_col_0_sub_6, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+
+    test!(test_string_escaping, r#"BEGIN { print "\a\b\t\n\v\f\r"; }"#, ONE_LINE, vec![0x7,0x8,0x9,0xa,0xb,0xc,0xd,0xa]);
+    test!(test_quote_escaping, r#"BEGIN { print "-\"-"; }"#, ONE_LINE, "-\"-\n");
+    test!(test_slash_escaping, r#"BEGIN { print "/ \\ \\\\"; }"#, ONE_LINE, "/ \\ \\\\\n");
 
 }

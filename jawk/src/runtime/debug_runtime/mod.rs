@@ -60,8 +60,8 @@ impl RuntimeData {
 
 impl DebugRuntime {
     #[allow(dead_code)]
-    pub fn output(&self) -> String {
-        String::from_utf8(cast_to_runtime_data(self.runtime_data).output.clone()).unwrap()
+    pub fn output(&self) -> &[u8] {
+        &cast_to_runtime_data(self.runtime_data).output
     }
     #[allow(dead_code)]
 
