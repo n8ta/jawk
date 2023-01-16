@@ -1,0 +1,22 @@
+[package]
+name = "rawk"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+hashbrown = "0.13.2"
+immutable-chunkmap = "1.0.4"
+lru-cache = "0.1.2"
+lexical-core = { version = "^0.8.0", features = ["format", "write-floats"] }
+libc = "0.2.127"
+mawk-regex = { path = "../mawk-regex", features = ["thread_safe"] }
+quick-drop-deque = { path = "../quick-drop-deque" }
+
+[dev-dependencies]
+tempfile = "3.3.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
