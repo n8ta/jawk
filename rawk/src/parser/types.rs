@@ -1,8 +1,7 @@
 use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::symbolizer::Symbol;
 use std::fmt::{Display, Formatter};
-use std::rc::Rc;
-use crate::awk_str::AwkStr;
+use crate::awk_str::{RcAwkStr};
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 #[repr(i32)]
@@ -135,8 +134,8 @@ pub enum Expr {
         value: Box<TypedExpr>,
     },
     NumberF64(f64),
-    String(Rc<AwkStr>),
-    Regex(Rc<AwkStr>),
+    String(RcAwkStr),
+    Regex(RcAwkStr),
     Concatenation(Vec<TypedExpr>),
     BinOp(Box<TypedExpr>, BinOp, Box<TypedExpr>),
     MathOp(Box<TypedExpr>, MathOp, Box<TypedExpr>),
@@ -157,13 +156,11 @@ pub enum Expr {
         target: Symbol,
         args: Vec<TypedExpr>,
     },
-    // Sub is unqiue in it takes an LValue as an arg.
-    // I could built out a whole LValue RValue system but it seems not worth
-    // it just for this
+    // Sub is unique since it takes an LValue as an arg.
     CallSub {
-        arg1: Box<TypedExpr>,
-        arg2: Box<TypedExpr>,
-        arg3: LValue,
+        ere: Box<TypedExpr>,
+        replacement: Box<TypedExpr>,
+        string: LValue,
         global: bool, // true => gsub() else sub()
     },
 }
@@ -201,6 +198,7 @@ impl Into<Expr> for LValue {
         }
     }
 }
+
 
 impl TryFrom<Expr> for LValue {
     type Error = ();
@@ -297,7 +295,7 @@ impl Display for Expr {
                 write!(f, "] = {}", value)
             }
 
-            Expr::CallSub { arg1, arg2, arg3, global } => {
+            Expr::CallSub { ere: arg1, replacement: arg2, string: arg3, global } => {
                 let name = if *global { "gsub"} else { "sub"};
                 write!(f, "{}({},{},{})", name, arg1, arg2, arg3)
             }

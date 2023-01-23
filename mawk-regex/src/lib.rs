@@ -44,7 +44,7 @@ impl Regex {
             let lck = GLOBAL_MUTEX.lock().unwrap();
         let is_match = unsafe {
             let res = REtest(str.as_ptr() as *mut c_char, str.len() as ::std::os::raw::c_ulong, self.ptr);
-            return res != 0;
+            res != 0
         };
         #[cfg(feature="thread_safe")]
         drop(lck);

@@ -20,6 +20,10 @@ pub struct TypedUserFunction {
     globals_used: RefCell<HashSet<Symbol>>,
     args: RefCell<Vec<Arg>>,
     name: Symbol,
+
+    // caches
+    num_scalar_args: RefCell<Option<usize>>,
+    num_array_args: RefCell<Option<usize>>,
 }
 
 impl Hash for TypedUserFunction {
@@ -137,6 +141,8 @@ impl TypedUserFunction {
             globals_used: RefCell::new(HashSet::new()),
             args: RefCell::new(args),
             name,
+            num_scalar_args: RefCell::new(None),
+            num_array_args: RefCell::new(None),
         }
     }
     pub fn scalar_arg_idx(&self, sym: &Symbol) -> Option<usize> {
@@ -146,6 +152,27 @@ impl TypedUserFunction {
         self.args.borrow().iter().filter(|a| a.typ == ArgT::Array).position(|a| a.name == *sym)
     }
 
+    pub fn num_scalar_args(&self) -> usize {
+        let mut num_scalar_args = self.num_scalar_args.borrow_mut();
+        if let Some(count) = *num_scalar_args {
+            count
+        } else {
+            let count = self.args.borrow().iter().filter(|a| a.typ == ArgT::Scalar).count();
+            let _ = num_scalar_args.insert(count);
+            count
+        }
+    }
+
+    pub fn num_array_args(&self) -> usize {
+        let mut num_array_args = self.num_array_args.borrow_mut();
+        if let Some(count) = *num_array_args {
+            count
+        } else {
+            let count = self.args.borrow().iter().filter(|a| a.typ == ArgT::Array).count();
+            let _ = num_array_args.insert(count);
+            count
+        }
+    }
 
     pub fn user_func_args(&self) -> Ref<'_, Vec<Arg>> {
         self.args.borrow()

@@ -7,13 +7,14 @@ use crate::typing::{AnalysisResults, ITypedFunction, MapT, TypedProgram};
 use crate::{Expr, PrintableError};
 use hashbrown::{HashMap};
 use std::rc::Rc;
-use crate::awk_str::AwkStr;
+use crate::awk_str::RcAwkStr;
 use crate::typing::ids::GlobalArrayId;
+use crate::vm::NUM_GSCALAR_SPECIALS;
 
 pub struct FunctionAnalysis {
     global_scalars: MapT,
     global_arrays: SymbolMapping<GlobalArrayId>,
-    str_consts: HashSet<Rc<AwkStr>>,
+    str_consts: HashSet<RcAwkStr>,
     functions: FunctionMap,
 }
 
@@ -25,7 +26,7 @@ pub fn function_pass(prog: Program) -> Result<TypedProgram, PrintableError> {
 
     let analysis = FunctionAnalysis {
         global_scalars: MapT::new(),
-        global_arrays: SymbolMapping::new(),
+        global_arrays: SymbolMapping::new(0),
         str_consts: Default::default(),
         functions: FunctionMap::new(functions, &prog.symbolizer),
     };
@@ -45,7 +46,7 @@ impl FunctionAnalysis {
             self.analyze_stmt(&mut parser_func.body, &func)?;
         }
 
-        let mut global_scalars = SymbolMapping::new();
+        let mut global_scalars = SymbolMapping::new(NUM_GSCALAR_SPECIALS);
         for (scalar, _) in self.global_scalars.into_iter() {
             global_scalars.insert(scalar)
         }
@@ -239,15 +240,16 @@ impl FunctionAnalysis {
                 function.add_call(call);
                 target_func.add_caller(function.clone())
             }
-            Expr::CallSub { arg1, arg2, arg3, global: _global } => {
-                self.analyze_expr(arg1, function, false)?;
-                self.analyze_expr(arg2, function, false)?;
+            Expr::CallSub { ere, replacement, string, global: _global } => {
+                self.analyze_expr(ere, function, false)?;
+                self.analyze_expr(replacement, function, false)?;
 
-                let expr: Expr = arg3.clone().into(); // TODO: Avoid the clone?
+                let expr: Expr = string.clone().into(); // TODO: Avoid the clone?
                 let mut texpr = TypedExpr::new(expr);
                 self.analyze_expr(&mut texpr, function, false)?;
-                let mut analyze_arg3 = LValue::try_from(texpr.expr).unwrap();
-                std::mem::swap(&mut analyze_arg3, arg3);
+
+                let mut analyzed_arg = LValue::try_from(texpr.expr).unwrap();
+                std::mem::swap(&mut analyzed_arg, string);
             }
             Expr::NumberF64(_) => {
                 expr.typ = ScalarType::Float;

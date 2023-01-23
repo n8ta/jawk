@@ -1,5 +1,6 @@
-
+use std::io::{stderr, stdout};
 use crate::args::AwkArgs;
+use crate::compiler::compile;
 use crate::parser::Expr;
 use crate::printable_error::PrintableError;
 
@@ -9,6 +10,7 @@ pub use crate::lexer::lex;
 pub use crate::parser::parse;
 pub use crate::symbolizer::Symbolizer;
 pub use crate::typing::analyze;
+use crate::vm::VirtualMachine;
 
 mod lexer;
 mod parser;
@@ -23,6 +25,8 @@ mod compiler;
 mod arrays;
 mod columns;
 mod util;
+#[cfg(test)]
+mod tests;
 
 pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let args = AwkArgs::new(args)?;
@@ -35,6 +39,11 @@ pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     if args.debug {
         println!("{}", ast);
     }
+    let bytecode = compile(ast)?;
+    let mut out = stdout().lock();
+    let mut err = stderr().lock();
+    let mut vm = VirtualMachine::new(args.files, &mut out, &mut err);
+    vm.run(&bytecode);
     Ok(())
 }
 

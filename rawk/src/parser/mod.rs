@@ -905,7 +905,7 @@ impl<'a> Parser<'a> {
                 };
                 let arg2 = Box::new(args.pop().unwrap());
                 let arg1 = Box::new(args.pop().unwrap());
-                Expr::CallSub { arg1, arg2, arg3, global }
+                Expr::CallSub { ere: arg1, replacement: arg2, string: arg3, global }
             } else {
                 return Err(PrintableError::new(format!("Builtin function {} can only be called with 2 or 3 arguments", target)));
             };

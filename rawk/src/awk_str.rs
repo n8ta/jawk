@@ -1,6 +1,38 @@
 use std::fmt::{Debug, Formatter};
 use std::ops::Deref;
-use std::rc::Rc;
+use std::rc::{Rc};
+
+#[derive(Clone, Debug, PartialOrd, PartialEq, Eq, Hash)]
+pub struct RcAwkStr {
+    str: Rc<AwkStr>,
+}
+
+impl Deref for RcAwkStr {
+    type Target = AwkStr;
+
+    fn deref(&self) -> &Self::Target {
+        &self.str
+    }
+}
+
+impl RcAwkStr {
+
+    pub fn new(str: AwkStr) -> Self {
+        Self { str: Rc::new(str) }
+    }
+    pub fn new_bytes(bytes: Vec<u8>) -> Self {
+        Self { str: Rc::new(AwkStr::new(bytes)) }
+    }
+
+    pub fn downgrade_or_clone(self) -> AwkStr {
+        match Rc::try_unwrap(self.str) {
+            Ok(str) => str,
+            Err(rc) => {
+                (*rc).clone()
+            }
+        }
+    }
+}
 
 #[derive(PartialEq, PartialOrd, Clone, Eq, Hash)]
 pub struct AwkStr {
@@ -37,10 +69,10 @@ impl AwkStr {
     pub fn new(bytes: Vec<u8>) -> AwkStr {
         Self { bytes }
     }
-    pub fn new_rc(bytes: Vec<u8>) -> Rc<AwkStr> {
-        Rc::new(Self { bytes })
+    pub fn new_rc(bytes: Vec<u8>) -> RcAwkStr {
+        RcAwkStr::new(AwkStr::new(bytes))
     }
-    pub fn new_rc_str(s: &str) -> Rc<AwkStr> {
+    pub fn new_rc_str(s: &str) -> RcAwkStr {
         Self::new_rc(s.to_string().into_bytes())
     }
     pub fn with_capacity(cap: usize) -> AwkStr {
@@ -71,12 +103,10 @@ impl AwkStr {
     pub fn clear(&mut self) {
         self.bytes.clear();
     }
-}
-
-// Clone underlying bytes if needed OR if Rc has 1 reference downgrade into AwkStr
-pub fn unwrap_awkstr_rc(str: Rc<AwkStr>) -> AwkStr {
-    match Rc::try_unwrap(str) {
-        Ok(str) => str,
-        Err(rc) => (*rc).clone(),
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        &mut self.bytes
+    }
+    pub fn rc(self) -> RcAwkStr {
+        RcAwkStr::new(self)
     }
 }

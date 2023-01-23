@@ -1,29 +1,32 @@
+mod split;
+
 use hashbrown::HashMap;
-use std::rc::Rc;
 use hashbrown::hash_map::Drain;
-use crate::awk_str::AwkStr;
-use crate::vm::RuntimeValue;
+use crate::awk_str::{RcAwkStr};
+use crate::vm::RuntimeScalar;
+
+pub use split::{split_on_string, split_on_regex};
 
 #[derive(Hash, Clone, Eq, PartialEq)]
 pub struct MapKey {
-    key: Rc<AwkStr>,
+    key: RcAwkStr,
 }
 
 impl MapKey {
-    pub fn new(key: Rc<AwkStr>) -> Self {
+    pub fn new(key: RcAwkStr) -> Self {
         Self { key }
     }
 }
 
 struct AwkMap {
-    map: HashMap<MapKey, RuntimeValue>,
+    map: HashMap<MapKey, RuntimeScalar>,
 }
 
 impl AwkMap {
-    fn access(&self, key: &MapKey) -> Option<&RuntimeValue> {
+    fn access(&self, key: &MapKey) -> Option<&RuntimeScalar> {
         self.map.get(key)
     }
-    fn assign(&mut self, key: &MapKey, val: RuntimeValue) -> Option<RuntimeValue> {
+    fn assign(&mut self, key: &MapKey, val: RuntimeScalar) -> Option<RuntimeScalar> {
         self.map.insert(key.clone(), val)
     }
     fn new() -> Self {
@@ -35,7 +38,7 @@ impl AwkMap {
         self.map.contains_key(key)
     }
 
-    fn drain(&mut self) -> Drain<'_, MapKey, RuntimeValue> {
+    fn drain(&mut self) -> Drain<'_, MapKey, RuntimeScalar> {
         self.map.drain()
     }
 }
@@ -54,13 +57,13 @@ impl Arrays {
             self.arrays.push(AwkMap::new())
         }
     }
-    pub fn clear(&mut self, array_id: u16) -> Drain<'_, MapKey, RuntimeValue> {
+    pub fn clear(&mut self, array_id: u16) -> Drain<'_, MapKey, RuntimeScalar> {
         let array = self.arrays.get_mut(array_id as usize).expect("array to exist based on id");
         array.drain()
     }
 
     #[inline(never)]
-    pub fn access(&mut self, array_id: u16, key: Rc<AwkStr>) -> Option<&RuntimeValue> {
+    pub fn access(&mut self, array_id: u16, key: RcAwkStr) -> Option<&RuntimeScalar> {
         let array = self.arrays.get_mut(array_id as usize).expect("array to exist based on id");
         array.access(&MapKey::new(key))
     }
@@ -68,14 +71,14 @@ impl Arrays {
     pub fn assign(
         &mut self,
         array_id: u16,
-        indices: Rc<AwkStr>,
-        value: RuntimeValue,
-    ) -> Option<RuntimeValue> {
+        indices: RcAwkStr,
+        value: RuntimeScalar,
+    ) -> Option<RuntimeScalar> {
         let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize) };
         array.assign(&MapKey::new(indices), value)
     }
 
-    pub fn in_array(&mut self, array_id: u16, indices: Rc<AwkStr>) -> bool {
+    pub fn in_array(&mut self, array_id: u16, indices: RcAwkStr) -> bool {
         let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize) };
         array.in_array(&MapKey::new(indices))
     }

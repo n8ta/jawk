@@ -1,7 +1,6 @@
 use crate::symbolizer::Symbol;
 use std::fmt::{Display, Formatter};
-use std::rc::Rc;
-use crate::awk_str::AwkStr;
+use crate::awk_str::{RcAwkStr};
 
 #[derive(Debug, Clone, PartialOrd, PartialEq, Copy)]
 pub enum MathOp {
@@ -82,7 +81,7 @@ pub enum Token {
     LogicalOp(LogicalOp),
     // && ||
     Bang,
-    String(Rc<AwkStr>),
+    String(RcAwkStr),
     Ident(Symbol),
     NumberF64(f64),
     False,
@@ -92,7 +91,7 @@ pub enum Token {
     RightBrace,
     LeftParen,
     RightParen,
-    Regex(Rc<AwkStr>),
+    Regex(RcAwkStr),
     Print,
     Printf,
     Ret,

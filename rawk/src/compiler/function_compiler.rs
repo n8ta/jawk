@@ -1,11 +1,13 @@
 use std::rc::Rc;
+use crate::awk_str::RcAwkStr;
 use crate::compiler::FunctionIdMap;
 use crate::lexer::{BinOp, LogicalOp, MathOp};
-use crate::parser::{ArgT, Expr, Stmt, TypedExpr};
+use crate::parser::{ArgT, Expr, LValue, Stmt, TypedExpr};
 use crate::printable_error::PrintableError;
 use crate::symbolizer::Symbol;
-use crate::typing::{AnalysisResults, ITypedFunction, TypedUserFunction};
-use crate::vm::{Chunk, Code, Label, VmFunc};
+use crate::typing::{AnalysisResults, BuiltinFunc, ITypedFunction, TypedUserFunction};
+use crate::vm::{Code, Label, VmFunc};
+use crate::compiler::chunk::Chunk;
 
 
 // Jump offsets are often calculated after bytecode is emitted. This value is used temporarily
@@ -40,6 +42,15 @@ impl<'a> FunctionCompiler<'a> {
         let cpy = self.parser_func.clone();
         let func = cpy.function();
         self.stmt(&func.body)?;
+
+        // If function doesn't end with a user provided return return the empty string
+        if !self.chunk.ends_with(&[Code::Ret]) {
+            let idx = self.chunk.add_const_strnum(RcAwkStr::new_bytes("".as_bytes().to_vec()));
+            self.add(Code::ConstLkp { idx });
+            self.add(Code::Ret);
+        }
+
+        self.chunk.resolve_labels();
         Ok(VmFunc::new(self.chunk, id, self.parser_func.clone()))
     }
 
@@ -65,9 +76,9 @@ impl<'a> FunctionCompiler<'a> {
 
     fn stmt(&mut self, stmt: &Stmt) -> Result<(), PrintableError> {
         match stmt {
-            Stmt::Expr(expr) => self.expr(expr, true)?,
+            Stmt::Expr(expr) => self.expr(expr)?,
             Stmt::Print(expr) => {
-                self.expr(expr, false)?;
+                self.expr(expr)?;
                 self.add(Code::Print);
             }
             Stmt::Group(grp) => {
@@ -89,7 +100,7 @@ impl<'a> FunctionCompiler<'a> {
                     let if_not_lbl = self.create_lbl();
                     let done_lbl = self.create_lbl();
 
-                    self.expr(test, false)?;
+                    self.expr(test)?;
                     self.add(Code::JumpIfFalseLbl(if_not_lbl));
 
                     self.stmt(if_so)?;
@@ -98,7 +109,7 @@ impl<'a> FunctionCompiler<'a> {
                     self.stmt(if_not)?;
                     self.insert_lbl(done_lbl);
                 } else {
-                    self.expr(test, false)?;
+                    self.expr(test)?;
                     let if_not_lbl = self.create_lbl();
                     self.add(Code::JumpIfFalseLbl(if_not_lbl));
                     self.stmt(if_so)?;
@@ -115,25 +126,28 @@ impl<'a> FunctionCompiler<'a> {
                 Jump :Test
                 :Done
                 Pop
+                :BreakToHere
                  */
                 let test_lbl = self.create_and_insert_lbl();
                 let done_lbl = self.create_lbl();
-                self.expr(test, false)?;
+                let break_lbl = self.create_lbl();
+                self.expr(test)?;
 
-                self.break_labels.push(done_lbl);
+                self.break_labels.push(break_lbl);
                 self.add(Code::JumpIfFalseLbl(done_lbl));
                 self.add(Code::Pop);
                 self.stmt(body)?;
                 self.add(Code::JumpLbl(test_lbl));
                 self.insert_lbl(done_lbl);
                 self.add(Code::Pop);
+                self.insert_lbl(break_lbl);
                 self.break_labels.pop().unwrap();
             }
             Stmt::Printf { args, fstring } => {
                 for arg in args {
-                    self.expr(arg, false)?;
+                    self.expr(arg)?;
                 }
-                self.expr(fstring, false)?;
+                self.expr(fstring)?;
                 self.add(Code::Printf { num_args: args.len() as u16 }); // TODO u16max
             }
             Stmt::Break => {
@@ -145,7 +159,7 @@ impl<'a> FunctionCompiler<'a> {
             }
             Stmt::Return(ret) => {
                 if let Some(ret) = ret {
-                    self.expr(ret, false)?;
+                    self.expr(ret)?;
                 } else {
                     self.add(Code::FloatZero)
                 }
@@ -155,38 +169,54 @@ impl<'a> FunctionCompiler<'a> {
         Ok(())
     }
 
-    fn expr(&mut self, expr: &TypedExpr, _side_effect_only: bool) -> Result<(), PrintableError> {
+    // Value to assign should be top of the stack
+    fn assign_to_scalar(&mut self, scalar_name: &Symbol) {
+        if let Some(arg_idx) = self.parser_func.scalar_arg_idx(scalar_name) {
+            self.add(Code::ArgSclAsgn { arg_idx: arg_idx as u16 }); // TODO: u16max
+        } else {
+            let id = self.type_analysis.global_scalars.get(scalar_name).expect("compiler bug in typing pass global scalar not found");
+            self.add(Code::GSclAssign(*id));
+        };
+    }
+
+    // Value to assign should be top of the stack
+    fn assign_to_array(&mut self, name: &Symbol, indices: &[TypedExpr]) -> Result<(), PrintableError>{
+        self.push_array(name);
+        for idx in indices {
+            self.expr(idx)?;
+        };
+        // TODO: u16max
+        self.add(Code::ArrayAssign { indices: indices.len() as u16 });
+        Ok(())
+    }
+
+    pub fn expr(&mut self, expr: &TypedExpr) -> Result<(), PrintableError> {
         match &expr.expr {
             Expr::ScalarAssign(scalar_name, value) => {
-                self.expr(value, false)?;
-                if let Some(arg_idx) = self.parser_func.scalar_arg_idx(scalar_name) {
-                    self.add(Code::ArgScalarAssign { arg_idx: arg_idx as u16 }); // TODO: u16max
-                } else {
-                    let id = self.type_analysis.global_scalars.get(scalar_name).expect("compiler bug in typing pass global scalar not found");
-                    self.add(Code::GlobalScalarAssign(*id));
-                };
+                self.expr(value)?;
+                self.assign_to_scalar(scalar_name);
             }
             Expr::NumberF64(num) => {
-                let idx = self.chunk.get_const_float(*num);
-                self.add(Code::ConstantLookup { idx });
+                let idx = self.chunk.add_const_float(*num);
+                self.add(Code::ConstLkp { idx });
             }
             Expr::String(str) => {
-                let idx = self.chunk.get_const_str(str.clone());
-                self.add(Code::ConstantLookup { idx });
+                let idx = self.chunk.add_const_str(str.clone());
+                self.add(Code::ConstLkp { idx });
             }
             Expr::Regex(reg) => {
-                let idx = self.chunk.get_const_str(reg.clone());
-                self.add(Code::ConstantLookup { idx });
+                let idx = self.chunk.add_const_str(reg.clone());
+                self.add(Code::ConstLkp { idx });
             }
             Expr::Concatenation(exprs) => {
-                for expr in exprs {
-                    self.expr(expr, false)?;
+                for expr in exprs.iter().rev() {
+                    self.expr(expr)?;
                 }
-                self.add(Code::Concat { count: exprs.len() as u16 }); // TODO: u16max
+                self.add(Code::Concat { count: exprs.len() as u16 });
             }
             Expr::BinOp(lhs, op, rhs) => {
-                self.expr(lhs, false)?;
-                self.expr(rhs, false)?;
+                self.expr(lhs)?;
+                self.expr(rhs)?;
                 match op {
                     BinOp::Greater => self.add(Code::Gt),
                     BinOp::GreaterEq => self.add(Code::GtEq),
@@ -195,14 +225,14 @@ impl<'a> FunctionCompiler<'a> {
                     BinOp::BangEq => self.add(Code::Neq),
                     BinOp::EqEq => self.add(Code::EqEq),
                     BinOp::MatchedBy => self.add(Code::Matches),
-                    BinOp::NotMatchedBy => self.add(Code::NotMatches),
+                    BinOp::NotMatchedBy => self.add(Code::NMatches),
                 };
             }
             Expr::MathOp(lhs, op, rhs) => {
-                self.expr(lhs, false)?;
-                self.expr(rhs, false)?;
+                self.expr(lhs)?;
+                self.expr(rhs)?;
                 match op {
-                    MathOp::Minus => self.add(Code::Sub),
+                    MathOp::Minus => self.add(Code::Minus),
                     MathOp::Plus => self.add(Code::Add),
                     MathOp::Slash => self.add(Code::Div),
                     MathOp::Star => self.add(Code::Mult),
@@ -211,7 +241,7 @@ impl<'a> FunctionCompiler<'a> {
                 };
             }
             Expr::LogicalOp(lhs, op, rhs) => {
-                self.expr(lhs, false)?;
+                self.expr(lhs)?;
                 match op {
                     LogicalOp::And => {
                         /*
@@ -233,14 +263,14 @@ impl<'a> FunctionCompiler<'a> {
 
                         self.add(Code::JumpIfFalseLbl(is_false));
                         self.add(Code::Pop); // Pop lhs
-                        self.expr(rhs, false)?;
+                        self.expr(rhs)?;
                         self.add(Code::JumpIfFalseLbl(is_false));
                         self.add(Code::Pop); // Pop rhs
                         self.add(Code::FloatOne);
                         self.add(Code::JumpLbl(done));
                         self.insert_lbl(is_false);
                         self.add(Code::Pop);
-                        self.add(Code::FloatOne);
+                        self.add(Code::FloatZero);
                         self.insert_lbl(done);
                     }
                     LogicalOp::Or => {
@@ -264,7 +294,7 @@ impl<'a> FunctionCompiler<'a> {
 
                         self.add(Code::JumpIfTrueLbl(is_true));
                         self.add(Code::Pop);
-                        self.expr(rhs, false)?;
+                        self.expr(rhs)?;
                         self.add(Code::JumpIfTrueLbl(is_true));
                         self.add(Code::Pop);
                         self.add(Code::FloatZero);
@@ -278,14 +308,18 @@ impl<'a> FunctionCompiler<'a> {
             }
             Expr::Variable(scalar) => {
                 if let Some(arg_idx) = self.parser_func.scalar_arg_idx(scalar) {
-                    self.add(Code::ArgScalar { arg_idx: arg_idx as u16 }); // TODO: u16max
+                    self.add(Code::ArgScl { arg_idx: arg_idx as u16 }); // TODO: u16max
+                } else if let Some(id) = self.type_analysis.global_scalars.get(scalar) {
+                    self.add(Code::GScl(*id));
+                } else if let Some(arg_idx) = self.parser_func.array_arg_idx(scalar) {
+                    self.add(Code::ArgArray { arg_idx: arg_idx as u16 }); // TODO: u16max
                 } else {
-                    let id = self.type_analysis.global_scalars.get(scalar).expect("compiler bug in typing pass global scalar not found");
-                    self.add(Code::GlobalScalar(*id));
+                    let id = self.type_analysis.global_arrays.get(scalar).expect("compiler bug in typing pass can't find global array");
+                    self.add(Code::GlobalArr(*id));
                 }
             }
             Expr::Column(col) => {
-                self.expr(col, false)?;
+                self.expr(col)?;
                 self.add(Code::Column);
             }
             Expr::NextLine => {
@@ -305,50 +339,44 @@ impl<'a> FunctionCompiler<'a> {
                 let is_false = self.create_lbl();
                 let done = self.create_lbl();
 
-                self.expr(test, false)?;
+                self.expr(test)?;
                 self.add(Code::JumpIfFalseLbl(is_false));
-                self.expr(if_so, false)?;
+                self.expr(if_so)?;
                 self.add(Code::JumpLbl(done));
                 self.insert_lbl(is_false);
                 self.add(Code::Pop);
-                self.expr(if_not, false)?;
+                self.expr(if_not)?;
                 self.insert_lbl(done);
             }
             Expr::ArrayAssign { name, indices, value } => {
-                self.push_array(name);
-                self.expr(value, false)?;
-                for idx in indices {
-                    self.expr(idx, false)?;
-                };
-                self.add(Code::ArrayAssign { num_indices: indices.len() as u16 }); // TODO: u16max
+                self.expr(value)?;
+                self.assign_to_array(name, indices)?;
             }
             Expr::ArrayIndex { name, indices } => {
                 self.push_array(name);
                 for idx in indices {
-                    self.expr(idx, false)?;
+                    self.expr(idx)?;
                 };
-                self.add(Code::ArrayIndex { num_indices: indices.len() as u16 }); // TODO: u16max
+                self.add(Code::ArrayIndex { indices: indices.len() as u16 }); // TODO: u16max
             }
             Expr::InArray { name, indices } => {
                 self.push_array(name);
                 for idx in indices {
-                    self.expr(idx, false)?;
+                    self.expr(idx)?;
                 };
-                self.add(Code::ArrayMember { num_indices: indices.len() as u16 }); // TODO: u16max
+                self.add(Code::ArrayMember { indices: indices.len() as u16 }); // TODO: u16max
             }
             Expr::Call { target, args } => {
                 // TODO: Arg # mismatch and implicit array creation
 
-                self.add(Code::ScalarBarrier);
-                self.add(Code::ArrayBarrier);
-
-
-                if let Some((id, target_func)) = self.mapping.get(target) {
+                if let Some(builtin) = BuiltinFunc::get(target.to_str()) {
+                    return self.builtin(builtin, args);
+                } else if let Some((id, target_func)) = self.mapping.get(target) {
                     let target_name = target_func.name();
                     for (idx, (function_arg, call_arg)) in target_func.args().iter().zip(args).enumerate() {
                         match function_arg.typ {
                             ArgT::Scalar => {
-                                self.expr(call_arg, false)?;
+                                self.expr(call_arg)?;
                             }
                             ArgT::Array => {
                                 if let Expr::Variable(sym) = &call_arg.expr {
@@ -358,20 +386,98 @@ impl<'a> FunctionCompiler<'a> {
                                 }
                             }
                             ArgT::Unknown => {
-                                self.expr(call_arg, false)?; // Compile for side effects only
+                                self.expr(call_arg)?; // Compile for side effects only
                                 self.add(Code::Pop); // And then pop result
                             }
                         }
                     }
-                    self.add(Code::Call { target: *id })
+                    self.add(Code::Call { target: *id });
                 } else {
-                    todo!("builtin");
+                    return Err(PrintableError::new(format!("Attempted to call unknown function: `{}`", target)));
                 }
             }
-            Expr::CallSub { arg1: _, arg2: _, arg3: _, global: _ } => {
-                todo!();
+            Expr::CallSub {
+                ere,
+                replacement,
+                string,
+                global
+            } => {
+                self.expr(ere)?;
+                self.expr(replacement)?;
+
+                let string_expr: Expr = string.clone().into(); // TODO: No clone
+                let typed_str_expr = TypedExpr::new(string_expr);
+                self.expr(&typed_str_expr)?;
+
+                // Stack: [ere, repl, string]
+                self.add(Code::Sub { global: if *global { true } else { false } });
+
+                // Stack: [result]
+                match string {
+                    LValue::Variable(name) => {
+                        self.assign_to_scalar(name);
+                    },
+                    LValue::ArrayIndex { name, indices } => self.assign_to_array(name, indices)?,
+                    LValue::Column(_col) => todo!("column assignment"),
+                }
+                // Assignment pushes the old value to the stack remove it.
+                self.add(Code::Pop);
             }
         };
+        Ok(())
+    }
+
+    fn builtin(&mut self, builtin: BuiltinFunc, args: &Vec<TypedExpr>) -> Result<(), PrintableError> {
+        // TODO: Handle when there are too many args
+        for arg in args {
+            self.expr(arg)?;
+        }
+        match builtin {
+            BuiltinFunc::Atan2 => self.add(Code::BuiltinAtan2),
+            BuiltinFunc::Cos => self.add(Code::BuiltinCos),
+            BuiltinFunc::Exp => self.add(Code::BuiltinExp),
+            BuiltinFunc::Substr => {
+                if args.len() == 2 {
+                    self.add(Code::BuiltinSubstr2)
+                } else {
+                    self.add(Code::BuiltinSubstr3)
+                }
+            }
+            BuiltinFunc::Index => self.add(Code::BuiltinIndex),
+            BuiltinFunc::Int => self.add(Code::BuiltinInt),
+            BuiltinFunc::Length => {
+                if args.len() == 0 {
+                    self.add(Code::BuiltinLength0)
+                } else {
+                    self.add(Code::BuiltinLength1)
+                };
+            }
+            BuiltinFunc::Log => self.add(Code::BuiltinLog),
+            BuiltinFunc::Rand => self.add(Code::BuiltinRand),
+            BuiltinFunc::Sin => self.add(Code::BuiltinSin),
+            BuiltinFunc::Split => {
+                if args.len() == 2 {
+                    self.add(Code::BuiltinSplit2);
+                } else {
+                    self.add(Code::BuiltinSplit3);
+                }
+            }
+            BuiltinFunc::Sqrt => self.add(Code::BuiltinSqrt),
+            BuiltinFunc::Srand => {
+                if args.len() == 0 {
+                    self.add(Code::BuiltinSrand0)
+                } else {
+                    self.add(Code::BuiltinSrand1)
+                }
+            }
+            BuiltinFunc::Tolower => self.add(Code::BuiltinTolower),
+            BuiltinFunc::Toupper => self.add(Code::BuiltinToupper),
+
+            BuiltinFunc::System => todo!("builtin System"),
+            BuiltinFunc::Sprintf => todo!("builtin Sprintf"),
+            BuiltinFunc::Close => todo!("builtin Close"),
+            BuiltinFunc::Matches => todo!("builtin Matches"),
+        }
         Ok(())
     }
 
@@ -380,7 +486,7 @@ impl<'a> FunctionCompiler<'a> {
             self.add(Code::ArgArray { arg_idx: arg_idx as u16 }); // TODO: u16max
         } else {
             let id = self.type_analysis.global_arrays.get(name).expect("compiler bug in typing pass global array not found");
-            self.add(Code::GlobalArray(*id));
+            self.add(Code::GlobalArr(*id));
         }
     }
 }
