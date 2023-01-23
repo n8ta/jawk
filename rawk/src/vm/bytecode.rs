@@ -221,7 +221,7 @@ impl Code {
                 SideEffect::new(1, target.num_scalar_args(), 0, target.num_array_args())
             }
             Code::Print => SideEffect::new(0, 1, 0, 0),
-            Code::Printf { .. } => todo!("printf bytecode side effect"),
+            Code::Printf { num_args } => SideEffect::new(0, *num_args as usize + 1, 0, 0),
             Code::NoOp => SideEffect::new(0, 0, 0, 0),
             Code::Ret => SideEffect::new_ret(),
             Code::ConstLkp { .. } => SideEffect::new(1, 0, 0, 0),

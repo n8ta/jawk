@@ -173,8 +173,6 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
     }
 
     fn run_function(&mut self, function: &VmFunc, program: &VmProgram) {
-        #[cfg(test)]
-        println!("Begin execution:");
         let mut ip = 0;
 
         loop {
@@ -329,8 +327,15 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                         self.stdout.write_all(&[10]).unwrap();
                     }
                 }
-                Code::Printf { .. } => {
-                    todo!("printf")
+                Code::Printf { num_args } => {
+                    // TODO: Actually call printf
+                    let fstring = self.pop_to_string();
+                    self.stdout.write_all(&fstring).unwrap();
+
+                    for _ in 0..*num_args {
+                        let s = self.pop_to_string();
+                        self.stdout.write_all(&s).unwrap();
+                    }
                 }
                 Code::NoOp => {} // ez-pz
                 Code::Ret => {

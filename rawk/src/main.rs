@@ -1,4 +1,4 @@
-use std::io::{stderr, stdout};
+use std::io::{BufWriter, stderr, stdout, Write};
 use crate::args::AwkArgs;
 use crate::compiler::compile;
 use crate::parser::Expr;
@@ -40,10 +40,11 @@ pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
         println!("{}", ast);
     }
     let bytecode = compile(ast)?;
-    let mut out = stdout().lock();
+    let mut out = BufWriter::new(stdout().lock());
     let mut err = stderr().lock();
     let mut vm = VirtualMachine::new(args.files, &mut out, &mut err);
     vm.run(&bytecode);
+    out.flush().unwrap();
     Ok(())
 }
 
