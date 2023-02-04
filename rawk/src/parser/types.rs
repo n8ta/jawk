@@ -8,9 +8,9 @@ use crate::awk_str::{RcAwkStr};
 pub enum ScalarType {
     // This form is useful b/c String | Float == Variable
     // See merge_types_function
-    String = 0b0000_0001,
-    Float = 0b0000_0010,
-    Variable = 0b0000_0011,
+    Str = 0b0000_0001,
+    Num = 0b0000_0010,
+    Var = 0b0000_0011,
 }
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
@@ -113,7 +113,7 @@ pub struct TypedExpr {
 impl TypedExpr {
     pub fn new(expr: Expr) -> TypedExpr {
         TypedExpr {
-            typ: ScalarType::Variable,
+            typ: ScalarType::Var,
             expr,
         }
     }
@@ -216,9 +216,9 @@ impl TryFrom<Expr> for LValue {
 impl Display for TypedExpr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.typ {
-            ScalarType::String => write!(f, "(s {})", self.expr),
-            ScalarType::Float => write!(f, "(f {})", self.expr),
-            ScalarType::Variable => write!(f, "(v {})", self.expr),
+            ScalarType::Str => write!(f, "(s {})", self.expr),
+            ScalarType::Num => write!(f, "(f {})", self.expr),
+            ScalarType::Var => write!(f, "(v {})", self.expr),
         }
     }
 }

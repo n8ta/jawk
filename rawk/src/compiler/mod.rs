@@ -8,29 +8,29 @@ use crate::vm::VmProgram;
 
 mod function_compiler;
 mod chunk;
+
 pub use chunk::Chunk;
 
 
 #[cfg(test)]
 mod program_validator;
+
 #[cfg(test)]
 pub use crate::compiler::program_validator::validate_program;
 
-type FunctionIdMap = HashMap<Symbol, (u16, Rc<TypedUserFunction>)>;
-
-pub fn compile(program: TypedProgram) -> Result<VmProgram, PrintableError> {
-    // Maps function symbols to their identifier u16
-    let mut function_mapping = HashMap::new();
-    for (idx, (name, function)) in program.functions.user_functions_iter().enumerate() {
-        function_mapping.insert(name.clone(), (idx as u16, function.clone()));
-    }
-
+pub fn compile(mut program: TypedProgram) -> Result<VmProgram, PrintableError> {
     let mut functions = vec![];
-    for (_name, function) in program.functions.user_functions_iter() {
-        let compiler = FunctionCompiler::new(&function_mapping, &program.global_analysis, function.clone());
+
+    // TODO avoid this clone
+    let funcs: Vec<(Symbol, Rc<TypedUserFunction>)> = program.functions
+        .user_functions_iter()
+        .map(|(name,func)| (name.clone(), func.clone())).
+        collect();
+    for (_name, function) in funcs {
+        let compiler = FunctionCompiler::new(&mut program, function.clone());
         functions.push(compiler.compile()?);
     }
-    let prog = VmProgram::new(functions, program.global_analysis);
+    let prog = VmProgram::new(functions, program.global_analysis, program.functions);
 
     Ok(prog)
 }

@@ -9,14 +9,29 @@ use std::rc::Rc;
 
 pub struct FunctionMap {
     functions: HashMap<Symbol, Rc<TypedUserFunction>>,
+    functions_by_id: HashMap<usize, Rc<TypedUserFunction>>,
     builtin_factory: BuiltinFactory,
 }
 
 impl FunctionMap {
     pub fn new(functions: HashMap<Symbol, Rc<TypedUserFunction>>, symbolizer: &Symbolizer) -> Self {
+        let mut functions_by_id = HashMap::new();
+        for (idx, (name, func)) in functions.iter().enumerate() {
+            functions_by_id.insert(idx, func.clone());
+        }
         Self {
             functions,
+            functions_by_id,
             builtin_factory: BuiltinFactory::new(symbolizer.clone()),
+        }
+    }
+    pub fn get_by_id(&self, id: usize) -> Option<&Rc<TypedUserFunction>> {
+        self.functions_by_id.get(&id)
+    }
+    pub fn get_id(&self, name: &Symbol) -> Option<usize> {
+        match self.functions_by_id.iter().find(|(k,v)| v.name() == *name) {
+            None => None,
+            Some((k,v)) => Some(*k),
         }
     }
     pub fn get<'a>(&mut self, name: &Symbol) -> Option<Rc<dyn ITypedFunction>> {
@@ -44,6 +59,6 @@ impl FunctionMap {
         self.functions.len()
     }
     pub fn user_functions_iter(&self) -> Iter<'_, Symbol, Rc<TypedUserFunction>> {
-        self.user_functions().iter()
+        self.functions.iter()
     }
 }

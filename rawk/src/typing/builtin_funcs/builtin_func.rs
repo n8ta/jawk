@@ -1,4 +1,4 @@
-use crate::parser::{Arg, ArgT};
+use crate::parser::{Arg, ArgT, ScalarType};
 use crate::printable_error::PrintableError;
 use crate::symbolizer::Symbol;
 use crate::Symbolizer;

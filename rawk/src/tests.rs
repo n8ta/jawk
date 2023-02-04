@@ -20,6 +20,10 @@ mod integration_tests {
     const ABC: &'static str = "abc\nabc\nabc";
     const PERF_ARRAY_PROGRAM: &'static str = "BEGIN { while (x<40000) { arr[x] = 1+x++  }; sum = 0; x = 0; while (x++ < 40000) { sum += arr[x] }; print sum}";
     const EMPTY_INDEX_PROGRAM: &'static str = "BEGIN { a = \"\"; print index(a, \"\") }";
+    const TTX1: &'static str = "BEGIN {    width = 3; height = 3 ;    min_x = -2.1; max_x = 0.6;    min_y = -1.2; max_y = 1.2;    iters = 32;
+        colors[0] = \".\";    colors[1] = \"-\";    colors[2] = \"+\";    colors[3] = \"*\";    colors[4] = \"%%\";    colors[5] = \"#\";    colors[6] = \"$\";    colors[7] = \"@\";    colors[8] = \" \";
+    inc_y = (max_y-min_y) / height;    inc_x = (max_x-min_x) / width;    y = min_y;    for (row=0; row<height; row++) {        x = min_x;        for (col=0; col<width; col++) {            zr = zi = 0;            for (i=0; i<iters; i++) {                old_zr = zr;                zr = zr*zr - zi*zi + x;                zi = 2*old_zr*zi + y;                if (zr*zr + zi*zi > 4) { break; }            }
+            idx = 0;            zzz = i*8/iters;            if (zzz < 1) {                idx = 0;            };            if (zzz < 2) {                idx = 1;            };            if (zzz < 3) {                idx = 2;            };            if (zzz < 4) {                idx = 3;            };            if (zzz < 5) {                idx = 4;            };            if (zzz < 6) {                idx = 5;            };            if (zzz < 7) {                idx = 6;            };            if (zzz < 8) {                idx = 7;            };            printf colors[idx];            x += inc_x;        }        y += inc_y;        print \"\";    }}";
 
     struct IoCapture {
         pub buf: Vec<u8>,
@@ -753,8 +757,15 @@ mod integration_tests {
         ONE_LINE,
         "1\n"
     );
+    test!(test_while_simple_0, "BEGIN { x = 0; while (x) { print x } }", "", "");
     test!(
-        test_assign_ops,
+        test_assign_ops_0,
+        "BEGIN { a = 3; print a += 1 }",
+        ONE_LINE,
+        "4\n"
+    );
+    test!(
+        test_assign_ops_1,
         "BEGIN { a = 1; b = 3; a += b += 4; print a; print b; }",
         ONE_LINE,
         "8\n7\n"
@@ -1103,8 +1114,14 @@ mod integration_tests {
     );
 
     test!(
-        drop_on_end,
+        drop_on_end_0,
         "BEGIN { x = 1; x = \"A\"; x = 4}",
+        ONE_LINE,
+        ""
+    );
+    test!(
+        drop_on_end_1,
+        "BEGIN { x = \"A\"; x = 4}",
         ONE_LINE,
         ""
     );
@@ -1381,6 +1398,14 @@ mod integration_tests {
     test!(test_no_ret_3, "function f() { } BEGIN { print (f()==1) }", ONE_LINE, "0\n");
     test!(test_no_ret_4, "function f() { } { print (f()==$1) }", "1\n", "0\n");
     test!(test_no_ret_5, "function f() { } { print (f()==$1) }", "0\n", "1\n");
+
+    test!(test_assignment_bytecode, TTX1, "", "a");
+
+    test!(test_logical_or_0, "function g() { print 555; return 0; } BEGIN { f = 1; g = 0; print (f() || g()); }", ONE_LINE, "1\n");
+    test!(test_logical_or_1, "function g() { print 555; return 0; } BEGIN { f = 0; g = 0; print (f() || g()); }", ONE_LINE, "555\n0\n");
+
+    test!(test_ez1, "BEGIN { a = \"2\"; }", "", "");
+    test!(test_ez2, "BEGIN { a = 2; print a; }", "", "");
 
     // TODO: Things I have yet to impl
     // test!(test_nf_0, "{ print NF }", ONE_LINE, "3\n");

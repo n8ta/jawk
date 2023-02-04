@@ -103,6 +103,17 @@ fn index_in_slices_multibyte(needle: &[u8], left: &[u8], right: &[u8], offset: u
     None
 }
 
+pub fn pad(mut str: String, len: usize) -> String {
+    if str.len() > len {
+        str.truncate(len)
+    } else {
+        while str.len() < len {
+            str.push_str(" ");
+        }
+    }
+    str
+}
+
 // Search left and right for needle. Return index of result + offset.
 pub fn index_in_slices(needle: &[u8], slices: (&[u8], &[u8]), offset: usize) -> Option<usize> {
     let (left, right) = slices;

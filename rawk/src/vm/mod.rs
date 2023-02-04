@@ -11,6 +11,6 @@ mod runtime_scalar;
 pub use bytecode::{Code, LabelId, Label};
 pub use vm_func::{VmFunc};
 pub use vm_program::VmProgram;
-pub use runtime_scalar::RuntimeScalar;
+pub use runtime_scalar::{RuntimeScalar, StringScalar};
 pub use machine::VirtualMachine;
 pub use vm_special_vars::NUM_GSCALAR_SPECIALS;

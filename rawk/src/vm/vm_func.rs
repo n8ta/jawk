@@ -1,10 +1,11 @@
-use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::rc::Rc;
 use crate::typing::{ITypedFunction, TypedUserFunction};
 use crate::compiler::Chunk;
+#[cfg(test)]
 use crate::symbolizer::Symbol;
-use crate::vm::VmProgram;
+#[cfg(test)]
+use crate::vm::{VmProgram};
 
 pub struct VmFunc {
     chunk: Chunk,
@@ -37,13 +38,13 @@ impl VmFunc {
         self.parser_func.name()
     }
     #[cfg(test)]
-    pub fn pretty_print(&self, prog: &VmProgram, output: &mut String) {
+    pub fn pretty_print(&self, func: &VmFunc, prog: &VmProgram, output: &mut String) {
         let tmp = format!("{} {} \n", self.parser_func.name(), &self.id);
         output.push_str(&tmp);
-        self.chunk.pretty_print(prog, output)
-
+        self.chunk.pretty_print(func, prog, output)
     }
 }
+
 impl Deref for VmFunc {
     type Target = Chunk;
 

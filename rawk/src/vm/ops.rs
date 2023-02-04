@@ -1,19 +1,17 @@
 #[macro_export]
 macro_rules! mathop {
         ($s:expr, $operator:expr) => {
-            let rhs = $s.pop_scalar();
-            let lhs = $s.pop_scalar();
-            let rhs = $s.val_to_num(rhs);
-            let lhs = $s.val_to_num(lhs);
-            $s.push(RuntimeScalar::Num($operator(lhs,rhs)));
+            let rhs = $s.pop_num();
+            let lhs = $s.pop_num();
+            $s.push_num($operator(lhs,rhs));
         };
     }
 
 #[macro_export]
 macro_rules! binop {
     ($s:expr, $operator:expr) => {
-        let right = $s.pop_scalar();
-        let left = $s.pop_scalar();
+        let right = $s.pop_unknown();
+        let left = $s.pop_unknown();
         let res = if $s.val_is_numeric(&left) && $s.val_is_numeric(&right) {
             let left = $s.val_to_num(left);
             let right = $s.val_to_num(right);

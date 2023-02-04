@@ -1,12 +1,52 @@
 use std::fmt::{Debug, Formatter};
+use std::ops::Deref;
 use std::str::from_utf8_unchecked;
-use crate::awk_str::RcAwkStr;
+use crate::awk_str::{AwkStr, RcAwkStr};
 
 #[derive(Clone, PartialEq)]
 pub enum RuntimeScalar {
     Str(RcAwkStr),
     StrNum(RcAwkStr),
     Num(f64),
+}
+
+#[derive(Clone, PartialEq)]
+pub enum StringScalar {
+    Str(RcAwkStr),
+    StrNum(RcAwkStr),
+}
+impl StringScalar {
+    pub fn downgrade_or_clone(self) -> AwkStr {
+        let s = match self {
+            StringScalar::Str(s) => s,
+            StringScalar::StrNum(s) => s,
+        };
+        s.downgrade_or_clone()
+    }
+}
+impl Deref for StringScalar {
+    type Target = RcAwkStr;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            StringScalar::Str(s) => s,
+            StringScalar::StrNum(s) => s,
+        }
+    }
+}
+impl Into<RuntimeScalar> for StringScalar {
+    fn into(self) -> RuntimeScalar {
+        match self {
+            StringScalar::Str(s) => RuntimeScalar::Str(s),
+            StringScalar::StrNum(s) => RuntimeScalar::StrNum(s),
+        }
+    }
+}
+impl Debug for StringScalar {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let runtime_scalar: RuntimeScalar = self.clone().into();
+        write!(f, "{:?}", runtime_scalar)
+    }
 }
 
 impl Debug for RuntimeScalar {

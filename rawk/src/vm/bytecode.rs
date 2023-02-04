@@ -1,6 +1,4 @@
-use std::fmt::{Debug, Formatter};
-use crate::typing::{GlobalArrayId, GlobalScalarId};
-use crate::vm::VmProgram;
+use crate::typing::{FunctionMap, GlobalArrayId, GlobalScalarId, ITypedFunction};
 
 pub type LabelId = u16;
 
@@ -17,22 +15,51 @@ impl Label {
 
 #[derive(Debug, PartialEq)]
 pub enum Code {
+    NumToVar,
+    NumToStr,
+    StrToVar,
+    StrToNum,
+    VarToNum,
+    VarToStr,
+
     FloatZero,
     FloatOne,
 
     Pop,
+    PopStr,
+    PopNum,
 
     Column,
 
     NextLine,
 
-    GSclAssign(GlobalScalarId),
+    AssignGsclVar(GlobalScalarId),
+    AssignGsclNum(GlobalScalarId),
+    AssignGsclStr(GlobalScalarId),
 
-    GScl(GlobalScalarId),
+    AssignRetGsclVar(GlobalScalarId),
+    AssignRetGsclNum(GlobalScalarId),
+    AssignRetGsclStr(GlobalScalarId),
 
-    ArgSclAsgn { arg_idx: u16 },
+    GlobalArr(GlobalArrayId),
+    GsclVar(GlobalScalarId),
+    GsclNum(GlobalScalarId),
+    GsclStr(GlobalScalarId),
 
-    ArgScl { arg_idx: u16 },
+    AssignArgVar { arg_idx: u16 },
+    AssignArgStr { arg_idx: u16 },
+    AssignArgNum { arg_idx: u16 },
+
+    AssignRetArgVar { arg_idx: u16 },
+    // Returns prior value of variable
+    AssignRetArgStr { arg_idx: u16 },
+    // Returns prior value of variable
+    AssignRetArgNum { arg_idx: u16 }, // Returns prior value of variable
+
+    ArgVar { arg_idx: u16 },
+    ArgNum { arg_idx: u16 },
+    ArgStr { arg_idx: u16 },
+    ArgArray { arg_idx: u16 },
 
     Exp,
 
@@ -52,11 +79,15 @@ pub enum Code {
 
     Concat { count: u16 },
 
-    GlobalArr(GlobalArrayId),
-    ArgArray { arg_idx: u16 },
-
     ArrayMember { indices: u16 },
-    ArrayAssign { indices: u16 },
+
+    AssignArray { indices: u16 },
+    AssignArrayNum { indices: u16 },
+    AssignArrayStr { indices: u16 },
+
+    AssignRetArray { indices: u16 },
+    AssignRetArrayNum { indices: u16 },
+    AssignRetArrayStr { indices: u16 }, // str stack
 
     ArrayIndex { indices: u16 },
 
@@ -72,7 +103,8 @@ pub enum Code {
 
     // ConstI16(i16), // TODO: float which is exactly representable as an i16?
     // Index in constant table
-    ConstLkp { idx: u16 },
+    ConstLkpStr { idx: u16 },
+    ConstLkpNum { idx: u16 },
 
     // BEGIN BUILTINS FUNCS
     BuiltinAtan2,
@@ -98,7 +130,7 @@ pub enum Code {
 
     // Sub and gsub are paired with an assign code depending on what is being assigned to.
     // Pushes two scalars first the number of replacements, second the output string.
-    Sub { global: bool},
+    Sub3 { global: bool },
 
     // These will be transformed before reaching VM
     JumpIfFalseLbl(Label),
@@ -123,61 +155,150 @@ impl Code {
         // Replace a jump to a label with a rel jump with an offset
         std::mem::swap(self, &mut replacement_jump);
     }
+
+    pub fn move_stack_to_stack(src: ScalarType, dest: ScalarType) -> Self {
+        match src {
+            ScalarType::Str => {
+                match dest {
+                    ScalarType::Str => Code::NoOp,
+                    ScalarType::Num => Code::StrToNum,
+                    ScalarType::Var => Code::StrToVar,
+                }
+            }
+            ScalarType::Num => {
+                match dest {
+                    ScalarType::Str => Code::NumToStr,
+                    ScalarType::Num => Code::NoOp,
+                    ScalarType::Var => Code::NumToVar,
+                }
+            }
+            ScalarType::Var => {
+                match dest {
+                    ScalarType::Str => Code::VarToStr,
+                    ScalarType::Num => Code::VarToNum,
+                    ScalarType::Var => Code::NoOp,
+                }
+            }
+        }
+    }
+
+    pub fn arg_scl(typ: ScalarType, arg_idx: u16) -> Self {
+        return Code::ArgVar { arg_idx };
+        // match typ {
+        //     ScalarType::Variable => Code::ArgScl { arg_idx },
+        //     ScalarType::String => Code::ArgStrScl { arg_idx },
+        //     ScalarType::Float => Code::ArgNumScl { arg_idx },
+        // }
+    }
+    pub fn gscl(id: GlobalScalarId, typ: ScalarType) -> Self {
+        match typ {
+            ScalarType::Var => Code::GsclVar(id),
+            ScalarType::Str => Code::GsclStr(id),
+            ScalarType::Num => Code::GsclNum(id),
+        }
+    }
+    pub fn arg_scl_assign(side_effect_only: bool, typ: ScalarType, arg_idx: u16) -> Self {
+        if !side_effect_only {
+            match typ {
+                ScalarType::Str => Code::AssignRetArgStr { arg_idx },
+                ScalarType::Num => Code::AssignRetArgNum { arg_idx },
+                ScalarType::Var => Code::AssignRetArgVar { arg_idx },
+            }
+        } else {
+            match typ {
+                ScalarType::Str => Code::AssignArgStr { arg_idx },
+                ScalarType::Num => Code::AssignArgNum { arg_idx },
+                ScalarType::Var => Code::AssignArgVar { arg_idx },
+            }
+        }
+    }
+    pub fn gscl_assign(side_effect_only: bool, typ: ScalarType, idx: GlobalScalarId) -> Self {
+        if !side_effect_only {
+            match typ {
+                ScalarType::Str => Code::AssignRetGsclVar(idx),
+                ScalarType::Num => Code::AssignRetGsclNum(idx),
+                ScalarType::Var => Code::AssignRetGsclStr(idx),
+            }
+        } else {
+            match typ {
+                ScalarType::Str => Code::AssignGsclStr(idx),
+                ScalarType::Num => Code::AssignGsclNum(idx),
+                ScalarType::Var => Code::AssignGsclVar(idx),
+            }
+        }
+    }
+    pub fn array_assign(indices: u16, typ: ScalarType, side_effect_only: bool) -> Self {
+        if side_effect_only {
+            match typ {
+                ScalarType::Str => Code::AssignArrayStr { indices },
+                ScalarType::Num => Code::AssignArrayNum { indices },
+                ScalarType::Var => Code::AssignArray { indices },
+            }
+        } else {
+            match typ {
+                ScalarType::Str => Code::AssignRetArrayStr { indices },
+                ScalarType::Num => Code::AssignRetArrayNum { indices },
+                ScalarType::Var => Code::AssignRetArray { indices },
+            }
+        }
+    }
 }
 
+use std::fmt::{Debug, Formatter};
+use crate::parser::{ArgT, ScalarType};
+use crate::stack_counter::{StackCounter as SC};
+use crate::stackt::StackT;
+use crate::util::pad;
+use crate::vm::{VmFunc};
+use crate::vm::VmProgram;
 
-// Side effects are useful for ensuring program correctness
-// with respect to stack additions and removals
 
-
-#[cfg(test)]
-pub struct SideEffect {
-    // scalar stack additions/removals
-    pub ss_add: usize,
-    pub ss_rem: usize,
-
-    // array stack additions/removals
-    pub as_add: usize,
-    pub as_rem: usize,
-
-    // is return code
-    pub is_ret: bool,
-
-    // Relative offsets to descendants (1 for all except ret and jump)
-    pub descendant_offsets: Vec<isize>,
-}
-
-#[cfg(test)]
-impl Debug for SideEffect {
+impl Debug for Meta {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ss: +{} -{}\tas: +{} -{}", self.ss_add, self.ss_rem, self.as_add, self.as_rem)
+        let args = pad(format!("[{:?}]", self.args), 15);
+        let ret = pad(format!("{}", self.returns), 20);
+        write!(f, "args: {} push: {}", args, ret)
     }
 }
 
-#[cfg(test)]
-impl SideEffect {
-    pub fn new(ss_add: usize, ss_rem: usize, as_add: usize, as_rem: usize) -> Self {
-        Self { descendant_offsets: vec![1], is_ret: false, ss_add, ss_rem, as_add, as_rem }
+pub struct Meta {
+    // Stacks that arguments come from
+    args: Vec<StackT>,
+    // Stacks that are pushed to after the instruction
+    returns: SC,
+    is_ret: bool,
+    descendant_offsets: Vec<isize>,
+}
+
+impl Meta {
+    pub fn args(&self) -> &[StackT] {
+        &self.args
     }
-    pub fn new_jump(descendant_offsets: Vec<isize>) -> Self {
-        Self {
-            descendant_offsets, is_ret: false, ss_add: 0, ss_rem: 0, as_add: 0, as_rem: 0,
-        }
+    pub fn new(args: Vec<StackT>, returns: SC) -> Self {
+        Self { args, returns: returns, is_ret: false, descendant_offsets: vec![1] }
     }
-    pub fn new_ret() -> Self {
-        Self {
-            descendant_offsets: vec![], is_ret: true, ss_add: 0, ss_rem: 0, as_add: 0, as_rem: 0,
-        }
+    pub fn set_is_ret(mut self) -> Self {
+        self.is_ret = true;
+        self
+    }
+    pub fn jump(mut self, offsets: Vec<isize>) -> Self {
+        self.descendant_offsets = offsets;
+        self
+    }
+    pub fn returns(&self) -> &SC {
+        &self.returns
+    }
+    pub fn is_ret(&self) -> bool {
+        self.is_ret
+    }
+    pub fn descendants(&self) -> &[isize] {
+        &self.descendant_offsets
     }
 }
 
-#[cfg(test)]
 impl Code {
     pub fn pretty_print(&self, output: &mut String) {
-        let mut byte_padded = format!("{:?}", self);
-        while byte_padded.len() < 50 {
-            byte_padded.push(' ');
-        }
+        let mut byte_padded = pad(format!("{:?}", self), 40);
         output.push_str(&byte_padded);
     }
     pub fn pretty_print_owned(&self) -> String {
@@ -185,73 +306,123 @@ impl Code {
         self.pretty_print(&mut s);
         s
     }
-    pub fn side_effect(&self, program: &VmProgram) -> SideEffect {
+
+    pub fn meta(&self, functions: &FunctionMap) -> Meta {
+        use StackT::{Num, Str, Var, Array};
         match self {
-            Code::FloatZero => SideEffect::new(1, 0, 0, 0),
-            Code::FloatOne => SideEffect::new(1, 0, 0, 0),
-            Code::Pop => SideEffect::new(0, 1, 0, 0),
-            Code::Column => SideEffect::new(1, 1, 0, 0),
-            Code::NextLine => SideEffect::new(1, 0, 0, 0),
-            Code::GSclAssign(_) => SideEffect::new(1, 1, 0, 0),
-            Code::GScl(_) => SideEffect::new(1, 0, 0, 0),
-            Code::ArgSclAsgn { .. } => SideEffect::new(1, 1, 0, 0),
-            Code::ArgScl { .. } => SideEffect::new(1, 0, 0, 0),
-            Code::Exp => SideEffect::new(1, 2, 0, 0),
-            Code::Mult => SideEffect::new(1, 2, 0, 0),
-            Code::Div => SideEffect::new(1, 2, 0, 0),
-            Code::Mod => SideEffect::new(1, 2, 0, 0),
-            Code::Add => SideEffect::new(1, 2, 0, 0),
-            Code::Minus => SideEffect::new(1, 2, 0, 0),
-            Code::Lt => SideEffect::new(1, 2, 0, 0),
-            Code::Gt => SideEffect::new(1, 2, 0, 0),
-            Code::LtEq => SideEffect::new(1, 2, 0, 0),
-            Code::GtEq => SideEffect::new(1, 2, 0, 0),
-            Code::EqEq => SideEffect::new(1, 2, 0, 0),
-            Code::Neq => SideEffect::new(1, 2, 0, 0),
-            Code::Matches => SideEffect::new(1, 2, 0, 0),
-            Code::NMatches => SideEffect::new(1, 2, 0, 0),
-            Code::Concat { count } => SideEffect::new(1, *count as usize, 0, 0),
-            Code::GlobalArr(_) => SideEffect::new(0, 0, 1, 0),
-            Code::ArgArray { .. } => SideEffect::new(0, 0, 1, 0),
-            Code::ArrayMember { indices } => SideEffect::new(1, *indices as usize, 0, 1),
-            Code::ArrayAssign { indices } => SideEffect::new(1, *indices as usize, 0, 1),
-            Code::ArrayIndex { indices } => SideEffect::new(1, *indices as usize, 0, 1),
-            Code::Call { target } => {
-                let target = &program.functions[*target as usize];
-                SideEffect::new(1, target.num_scalar_args(), 0, target.num_array_args())
+            Code::BuiltinAtan2 => Meta::new(vec![Num, Num], SC::num(1)),
+            Code::BuiltinCos => Meta::new(vec![Num], SC::num(1)),
+            Code::BuiltinExp => Meta::new(vec![Num], SC::num(1)),
+            Code::BuiltinSubstr2 => Meta::new(vec![Str, Num], SC::str(1)),
+            Code::BuiltinSubstr3 => Meta::new(vec![Str, Num, Num], SC::str(1)),
+            Code::BuiltinIndex => Meta::new(vec![Str, Str], SC::num(1)),
+            Code::BuiltinInt => Meta::new(vec![Num], SC::num(1)),
+            Code::BuiltinLength0 => Meta::new(vec![], SC::num(1)),
+            Code::BuiltinLength1 => Meta::new(vec![Str], SC::num(1)),
+            Code::BuiltinLog => Meta::new(vec![Num], SC::num(1)),
+            Code::BuiltinRand => Meta::new(vec![], SC::num(1)),
+            Code::BuiltinSin => Meta::new(vec![Num], SC::num(1)),
+            Code::BuiltinSplit2 => Meta::new(vec![Str, Array], SC::num(1)),
+            Code::BuiltinSplit3 => Meta::new(vec![Str, Array, Str], SC::num(1)),
+            Code::BuiltinSqrt => Meta::new(vec![Num], SC::num(1)),
+            Code::BuiltinSrand0 => Meta::new(vec![], SC::num(1)),
+            Code::BuiltinSrand1 => Meta::new(vec![Num], SC::num(1)),
+            Code::BuiltinTolower => Meta::new(vec![Str], SC::str(1)),
+            Code::BuiltinToupper => Meta::new(vec![Str], SC::str(1)),
+            Code::FloatZero => Meta::new(vec![], SC::num(1)),
+            Code::FloatOne => Meta::new(vec![], SC::num(1)),
+            Code::Pop => Meta::new(vec![Var], SC::new()),
+            Code::PopStr => Meta::new(vec![Str], SC::new()),
+            Code::PopNum => Meta::new(vec![Num], SC::new()),
+            Code::Column => Meta::new(vec![Num], SC::str(1)),
+            Code::NextLine => Meta::new(vec![], SC::num(1)),
+
+            // Global assignments
+            Code::AssignGsclVar(_) => Meta::new(vec![Var], SC::new()),
+            Code::AssignRetGsclVar(_) => Meta::new(vec![Var], SC::var(1)),
+            Code::AssignGsclNum(_) => Meta::new(vec![Num], SC::new()),
+            Code::AssignRetGsclNum(_) => Meta::new(vec![Num], SC::num(1)),
+            Code::AssignGsclStr(_) => Meta::new(vec![Str], SC::new()),
+            Code::AssignRetGsclStr(_) => Meta::new(vec![Str], SC::str(1)),
+
+            // Load globals scalars
+            Code::GsclVar(_) => Meta::new(vec![], SC::var(1)),
+            Code::GsclNum(_) => Meta::new(vec![], SC::num(1)),
+            Code::GsclStr(_) => Meta::new(vec![], SC::str(1)),
+
+            // Arg assignments
+            Code::AssignArgVar { .. } => Meta::new(vec![Var], SC::new()),
+            Code::AssignRetArgVar { .. } => Meta::new(vec![Var], SC::var(1)),
+            Code::AssignArgNum { .. } => Meta::new(vec![Num], SC::new()),
+            Code::AssignRetArgNum { .. } => Meta::new(vec![Num], SC::num(1)),
+            Code::AssignArgStr { .. } => Meta::new(vec![Str], SC::new()),
+            Code::AssignRetArgStr { .. } => Meta::new(vec![Str], SC::str(1)),
+
+            Code::ArgVar { .. } => Meta::new(vec![], SC::var(1)),
+            Code::ArgNum { .. } => Meta::new(vec![], SC::num(1)),
+            Code::ArgStr { .. } => Meta::new(vec![], SC::str(1)),
+            Code::Exp => Meta::new(vec![Num, Num], SC::num(1)),
+            Code::Mult => Meta::new(vec![Num, Num], SC::num(1)),
+            Code::Div => Meta::new(vec![Num, Num], SC::num(1)),
+            Code::Mod => Meta::new(vec![Num, Num], SC::num(1)),
+            Code::Add => Meta::new(vec![Num, Num], SC::num(1)),
+            Code::Minus => Meta::new(vec![Num, Num], SC::num(1)),
+
+            Code::Lt => Meta::new(vec![Var, Var], SC::num(1)),
+            Code::Gt => Meta::new(vec![Var, Var], SC::num(1)),
+            Code::LtEq => Meta::new(vec![Var, Var], SC::num(1)),
+            Code::GtEq => Meta::new(vec![Var, Var], SC::num(1)),
+            Code::EqEq => Meta::new(vec![Var, Var], SC::num(1)),
+            Code::Neq => Meta::new(vec![Var, Var], SC::num(1)),
+            Code::Matches => Meta::new(vec![Var, Var], SC::num(1)),
+            Code::NMatches => Meta::new(vec![Var, Var], SC::num(1)),
+
+            Code::Concat { count } => {
+                let mut args: Vec<StackT> = (0..*count).map(|_| Str).collect();
+                Meta::new(args, SC::str(1))
             }
-            Code::Print => SideEffect::new(0, 1, 0, 0),
-            Code::Printf { num_args } => SideEffect::new(0, *num_args as usize + 1, 0, 0),
-            Code::NoOp => SideEffect::new(0, 0, 0, 0),
-            Code::Ret => SideEffect::new_ret(),
-            Code::ConstLkp { .. } => SideEffect::new(1, 0, 0, 0),
-            Code::BuiltinAtan2 => SideEffect::new(1, 2, 0, 0),
-            Code::BuiltinCos => SideEffect::new(1, 1, 0, 0),
-            Code::BuiltinExp => SideEffect::new(1, 1, 0, 0),
-            Code::BuiltinSubstr2 => SideEffect::new(1, 2, 0, 0),
-            Code::BuiltinSubstr3 => SideEffect::new(1, 3, 0, 0),
-            Code::BuiltinIndex => SideEffect::new(1, 2, 0, 0),
-            Code::BuiltinInt => SideEffect::new(1, 1, 0, 0),
-            Code::BuiltinLength0 => SideEffect::new(1, 0, 0, 0),
-            Code::BuiltinLength1 => SideEffect::new(1, 1, 0, 0),
-            Code::BuiltinRand => SideEffect::new(1, 0, 0, 0),
-            Code::BuiltinLog => SideEffect::new(1, 1, 0, 0),
-            Code::BuiltinSin => SideEffect::new(1, 1, 0, 0),
-            Code::BuiltinSplit2 => SideEffect::new(1, 2, 0, 1),
-            Code::BuiltinSplit3 => SideEffect::new(1, 3, 0, 1),
-            Code::BuiltinSqrt => SideEffect::new(1, 1, 0, 0),
-            Code::BuiltinSrand0 => SideEffect::new(1, 0, 0, 0),
-            Code::BuiltinSrand1 => SideEffect::new(1, 1, 0, 0),
-            Code::BuiltinTolower => SideEffect::new(1, 1, 0, 0),
-            Code::BuiltinToupper => SideEffect::new(1, 1, 0, 0),
-            Code::Sub { .. } => SideEffect::new(2, 3, 0, 0),
-            Code::JumpIfFalseLbl(_) => SideEffect::new(0, 0, 0, 0),
-            Code::JumpLbl(_) => SideEffect::new(0, 0, 0, 0),
-            Code::JumpIfTrueLbl(_) => SideEffect::new(0, 0, 0, 0),
-            Code::Label(_) => SideEffect::new(0, 0, 0, 0),
-            Code::RelJumpIfFalse { offset } => SideEffect::new_jump(vec![*offset as isize, 1]),
-            Code::RelJumpIfTrue { offset } => SideEffect::new_jump(vec![*offset as isize, 1]),
-            Code::RelJump { offset } => SideEffect::new_jump(vec![*offset as isize]),
+            Code::GlobalArr(_) => Meta::new(vec![], SC::arr(1)),
+            Code::ArgArray { .. } => Meta::new(vec![], SC::arr(1)),
+            Code::ArrayMember { .. } => Meta::new(vec![Str], SC::num(1)),
+            Code::AssignArray { .. } => Meta::new(vec![Var], SC::new()),
+            Code::AssignArrayNum { .. } => Meta::new(vec![Num], SC::new()),
+            Code::AssignArrayStr { .. } => Meta::new(vec![Str], SC::new()),
+            Code::AssignRetArray { .. } => Meta::new(vec![Var], SC::var(1)),
+            Code::AssignRetArrayNum { .. } => Meta::new(vec![Num], SC::num(1)),
+            Code::AssignRetArrayStr { .. } => Meta::new(vec![Str], SC::str(1)),
+            Code::ArrayIndex { indices } => {
+                let mut args: Vec<StackT> = (0..*indices).map(|_| Str).collect();
+                Meta::new(args, SC::var(1))
+            }
+            Code::Call { target } => {
+                let func = functions.get_by_id(*target as usize).unwrap();
+                let args = func.args();
+                let mut arg_stacks: Vec<StackT> = args.iter().map(|a| match a.typ {
+                    ArgT::Array => Some(Array),
+                    ArgT::Scalar => Some(Var),
+                    ArgT::Unknown => None,
+                }).flatten().collect();
+                Meta::new(arg_stacks, SC::var(1))
+            }
+            Code::Print => Meta::new(vec![Str], SC::new()),
+            Code::Printf { num_args } => Meta::new((0..*num_args).map(|_| Str).collect(), SC::new()),
+            Code::NoOp => Meta::new(vec![], SC::new()),
+            Code::Ret => Meta::new(vec![Var], SC::var(1)).set_is_ret(),
+            Code::ConstLkpStr { .. } => Meta::new(vec![], SC::str(1)),
+            Code::ConstLkpNum { .. } => Meta::new(vec![], SC::num(1)),
+            // Sub op doens't do the assignment that'd be too complex
+            Code::Sub3 { global } => Meta::new(vec![Str, Str, Str], SC::str(1).set(Num, 1)),
+            Code::RelJumpIfFalse { offset } => Meta::new(vec![Num], SC::num(1)).jump(vec![*offset as isize, 1]),
+            Code::RelJumpIfTrue { offset } => Meta::new(vec![Num], SC::num(1)).jump(vec![*offset as isize, 1]),
+            Code::RelJump { offset } => Meta::new(vec![], SC::new()).jump(vec![*offset as isize]),
+            Code::JumpIfFalseLbl(_) | Code::JumpLbl(_) | Code::JumpIfTrueLbl(_) | Code::Label(_) => panic!("labels should be removed before bytecode analysis"),
+
+            Code::NumToVar => Meta::new(vec![Num], SC::var(1)),
+            Code::NumToStr => Meta::new(vec![Num], SC::str(1)),
+            Code::StrToVar => Meta::new(vec![Str], SC::var(1)),
+            Code::StrToNum => Meta::new(vec![Str], SC::num(1)),
+            Code::VarToNum => Meta::new(vec![Var], SC::num(1)),
+            Code::VarToStr => Meta::new(vec![Var], SC::str(1)),
         }
     }
 }

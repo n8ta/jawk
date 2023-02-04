@@ -27,6 +27,8 @@ mod columns;
 mod util;
 #[cfg(test)]
 mod tests;
+mod stackt;
+mod stack_counter;
 
 pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let args = AwkArgs::new(args)?;

@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Formatter};
+use crate::stack_counter::StackCounter;
 use crate::vm::{VmFunc, VmProgram};
 
 // Validates that each function has a net +1 (return value) effect on the scalar stack
@@ -17,17 +18,18 @@ pub fn validate_program(prog: &VmProgram) {
 #[derive(Copy, Clone)]
 struct StackHeights {
     ip: usize,
-    ss: usize,
-    arrs: usize,
+    stacks: StackCounter,
 }
+
 impl Debug for StackHeights {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "\nip:{:2} ss:{} as:{}", self.ip, self.ss, self.arrs)
+        write!(f, "\nip:{:2} {}", self.ip, self.stacks)
     }
 }
+
 impl PartialEq for StackHeights {
     fn eq(&self, other: &Self) -> bool {
-        self.ss == other.ss && self.arrs == other.arrs
+        self.stacks == other.stacks
     }
 }
 
@@ -47,7 +49,7 @@ impl<'a> FunctionValidator<'a> {
         }
     }
     pub fn validate(&mut self) {
-        let init = vec![StackHeights { ip: 0, ss: 0, arrs: 0 }];
+        let init = vec![StackHeights { ip: 0, stacks: StackCounter::new() }];
         self.validate_rec(0, &init);
     }
 
@@ -56,26 +58,24 @@ impl<'a> FunctionValidator<'a> {
         let stack_heights = history.last().unwrap();
         if let Some(existing) = self.stack_heights[ip] {
             assert_eq!(existing, *stack_heights, "Stack height do not match at ip {} in func {}. \nExpected: {:?} Found {:?}\nHistory: {:?}", ip, self.func.name(), existing, stack_heights, history);
-            return
+            return;
         } else {
             self.stack_heights[ip] = Some(*stack_heights);
         }
-        let side_effect = self.func.chunk()[ip].side_effect(self.prog);
-        if side_effect.is_ret {
+        let side_effect = self.func.chunk()[ip].meta(&self.prog.func_map);
+        if side_effect.is_ret() {
             return;
         }
 
         // Add this element to the history
         let mut history = history.clone();
         let mut next = stack_heights.clone();
-        next.arrs += side_effect.as_add;
-        next.arrs -= side_effect.as_rem;
-        next.ss += side_effect.as_add;
-        next.ss -= side_effect.as_rem;
+        next.stacks.sub(&side_effect.args());
+        next.stacks.add(&side_effect.returns());
         next.ip = ip;
         history.push(next);
 
-        for descendant in side_effect.descendant_offsets {
+        for descendant in side_effect.descendants() {
             let new_ip = (ip as isize) + descendant;
             assert!((0..self.func.chunk().len() as isize).contains(&new_ip), "jump outside of chunk at ip {}", ip);
             self.validate_rec(new_ip as usize, &history);

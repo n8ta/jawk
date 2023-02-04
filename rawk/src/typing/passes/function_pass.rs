@@ -252,30 +252,30 @@ impl FunctionAnalysis {
                 std::mem::swap(&mut analyzed_arg, string);
             }
             Expr::NumberF64(_) => {
-                expr.typ = ScalarType::Float;
+                expr.typ = ScalarType::Num;
             }
             Expr::String(str) => {
                 self.str_consts.insert(str.clone());
-                expr.typ = ScalarType::String;
+                expr.typ = ScalarType::Str;
             }
             Expr::Regex(reg) => {
                 self.str_consts.insert(reg.clone());
-                expr.typ = ScalarType::String;
+                expr.typ = ScalarType::Str;
             }
             Expr::BinOp(left, _op, right) => {
                 self.analyze_expr(left, function, false)?;
                 self.analyze_expr(right, function, false)?;
-                expr.typ = ScalarType::Float;
+                expr.typ = ScalarType::Num;
             }
             Expr::MathOp(left, _op, right) => {
                 self.analyze_expr(left, function, false)?;
                 self.analyze_expr(right, function, false)?;
-                expr.typ = ScalarType::Float;
+                expr.typ = ScalarType::Num;
             }
             Expr::LogicalOp(left, _op, right) => {
                 self.analyze_expr(left, function, false)?;
                 self.analyze_expr(right, function, false)?;
-                expr.typ = ScalarType::Float;
+                expr.typ = ScalarType::Num;
             }
             Expr::ScalarAssign(var, value) => {
                 self.analyze_expr(value, function, false)?;
@@ -312,17 +312,17 @@ impl FunctionAnalysis {
                 } else if let Some(typ) = self.global_scalars.get(var) {
                     expr.typ = *typ;
                 } else {
-                    expr.typ = ScalarType::Variable;
-                    self.use_as_scalar(var, ScalarType::Variable, function)?;
+                    expr.typ = ScalarType::Var;
+                    self.use_as_scalar(var, ScalarType::Var, function)?;
                 }
             }
             Expr::Column(col) => {
-                expr.typ = ScalarType::String;
+                expr.typ = ScalarType::Str;
                 self.analyze_expr(col, function, false)?;
             }
-            Expr::NextLine => expr.typ = ScalarType::Float,
+            Expr::NextLine => expr.typ = ScalarType::Num,
             Expr::Concatenation(vals) => {
-                expr.typ = ScalarType::String;
+                expr.typ = ScalarType::Str;
                 for val in vals {
                     self.analyze_expr(val, &function, false)?;
                 }
@@ -366,13 +366,13 @@ impl FunctionAnalysis {
             let mut typ: i32 = 0;
             for map in children {
                 let map_typ = match map.get(&var) {
-                    None => ScalarType::Variable,
+                    None => ScalarType::Var,
                     Some(typ) => *typ,
                 };
                 typ = map_typ as i32 | typ;
             }
             let scalar_type = unsafe { std::mem::transmute::<i32, ScalarType>(typ) };
-            debug_assert!(scalar_type == ScalarType::Variable || scalar_type == ScalarType::String || scalar_type == ScalarType::Float);
+            debug_assert!(scalar_type == ScalarType::Var || scalar_type == ScalarType::Str || scalar_type == ScalarType::Num);
 
             // let pos = binary.unwrap_or_else(|e| e);
             merged.push((var, scalar_type));

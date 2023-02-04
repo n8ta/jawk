@@ -137,7 +137,7 @@ impl TypedUserFunction {
             func: RefCell::new(func),
             callers: RefCell::new(HashSet::new()),
             calls: RefCell::new(vec![]),
-            return_type: RefCell::new(ScalarType::Variable),
+            return_type: RefCell::new(ScalarType::Var),
             globals_used: RefCell::new(HashSet::new()),
             args: RefCell::new(args),
             name,
@@ -145,6 +145,11 @@ impl TypedUserFunction {
             num_array_args: RefCell::new(None),
         }
     }
+
+    pub fn is_main(&self) -> bool {
+        self.name.sym.as_str() == "main function"
+    }
+
     pub fn scalar_arg_idx(&self, sym: &Symbol) -> Option<usize> {
         self.args.borrow().iter().filter(|a| a.typ == ArgT::Scalar).position(|a| a.name == *sym)
     }
