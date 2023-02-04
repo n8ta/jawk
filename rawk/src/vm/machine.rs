@@ -101,15 +101,6 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
         unsafe { self.str_stack.pop().unwrap() }
     }
 
-    fn pop_to_number(&mut self) -> f64 {
-        let scalar = self.pop_unknown();
-        self.val_to_num(scalar)
-    }
-    fn pop_to_string(&mut self) -> RcAwkStr {
-        let scalar = self.pop_unknown();
-        self.val_to_string(scalar)
-    }
-
     fn peek_unknown(&self) -> &RuntimeScalar {
         unsafe { self.unknown_stack.last().unwrap_unchecked() }
     }
@@ -466,29 +457,29 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                     continue;
                 }
                 Code::BuiltinAtan2 => {
-                    let arg2 = self.pop_to_number();
-                    let arg1 = self.pop_to_number();
+                    let arg2 = self.pop_num();
+                    let arg1 = self.pop_num();
                     self.push_unknown(RuntimeScalar::Num(arg1.atan2(arg2)));
                 }
                 Code::BuiltinCos => {
-                    let arg1 = self.pop_to_number();
+                    let arg1 = self.pop_num();
                     self.push_unknown(RuntimeScalar::Num(arg1.cos()));
                 }
                 Code::BuiltinExp => {
-                    let arg1 = self.pop_to_number();
+                    let arg1 = self.pop_num();
                     self.push_unknown(RuntimeScalar::Num(arg1.exp()));
                 }
                 Code::BuiltinSubstr2 => {
-                    let start_idx = self.pop_to_number();
-                    let string = self.pop_to_string();
+                    let start_idx = self.pop_num();
+                    let string = self.pop_string();
                     let start_idx = clamp_to_slice_index(start_idx - 1.0, string.bytes().len());
                     let output = AwkStr::new_rc(string.bytes()[start_idx..].to_vec());
                     self.push_unknown(RuntimeScalar::Str(output));
                 }
                 Code::BuiltinSubstr3 => {
-                    let max_chars = self.pop_to_number();
-                    let start_idx = self.pop_to_number();
-                    let string = self.pop_to_string();
+                    let max_chars = self.pop_num();
+                    let start_idx = self.pop_num();
+                    let string = self.pop_string();
                     let str_len = string.bytes().len();
                     let start_idx = clamp_to_slice_index(start_idx - 1.0, str_len);
                     let max_chars = clamp_to_max_len(max_chars, start_idx, str_len);
@@ -496,8 +487,8 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                     self.push_unknown(RuntimeScalar::Str(awk_str));
                 }
                 Code::BuiltinIndex => {
-                    let needle = self.pop_to_string();
-                    let haystack = self.pop_to_string();
+                    let needle = self.pop_string();
+                    let haystack = self.pop_string();
                     let number = if let Some(idx) = index_of(needle.bytes(), haystack.bytes()) {
                         (idx + 1) as f64
                     } else {
@@ -506,7 +497,7 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                     self.push_unknown(RuntimeScalar::Num(number));
                 }
                 Code::BuiltinInt => {
-                    let flt = self.pop_to_number();
+                    let flt = self.pop_num();
                     self.push_unknown(RuntimeScalar::Num(flt.trunc()));
                 }
                 Code::BuiltinLength0 => {
@@ -516,11 +507,11 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                     self.push_unknown(RuntimeScalar::Num(num_fields.len() as f64));
                 }
                 Code::BuiltinLength1 => {
-                    let s = self.pop_to_string();
+                    let s = self.pop_string();
                     self.push_unknown(RuntimeScalar::Num(s.len() as f64))
                 }
                 Code::BuiltinLog => {
-                    let num = self.pop_to_number();
+                    let num = self.pop_num();
                     self.push_unknown(RuntimeScalar::Num(num.ln()));
                 }
                 Code::BuiltinRand => {
@@ -539,7 +530,7 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                     self.push_unknown(RuntimeScalar::Num(prior));
                 }
                 Code::BuiltinSrand1 => {
-                    let seed = self.pop_to_number();
+                    let seed = self.pop_num();
                     let prior = self.srand_seed;
                     let seed_int = (seed % (std::os::raw::c_uint::MAX as f64)) as std::os::raw::c_uint;
                     unsafe { libc::srand(seed_int) }
@@ -547,12 +538,12 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                     self.push_unknown(RuntimeScalar::Num(prior));
                 }
                 Code::BuiltinSin => {
-                    let num = self.pop_to_number();
+                    let num = self.pop_num();
                     self.push_unknown(RuntimeScalar::Num(num.sin()));
                 }
                 Code::BuiltinSplit2 => {
                     let array = self.pop_array();
-                    let string = self.pop_to_string();
+                    let string = self.pop_string();
                     let mut count: f64 = 0.0;
                     let _ = self.arrays.clear(array.id);
                     for (idx, elem) in split_on_string(self.columns.get_field_sep(), &string).enumerate()
@@ -563,13 +554,13 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                                                    AwkStr::new_rc(format!("{}", idx + 1).into_bytes()),
                                                    RuntimeScalar::StrNum(string));
                     }
-                    self.push_unknown(RuntimeScalar::Num(count));
+                    self.push_num(count)
                 }
                 Code::BuiltinSplit3 => {
-                    let reg_str = self.pop_to_string();
+                    let reg_str = self.pop_string();
                     let array = self.pop_array();
                     let _ = self.arrays.clear(array.id);
-                    let string = self.pop_to_string();
+                    let string = self.pop_string();
                     let reg = self.regex_cache.get(&reg_str);
                     let mut count: f64 = 0.0;
                     for (idx, elem) in split_on_regex(&reg, &string).enumerate()
@@ -580,30 +571,30 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                                                    AwkStr::new_rc(format!("{}", idx + 1).into_bytes()),
                                                    RuntimeScalar::StrNum(string));
                     }
-                    self.push_unknown(RuntimeScalar::Num(count));
+                    self.push_num(count);
                 }
                 Code::BuiltinSqrt => {
-                    let num = self.pop_to_number();
+                    let num = self.pop_num();
                     self.push_unknown(RuntimeScalar::Num(num.sqrt()));
                 }
                 Code::BuiltinTolower => {
-                    let mut str = self.pop_to_string().downgrade_or_clone();
+                    let mut str = self.pop_string().downgrade_or_clone();
                     // TODO lowercase non-ascii
                     let bytes = str.as_bytes_mut();
                     bytes.make_ascii_lowercase();
                     self.push_unknown(RuntimeScalar::Str(RcAwkStr::new(str)));
                 }
                 Code::BuiltinToupper => {
-                    let mut str = self.pop_to_string().downgrade_or_clone();
+                    let mut str = self.pop_string().downgrade_or_clone();
                     // TODO lowercase non-ascii
                     let bytes = str.as_bytes_mut();
                     bytes.make_ascii_uppercase();
                     self.push_unknown(RuntimeScalar::Str(RcAwkStr::new(str)));
                 }
                 Code::Sub3 { global: _ } => {
-                    let input_str = self.pop_to_string();
-                    let replacement = self.pop_to_string();
-                    let regex = self.pop_to_string();
+                    let input_str = self.pop_string();
+                    let replacement = self.pop_string();
+                    let regex = self.pop_string();
                     let regex = self.regex_cache.get(&regex);
 
                     let matched = regex.match_idx(&*input_str);
@@ -612,11 +603,11 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                         let mut new_string = AwkStr::new((&input_bytes[0..mtc.start]).to_vec());
                         new_string.push_str(replacement.bytes());
                         new_string.push_str(&input_bytes[mtc.start + mtc.len..]);
-                        self.push_unknown(RuntimeScalar::Num(1.0));
-                        self.push_unknown(RuntimeScalar::Str(new_string.rc()));
+                        self.push_num(1.0);
+                        self.push_str(StringScalar::Str(new_string.rc()));
                     } else {
-                        self.push_unknown(RuntimeScalar::Num(0.0));
-                        self.push_unknown(RuntimeScalar::Str(input_str));
+                        self.push_num(0.0);
+                        self.push_str(input_str);
                     }
                 }
                 Code::NumToVar => {

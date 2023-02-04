@@ -190,6 +190,14 @@ impl Code {
         //     ScalarType::Float => Code::ArgNumScl { arg_idx },
         // }
     }
+    pub fn pop(typ: ScalarType) -> Code {
+        match typ {
+            ScalarType::Num => Code::PopNum,
+            ScalarType::Str => Code::PopStr,
+            ScalarType::Var => Code::Pop,
+        }
+    }
+
     pub fn gscl(id: GlobalScalarId, typ: ScalarType) -> Self {
         match typ {
             ScalarType::Var => Code::GsclVar(id),
@@ -256,7 +264,7 @@ use crate::vm::VmProgram;
 impl Debug for Meta {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let args = pad(format!("[{:?}]", self.args), 15);
-        let ret = pad(format!("{}", self.returns), 20);
+        let ret = pad(format!("{}", self.returns), 40);
         write!(f, "args: {} push: {}", args, ret)
     }
 }
@@ -383,15 +391,16 @@ impl Code {
             }
             Code::GlobalArr(_) => Meta::new(vec![], SC::arr(1)),
             Code::ArgArray { .. } => Meta::new(vec![], SC::arr(1)),
-            Code::ArrayMember { .. } => Meta::new(vec![Str], SC::num(1)),
-            Code::AssignArray { .. } => Meta::new(vec![Var], SC::new()),
-            Code::AssignArrayNum { .. } => Meta::new(vec![Num], SC::new()),
-            Code::AssignArrayStr { .. } => Meta::new(vec![Str], SC::new()),
-            Code::AssignRetArray { .. } => Meta::new(vec![Var], SC::var(1)),
-            Code::AssignRetArrayNum { .. } => Meta::new(vec![Num], SC::num(1)),
-            Code::AssignRetArrayStr { .. } => Meta::new(vec![Str], SC::str(1)),
+            Code::ArrayMember { .. } => Meta::new(vec![Str, Array], SC::num(1)),
+            Code::AssignArray { .. } => Meta::new(vec![Var, Array], SC::new()),
+            Code::AssignArrayNum { .. } => Meta::new(vec![Num, Array], SC::new()),
+            Code::AssignArrayStr { .. } => Meta::new(vec![Str, Array], SC::new()),
+            Code::AssignRetArray { .. } => Meta::new(vec![Var, Array], SC::var(1)),
+            Code::AssignRetArrayNum { .. } => Meta::new(vec![Num, Array], SC::num(1)),
+            Code::AssignRetArrayStr { .. } => Meta::new(vec![Str, Array], SC::str(1)),
             Code::ArrayIndex { indices } => {
                 let mut args: Vec<StackT> = (0..*indices).map(|_| Str).collect();
+                args.push(StackT::Array);
                 Meta::new(args, SC::var(1))
             }
             Code::Call { target } => {

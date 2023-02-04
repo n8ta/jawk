@@ -374,6 +374,9 @@ impl<'a> FunctionCompiler<'a> {
 
                 if let Some(builtin) = BuiltinFunc::get(target.to_str()) {
                     let t = self.builtin(builtin, args)?;
+                    if side_effect_only {
+                        self.add(Code::pop(t))
+                    };
                     t.into()
                 } else if let Some(target_func) = self.typed_program.functions.get(target) {
                     let id = self.typed_program.functions.get_id(&target_func.name()).unwrap();
@@ -518,6 +521,10 @@ impl<'a> FunctionCompiler<'a> {
             BuiltinFunc::Matches => todo!("builtin Matches"),
         };
         let meta = code.meta(&self.typed_program.functions);
+        for (idx, arg) in meta.args().iter().enumerate() {
+            self.expr(&args[idx], *arg, false)?;
+        }
+        self.add(code);
         Ok(meta.returns().single_scalar_return_value())
     }
 
