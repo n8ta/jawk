@@ -339,8 +339,7 @@ impl<'a> Parser<'a> {
         let stmt = if self.matches(flags!(TokenType::Print)) {
             Stmt::Print(self.expression()?) // TODO: print 1,2,3
         } else if self.matches(flags!(TokenType::Ret)) {
-            if self.peek().ttype() != TokenType::RightBrace
-                && self.peek_next().ttype() != TokenType::Semicolon
+            if self.peek().ttype() != TokenType::RightBrace && self.peek().ttype() != TokenType::Semicolon
             {
                 let expr = self.expression()?;
                 Stmt::Return(Some(expr))

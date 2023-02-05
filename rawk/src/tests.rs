@@ -1134,6 +1134,13 @@ mod integration_tests {
     "40\n1200\n"
 );
 
+    test!(
+    test_double_break_loop_2,
+    "BEGIN {while(1) {     z=0; while(1) {z++} }  }",
+    ONE_LINE,
+    "40\n1200\n"
+    );
+
     // test!(
     //     test_printf_simple_f,
     //     "BEGIN {printf \"test\"}",
@@ -1210,6 +1217,7 @@ mod integration_tests {
         ONE_LINE,
         "1\n2\n3\n"
     );
+
 
     test!(
         test_call_global,
@@ -1404,11 +1412,15 @@ mod integration_tests {
 
     test!(test_tt_x1_bytecode, TTX1, "", "a");
 
-    test!(test_logical_or_0, "function g() { print 555; return 0; } BEGIN { f = 1; g = 0; print (f() || g()); }", ONE_LINE, "1\n");
-    test!(test_logical_or_1, "function g() { print 555; return 0; } BEGIN { f = 0; g = 0; print (f() || g()); }", ONE_LINE, "555\n0\n");
+    test!(test_logical_or_0, "\
+    function f() { print 333; return 1; } \
+    function g() { print 555; return 0; } \
+    BEGIN { print (f() || g()); }", ONE_LINE, "333\n1\n");
+    test!(test_logical_or_1, "function f() { print 333; return 0; } function g() { print 555; return 1; } BEGIN { print (f() || g()); }", ONE_LINE, "333\n555\n1");
+    test!(test_logical_or_2, "function f() { print 333; return 0; } function g() { print 555; return 0; } BEGIN { print (f() || g()); }", ONE_LINE, "333\n555\n0");
 
     test!(test_ez1, "BEGIN { a = \"2\"; }", "", "");
-    test!(test_ez2, "BEGIN { a = 2; print a; }", "", "");
+    test!(test_ez2, "BEGIN { a = 2; print a; }", "", "2\n");
 
     // TODO: Things I have yet to impl
     // test!(test_nf_0, "{ print NF }", ONE_LINE, "3\n");

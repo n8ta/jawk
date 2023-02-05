@@ -291,8 +291,9 @@ use crate::vm::VmProgram;
 
 impl Debug for Meta {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let args = pad(format!("[{:?}]", self.args), 15);
-        let ret = pad(format!("{}", self.returns), 40);
+        let args = pad(format!("[{:?}]", self.args), 20);
+        let rets = self.returns.make_array();
+        let ret = pad(format!("[{:?}]", rets), 40);
         write!(f, "args: {} push: {}", args, ret)
     }
 }
@@ -350,7 +351,7 @@ impl Code {
             Code::BuiltinCos => Meta::new(vec![Num], SC::num(1)),
             Code::BuiltinExp => Meta::new(vec![Num], SC::num(1)),
             Code::BuiltinSubstr2 => Meta::new(vec![Str, Num], SC::str(1)),
-            Code::BuiltinSubstr3 => Meta::new(vec![Str, Num, Num], SC::str(1).set(Num, 1)),
+            Code::BuiltinSubstr3 => Meta::new(vec![Str, Num, Num], SC::str(1)),
             Code::BuiltinIndex => Meta::new(vec![Str, Str], SC::num(1)),
             Code::BuiltinInt => Meta::new(vec![Num], SC::num(1)),
             Code::BuiltinLength0 => Meta::new(vec![], SC::num(1)),
@@ -410,8 +411,8 @@ impl Code {
             Code::GtEq => Meta::new(vec![Var, Var], SC::num(1)),
             Code::EqEq => Meta::new(vec![Var, Var], SC::num(1)),
             Code::Neq => Meta::new(vec![Var, Var], SC::num(1)),
-            Code::Matches => Meta::new(vec![Var, Var], SC::num(1)),
-            Code::NMatches => Meta::new(vec![Var, Var], SC::num(1)),
+            Code::Matches => Meta::new(vec![Str, Str], SC::num(1)),
+            Code::NMatches => Meta::new(vec![Str, Str], SC::num(1)),
 
             Code::Concat { count } => {
                 let mut args: Vec<StackT> = (0..*count).map(|_| Str).collect();
@@ -420,7 +421,7 @@ impl Code {
             Code::GlobalArr(_) => Meta::new(vec![], SC::arr(1)),
             Code::ArgArray { .. } => Meta::new(vec![], SC::arr(1)),
 
-            Code::ArrayMember { indices } => Meta::new(add_indices(vec![Str, Array], indices), SC::num(1)),
+            Code::ArrayMember { indices } => Meta::new(add_indices(vec![Array], indices), SC::num(1)),
             Code::AssignArray { indices } => Meta::new(add_indices(vec![Var, Array], indices), SC::new()),
             Code::AssignArrayNum { indices } => Meta::new(add_indices(vec![Num, Array], indices), SC::new()),
             Code::AssignArrayStr { indices } => Meta::new(add_indices(vec![Str, Array], indices), SC::new()),

@@ -21,8 +21,10 @@ impl VmProgram {
     pub fn pretty_print(&self) -> String {
         let mut s = String::new();
         for func in &self.functions {
-            s.push_str("\n=-=-=-=-=-=-=-=-=-=-=-=-\nfn ");
+            s.push_str("\n\n=-=-=-=-=-=-=-=-=-=-=-=-\nfn ");
             s.push_str(func.name().to_str());
+            let id = format!(" {}", func.id());
+            s.push_str(&id);
             s.push_str("\n=-=-=-=-=-=-=-=-=-=-=-=-\n");
             func.pretty_print(func, &self, &mut s)
         }

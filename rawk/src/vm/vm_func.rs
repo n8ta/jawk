@@ -21,6 +21,10 @@ impl VmFunc {
         self.parser_func.name().sym.as_str() == "main function"
     }
 
+    pub fn id(&self) -> u16 {
+        self.id
+    }
+
 
     pub fn num_scalar_args(&self) -> usize {
         self.parser_func.num_scalar_args()
@@ -39,8 +43,6 @@ impl VmFunc {
     }
     #[cfg(test)]
     pub fn pretty_print(&self, func: &VmFunc, prog: &VmProgram, output: &mut String) {
-        let tmp = format!("{} {} \n", self.parser_func.name(), &self.id);
-        output.push_str(&tmp);
         self.chunk.pretty_print(func, prog, output)
     }
 }

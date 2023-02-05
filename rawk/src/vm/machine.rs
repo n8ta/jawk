@@ -198,8 +198,8 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
             }
 
             match code {
-                Code::FloatZero => self.push_unknown(RuntimeScalar::Num(0.0)),
-                Code::FloatOne => self.push_unknown(RuntimeScalar::Num(1.0)),
+                Code::FloatZero => self.push_num(0.0),
+                Code::FloatOne => self.push_num(1.0),
                 Code::Pop => { unsafe { self.unknown_stack.pop().unwrap_unchecked(); } }
                 Code::Column => {
                     let index = self.pop_num();
@@ -451,14 +451,14 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                         continue;
                     }
                 }
-                Code::RelJumpIfTrueNum { offset } => {
-                    if self.pop_num() != 0.0 {
+                Code::RelJumpIfFalseStr { offset } => {
+                    if !self.pop_string().truthy() {
                         offset_ip(&mut ip, *offset);
                         continue;
                     }
                 }
-                Code::RelJumpIfFalseStr { offset } => {
-                    if self.pop_string().truthy() {
+                Code::RelJumpIfTrueNum { offset } => {
+                    if self.pop_num() != 0.0 {
                         offset_ip(&mut ip, *offset);
                         continue;
                     }

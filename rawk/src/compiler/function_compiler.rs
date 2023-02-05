@@ -39,10 +39,9 @@ impl<'a> FunctionCompiler<'a> {
 
         // If function doesn't end with a user provided return return the empty string
         if !self.chunk.ends_with(&[Code::Ret]) {
-            if !self.parser_func.is_main() {
-                let idx = self.chunk.add_const_strnum(RcAwkStr::new_bytes("".as_bytes().to_vec()));
-                self.add(Code::ConstLkpNum { idx });
-            }
+            let idx = self.chunk.add_const_strnum(RcAwkStr::new_bytes("".as_bytes().to_vec()));
+            self.add(Code::ConstLkpStr { idx });
+            self.add(Code::StrToVar);
             self.add(Code::Ret);
         }
 
@@ -74,7 +73,7 @@ impl<'a> FunctionCompiler<'a> {
         match stmt {
             Stmt::Expr(expr) => {
                 self.expr(expr, StackT::Var, true)?;
-            },
+            }
             Stmt::Print(expr) => {
                 self.expr(expr, StackT::Str, false)?;
                 self.add(Code::Print);
@@ -208,8 +207,10 @@ impl<'a> FunctionCompiler<'a> {
                 StackT::Str
             }
             Expr::BinOp(lhs, op, rhs) => {
-                self.expr(lhs, StackT::Var, false)?;
-                self.expr(rhs, StackT::Var, false)?;
+                let desired_stack = if *op == BinOp::NotMatchedBy || *op == BinOp::MatchedBy
+                { StackT::Str } else { StackT::Var };
+                self.expr(lhs, desired_stack, false)?;
+                self.expr(rhs, desired_stack, false)?;
                 match op {
                     BinOp::Greater => self.add(Code::Gt),
                     BinOp::GreaterEq => self.add(Code::GtEq),
@@ -403,7 +404,7 @@ impl<'a> FunctionCompiler<'a> {
                 string,
                 global
             } => {
-                self.expr(ere, StackT::Str,false)?;
+                self.expr(ere, StackT::Str, false)?;
                 self.expr(replacement, StackT::Str, false)?;
 
                 let string_expr: Expr = string.clone().into(); // TODO: No clone
@@ -432,7 +433,7 @@ impl<'a> FunctionCompiler<'a> {
             if let Ok(scalar_src) = stack.try_into() {
                 if let Ok(scalar_dest) = desired_stack.try_into() {
                     self.add(Code::move_stack_to_stack(scalar_src, scalar_dest));
-                    return Ok(desired_stack.into())
+                    return Ok(desired_stack.into());
                 }
             }
             panic!("Cannot convert array into other types ")

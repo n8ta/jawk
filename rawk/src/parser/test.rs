@@ -873,6 +873,33 @@ mod parser_tests {
     }
 
     #[test]
+    fn test_function_return() {
+        actual!(
+            actual,
+            "function abc(a,b,c) { print 1; return 1; } BEGIN { print 1 }",
+            symbolizer
+        );
+        let a = symbolizer.get("a");
+        let b = symbolizer.get("b");
+        let c = symbolizer.get("c");
+        let body = Stmt::Print(Expr::NumberF64(1.0).into());
+        let ret = Stmt::Return(Some(Expr::NumberF64(1.0).into()));
+        let function = Function::new(symbolizer.get("abc"), vec![a, b, c], Stmt::Group(vec![body, ret]));
+        let begin = Stmt::Print(Expr::NumberF64(1.0).into());
+        assert_eq!(
+            actual,
+            Program::new(
+                symbolizer.get("main function"),
+                vec![begin],
+                vec![],
+                vec![],
+                vec![function],
+                symbolizer.clone()
+            )
+        )
+    }
+
+    #[test]
     fn test_call() {
         actual!(actual, "BEGIN { a(1,\"2\"); }", symbolizer);
         let a = symbolizer.get("a");

@@ -50,6 +50,16 @@ impl StackCounter {
         panic!("non-scalar return type");
     }
 
+    pub fn make_array(&self) -> Vec<StackT> {
+        let mut res = vec![];
+        for variant in StackT::iter() {
+            for _ in 0..self[*variant] {
+                res.push(*variant);
+            }
+        }
+        res
+    }
+
     pub fn add(&mut self, other: &Self) {
         for var in StackT::iter() {
             self[*var] += other[*var];
