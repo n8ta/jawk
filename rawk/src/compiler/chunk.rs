@@ -74,9 +74,13 @@ impl Chunk {
         let chunk_len = self.bytecode.len();
         for (idx, byte) in self.bytecode.iter_mut().enumerate() {
             let lbl = match byte {
-                Code::JumpIfFalseLbl(lbl) => lbl,
                 Code::JumpLbl(lbl) => lbl,
-                Code::JumpIfTrueLbl(lbl) => lbl,
+                Code::JumpIfFalseNumLbl(lbl) => lbl,
+                Code::JumpIfFalseStrLbl(lbl) => lbl,
+                Code::JumpIfFalseVarLbl(lbl) => lbl,
+                Code::JumpIfTrueNumLbl(lbl) => lbl,
+                Code::JumpIfTrueStrLbl(lbl) => lbl,
+                Code::JumpIfTrueVarLbl(lbl) => lbl,
                 _ => continue,
             };
             let mut label_idx = *label_indices.get(lbl).unwrap();

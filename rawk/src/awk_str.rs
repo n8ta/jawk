@@ -16,7 +16,6 @@ impl Deref for RcAwkStr {
 }
 
 impl RcAwkStr {
-
     pub fn new(str: AwkStr) -> Self {
         Self { str: Rc::new(str) }
     }
@@ -108,5 +107,8 @@ impl AwkStr {
     }
     pub fn rc(self) -> RcAwkStr {
         RcAwkStr::new(self)
+    }
+    pub fn truthy(&self) -> bool {
+        self.bytes.len() != 0
     }
 }

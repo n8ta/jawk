@@ -1077,6 +1077,7 @@ mod integration_tests {
     ONE_LINE,
     ".\n..\n...\n....\n.....\n......\n.......\n........\n.........\n..........\n...........\n............\n.............\n..............\n...............\n................\n.................\n..................\n...................\n....................\n.....................\n......................\n.......................\n........................\n.........................\n..........................\n...........................\n............................\n.............................\n..............................\n"
 );
+    test!(test_array_basic,"BEGIN { x = \"1\"; while (x++<3) { a[x] = 1; print a[x] }}", ONE_LINE, "1\n1\n");
 
     test!(
         test_array_override_with_int,
@@ -1372,6 +1373,8 @@ mod integration_tests {
     test!(test_native_index_6, "BEGIN { a = \"\"; print index(a, \"aaa\") }", ONE_LINE, "0\n");
     test!(test_native_index_7, EMPTY_INDEX_PROGRAM, ONE_LINE, "1\n");
 
+    test!(test_native_sub_assign, "BEGIN { c = \"a\"; print sub(\"a\", \"b\", c); }", ONE_LINE, "1\n");
+
     test!(test_native_sub_var_0, "BEGIN { a = \"aaa\"; print sub(\"a\", \"b\", a); print a; }", ONE_LINE, "1\nbaa\n");
     test!(test_native_sub_var_1, "BEGIN { a = \"aaa\"; print sub(\"a\", \"bbb\", a); print a; }", ONE_LINE, "1\nbbbaa\n");
     test!(test_native_sub_var_2, "BEGIN { a = \"caa\"; print sub(\"a\", \"bbb\", a); print a; }", ONE_LINE, "1\ncbbba\n");
@@ -1399,7 +1402,7 @@ mod integration_tests {
     test!(test_no_ret_4, "function f() { } { print (f()==$1) }", "1\n", "0\n");
     test!(test_no_ret_5, "function f() { } { print (f()==$1) }", "0\n", "1\n");
 
-    test!(test_assignment_bytecode, TTX1, "", "a");
+    test!(test_tt_x1_bytecode, TTX1, "", "a");
 
     test!(test_logical_or_0, "function g() { print 555; return 0; } BEGIN { f = 1; g = 0; print (f() || g()); }", ONE_LINE, "1\n");
     test!(test_logical_or_1, "function g() { print 555; return 0; } BEGIN { f = 0; g = 0; print (f() || g()); }", ONE_LINE, "555\n0\n");

@@ -133,23 +133,36 @@ pub enum Code {
     Sub3 { global: bool },
 
     // These will be transformed before reaching VM
-    JumpIfFalseLbl(Label),
+    JumpIfFalseVarLbl(Label),
+    JumpIfFalseNumLbl(Label),
+    JumpIfFalseStrLbl(Label),
     JumpLbl(Label),
-    JumpIfTrueLbl(Label),
+    JumpIfTrueVarLbl(Label),
+    JumpIfTrueNumLbl(Label),
+    JumpIfTrueStrLbl(Label),
     Label(Label), // n/a
 
     // Transformed into these
-    RelJumpIfFalse { offset: i16 },
-    RelJumpIfTrue { offset: i16 },
+    RelJumpIfFalseNum { offset: i16 },
+    RelJumpIfFalseVar { offset: i16 },
+    RelJumpIfTrueNum { offset: i16 },
+    RelJumpIfFalseStr { offset: i16 },
+    RelJumpIfTrueStr { offset: i16 },
+    RelJumpIfTrueVar { offset: i16 },
+
     RelJump { offset: i16 }, // n/a
 }
 
 impl Code {
     pub fn resolve_label_to_offset(&mut self, offset: i16) {
         let mut replacement_jump = match self {
-            Code::JumpIfFalseLbl(_) => { Self::RelJumpIfFalse { offset } }
+            Code::JumpIfFalseStrLbl(_) => { Self::RelJumpIfFalseStr { offset } }
+            Code::JumpIfFalseNumLbl(_) => { Self::RelJumpIfFalseNum { offset } }
+            Code::JumpIfFalseVarLbl(_) => { Self::RelJumpIfFalseVar { offset } }
             Code::JumpLbl(_) => { Self::RelJump { offset } }
-            Code::JumpIfTrueLbl(_) => { Self::RelJumpIfTrue { offset } }
+            Code::JumpIfTrueStrLbl(_) => { Self::RelJumpIfTrueStr { offset } }
+            Code::JumpIfTrueNumLbl(_) => { Self::RelJumpIfTrueNum { offset } }
+            Code::JumpIfTrueVarLbl(_) => { Self::RelJumpIfTrueVar { offset } }
             _ => return,
         };
         // Replace a jump to a label with a rel jump with an offset
@@ -189,6 +202,21 @@ impl Code {
         //     ScalarType::String => Code::ArgStrScl { arg_idx },
         //     ScalarType::Float => Code::ArgNumScl { arg_idx },
         // }
+    }
+
+    pub fn jump_if_false(typ: ScalarType, label: &Label) -> Code {
+        match typ {
+            ScalarType::Str => Code::JumpIfFalseStrLbl(*label),
+            ScalarType::Num => Code::JumpIfFalseNumLbl(*label),
+            ScalarType::Var => Code::JumpIfFalseVarLbl(*label),
+        }
+    }
+    pub fn jump_if_true(typ: ScalarType, label: &Label) -> Code {
+        match typ {
+            ScalarType::Str => Code::JumpIfTrueStrLbl(*label),
+            ScalarType::Num => Code::JumpIfTrueNumLbl(*label),
+            ScalarType::Var => Code::JumpIfTrueVarLbl(*label),
+        }
     }
     pub fn pop(typ: ScalarType) -> Code {
         match typ {
@@ -322,7 +350,7 @@ impl Code {
             Code::BuiltinCos => Meta::new(vec![Num], SC::num(1)),
             Code::BuiltinExp => Meta::new(vec![Num], SC::num(1)),
             Code::BuiltinSubstr2 => Meta::new(vec![Str, Num], SC::str(1)),
-            Code::BuiltinSubstr3 => Meta::new(vec![Str, Num, Num], SC::str(1)),
+            Code::BuiltinSubstr3 => Meta::new(vec![Str, Num, Num], SC::str(1).set(Num, 1)),
             Code::BuiltinIndex => Meta::new(vec![Str, Str], SC::num(1)),
             Code::BuiltinInt => Meta::new(vec![Num], SC::num(1)),
             Code::BuiltinLength0 => Meta::new(vec![], SC::num(1)),
@@ -391,18 +419,16 @@ impl Code {
             }
             Code::GlobalArr(_) => Meta::new(vec![], SC::arr(1)),
             Code::ArgArray { .. } => Meta::new(vec![], SC::arr(1)),
-            Code::ArrayMember { .. } => Meta::new(vec![Str, Array], SC::num(1)),
-            Code::AssignArray { .. } => Meta::new(vec![Var, Array], SC::new()),
-            Code::AssignArrayNum { .. } => Meta::new(vec![Num, Array], SC::new()),
-            Code::AssignArrayStr { .. } => Meta::new(vec![Str, Array], SC::new()),
-            Code::AssignRetArray { .. } => Meta::new(vec![Var, Array], SC::var(1)),
-            Code::AssignRetArrayNum { .. } => Meta::new(vec![Num, Array], SC::num(1)),
-            Code::AssignRetArrayStr { .. } => Meta::new(vec![Str, Array], SC::str(1)),
-            Code::ArrayIndex { indices } => {
-                let mut args: Vec<StackT> = (0..*indices).map(|_| Str).collect();
-                args.push(StackT::Array);
-                Meta::new(args, SC::var(1))
-            }
+
+            Code::ArrayMember { indices } => Meta::new(add_indices(vec![Str, Array], indices), SC::num(1)),
+            Code::AssignArray { indices } => Meta::new(add_indices(vec![Var, Array], indices), SC::new()),
+            Code::AssignArrayNum { indices } => Meta::new(add_indices(vec![Num, Array], indices), SC::new()),
+            Code::AssignArrayStr { indices } => Meta::new(add_indices(vec![Str, Array], indices), SC::new()),
+            Code::AssignRetArray { indices } => Meta::new(add_indices(vec![Var, Array], indices), SC::var(1)),
+            Code::AssignRetArrayNum { indices } => Meta::new(add_indices(vec![Num, Array], indices), SC::num(1)),
+            Code::AssignRetArrayStr { indices } => Meta::new(add_indices(vec![Str, Array], indices), SC::str(1)),
+            Code::ArrayIndex { indices } => Meta::new(add_indices(vec![StackT::Array], indices), SC::var(1)),
+
             Code::Call { target } => {
                 let func = functions.get_by_id(*target as usize).unwrap();
                 let args = func.args();
@@ -419,13 +445,16 @@ impl Code {
             Code::Ret => Meta::new(vec![Var], SC::var(1)).set_is_ret(),
             Code::ConstLkpStr { .. } => Meta::new(vec![], SC::str(1)),
             Code::ConstLkpNum { .. } => Meta::new(vec![], SC::num(1)),
-            // Sub op doens't do the assignment that'd be too complex
+            // Sub op doesn't do the assignment that'd be too complex
             Code::Sub3 { global } => Meta::new(vec![Str, Str, Str], SC::str(1).set(Num, 1)),
-            Code::RelJumpIfFalse { offset } => Meta::new(vec![Num], SC::num(1)).jump(vec![*offset as isize, 1]),
-            Code::RelJumpIfTrue { offset } => Meta::new(vec![Num], SC::num(1)).jump(vec![*offset as isize, 1]),
+            Code::RelJumpIfFalseNum { offset } => Meta::new(vec![Num], SC::new()).jump(vec![*offset as isize, 1]),
+            Code::RelJumpIfTrueNum { offset } => Meta::new(vec![Num], SC::new()).jump(vec![*offset as isize, 1]),
+            Code::RelJumpIfTrueStr { offset } => Meta::new(vec![Str], SC::new()).jump(vec![*offset as isize, 1]),
+            Code::RelJumpIfFalseStr { offset } => Meta::new(vec![Str], SC::new()).jump(vec![*offset as isize, 1]),
+            Code::RelJumpIfTrueVar { offset } => Meta::new(vec![Var], SC::new()).jump(vec![*offset as isize, 1]),
+            Code::RelJumpIfFalseVar { offset } => Meta::new(vec![Var], SC::new()).jump(vec![*offset as isize, 1]),
             Code::RelJump { offset } => Meta::new(vec![], SC::new()).jump(vec![*offset as isize]),
-            Code::JumpIfFalseLbl(_) | Code::JumpLbl(_) | Code::JumpIfTrueLbl(_) | Code::Label(_) => panic!("labels should be removed before bytecode analysis"),
-
+            Code::JumpIfTrueVarLbl(_) | Code::JumpIfFalseVarLbl(_)  | Code::JumpIfFalseNumLbl(_) | Code::JumpIfFalseStrLbl(_) | Code::JumpLbl(_) | Code::JumpIfTrueNumLbl(_) | Code::JumpIfTrueStrLbl(_) | Code::Label(_) => panic!("labels should be removed before bytecode analysis"),
             Code::NumToVar => Meta::new(vec![Num], SC::var(1)),
             Code::NumToStr => Meta::new(vec![Num], SC::str(1)),
             Code::StrToVar => Meta::new(vec![Str], SC::var(1)),
@@ -436,6 +465,13 @@ impl Code {
     }
 }
 
+
+fn add_indices(mut v: Vec<StackT>, num_arr_indices: &u16) -> Vec<StackT> {
+    for _ in 0..*num_arr_indices {
+        v.push(StackT::Str)
+    }
+    v
+}
 
 #[cfg(test)]
 mod tests {

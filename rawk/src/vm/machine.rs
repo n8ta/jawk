@@ -175,8 +175,7 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
         let subsep = self.val_to_string(subsep);
         let mut string = self.pop_string().downgrade_or_clone();
         for _ in 0..count - 1 {
-            let addition = self.pop_unknown();
-            let addition = self.val_to_string(addition);
+            let addition = self.pop_string();
             string.push_str(&subsep);
             string.push_str(&*addition);
         }
@@ -439,15 +438,39 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                 Code::Ret => return, // it seems weird but this is it
                 Code::ConstLkpStr { idx } => self.push_str(function.get_const_str(*idx)),
                 Code::ConstLkpNum { idx } => self.push_num(function.get_const_float(*idx)),
-                Code::JumpIfFalseLbl(_) | Code::JumpLbl(_) | Code::JumpIfTrueLbl(_) | Code::Label(_) => unsafe { std::hint::unreachable_unchecked() },
-                Code::RelJumpIfFalse { offset } => {
-                    if *self.peek_num() == 0.0 {
+                Code::JumpIfTrueVarLbl(_) | Code::JumpIfFalseVarLbl(_) | Code::JumpIfFalseNumLbl(_) | Code::JumpIfFalseStrLbl(_) | Code::JumpLbl(_) | Code::JumpIfTrueNumLbl(_) | Code::JumpIfTrueStrLbl(_) | Code::Label(_) => unsafe { std::hint::unreachable_unchecked() },
+                Code::RelJumpIfFalseVar { offset } => {
+                    if self.pop_unknown().truthy() {
                         offset_ip(&mut ip, *offset);
                         continue;
                     }
                 }
-                Code::RelJumpIfTrue { offset } => {
-                    if *self.peek_num() != 0.0 {
+                Code::RelJumpIfFalseNum { offset } => {
+                    if self.pop_num() == 0.0 {
+                        offset_ip(&mut ip, *offset);
+                        continue;
+                    }
+                }
+                Code::RelJumpIfTrueNum { offset } => {
+                    if self.pop_num() != 0.0 {
+                        offset_ip(&mut ip, *offset);
+                        continue;
+                    }
+                }
+                Code::RelJumpIfFalseStr { offset } => {
+                    if self.pop_string().truthy() {
+                        offset_ip(&mut ip, *offset);
+                        continue;
+                    }
+                }
+                Code::RelJumpIfTrueStr { offset } => {
+                    if self.pop_string().truthy() {
+                        offset_ip(&mut ip, *offset);
+                        continue;
+                    }
+                }
+                Code::RelJumpIfTrueVar { offset } => {
+                    if self.pop_unknown().truthy() {
                         offset_ip(&mut ip, *offset);
                         continue;
                     }
@@ -459,22 +482,22 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                 Code::BuiltinAtan2 => {
                     let arg2 = self.pop_num();
                     let arg1 = self.pop_num();
-                    self.push_unknown(RuntimeScalar::Num(arg1.atan2(arg2)));
+                    self.push_num(arg1.atan2(arg2))
                 }
                 Code::BuiltinCos => {
                     let arg1 = self.pop_num();
-                    self.push_unknown(RuntimeScalar::Num(arg1.cos()));
+                    self.push_num(arg1.cos());
                 }
                 Code::BuiltinExp => {
                     let arg1 = self.pop_num();
-                    self.push_unknown(RuntimeScalar::Num(arg1.exp()));
+                    self.push_num(arg1.exp());
                 }
                 Code::BuiltinSubstr2 => {
                     let start_idx = self.pop_num();
                     let string = self.pop_string();
                     let start_idx = clamp_to_slice_index(start_idx - 1.0, string.bytes().len());
                     let output = AwkStr::new_rc(string.bytes()[start_idx..].to_vec());
-                    self.push_unknown(RuntimeScalar::Str(output));
+                    self.push_str(StringScalar::Str(output))
                 }
                 Code::BuiltinSubstr3 => {
                     let max_chars = self.pop_num();
@@ -484,7 +507,7 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                     let start_idx = clamp_to_slice_index(start_idx - 1.0, str_len);
                     let max_chars = clamp_to_max_len(max_chars, start_idx, str_len);
                     let awk_str = AwkStr::new_rc(string.bytes()[start_idx..start_idx + max_chars].to_vec());
-                    self.push_unknown(RuntimeScalar::Str(awk_str));
+                    self.push_str(StringScalar::Str(awk_str));
                 }
                 Code::BuiltinIndex => {
                     let needle = self.pop_string();
@@ -494,30 +517,30 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                     } else {
                         0.0
                     };
-                    self.push_unknown(RuntimeScalar::Num(number));
+                    self.push_num(number);
                 }
                 Code::BuiltinInt => {
                     let flt = self.pop_num();
-                    self.push_unknown(RuntimeScalar::Num(flt.trunc()));
+                    self.push_num(flt.trunc());
                 }
                 Code::BuiltinLength0 => {
                     // TODO: utf8
                     // TODO: No copy here
                     let num_fields = self.columns.get(0);
-                    self.push_unknown(RuntimeScalar::Num(num_fields.len() as f64));
+                    self.push_num(num_fields.len() as f64);
                 }
                 Code::BuiltinLength1 => {
                     let s = self.pop_string();
-                    self.push_unknown(RuntimeScalar::Num(s.len() as f64))
+                    self.push_num(s.len() as f64)
                 }
                 Code::BuiltinLog => {
                     let num = self.pop_num();
-                    self.push_unknown(RuntimeScalar::Num(num.ln()));
+                    self.push_num(num.ln());
                 }
                 Code::BuiltinRand => {
                     let rand = unsafe { libc::rand() } as f64;
                     let num = rand / libc::RAND_MAX as f64;
-                    self.push_unknown(RuntimeScalar::Num(num));
+                    self.push_num(num);
                 }
                 Code::BuiltinSrand0 => {
                     let prior = self.srand_seed;
@@ -527,7 +550,7 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                     let as_int: std::os::raw::c_uint = since_the_epoch.as_secs_f64() as std::os::raw::c_uint;
                     unsafe { libc::srand(as_int) }
                     self.srand_seed = as_float;
-                    self.push_unknown(RuntimeScalar::Num(prior));
+                    self.push_num(prior);
                 }
                 Code::BuiltinSrand1 => {
                     let seed = self.pop_num();
@@ -535,11 +558,11 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                     let seed_int = (seed % (std::os::raw::c_uint::MAX as f64)) as std::os::raw::c_uint;
                     unsafe { libc::srand(seed_int) }
                     self.srand_seed = seed;
-                    self.push_unknown(RuntimeScalar::Num(prior));
+                    self.push_num(prior);
                 }
                 Code::BuiltinSin => {
                     let num = self.pop_num();
-                    self.push_unknown(RuntimeScalar::Num(num.sin()));
+                    self.push_num(num.sin());
                 }
                 Code::BuiltinSplit2 => {
                     let array = self.pop_array();
@@ -575,21 +598,21 @@ impl<'a, OutT: Write, ErrT: Write> VirtualMachine<'a, OutT, ErrT> {
                 }
                 Code::BuiltinSqrt => {
                     let num = self.pop_num();
-                    self.push_unknown(RuntimeScalar::Num(num.sqrt()));
+                    self.push_num(num.sqrt());
                 }
                 Code::BuiltinTolower => {
                     let mut str = self.pop_string().downgrade_or_clone();
                     // TODO lowercase non-ascii
                     let bytes = str.as_bytes_mut();
                     bytes.make_ascii_lowercase();
-                    self.push_unknown(RuntimeScalar::Str(RcAwkStr::new(str)));
+                    self.push_str(StringScalar::Str(RcAwkStr::new(str)));
                 }
                 Code::BuiltinToupper => {
                     let mut str = self.pop_string().downgrade_or_clone();
                     // TODO lowercase non-ascii
                     let bytes = str.as_bytes_mut();
                     bytes.make_ascii_uppercase();
-                    self.push_unknown(RuntimeScalar::Str(RcAwkStr::new(str)));
+                    self.push_str(StringScalar::Str(RcAwkStr::new(str)));
                 }
                 Code::Sub3 { global: _ } => {
                     let input_str = self.pop_string();

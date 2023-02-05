@@ -98,20 +98,30 @@ impl<'a> FunctionCompiler<'a> {
                     let if_not_lbl = self.create_lbl();
                     let done_lbl = self.create_lbl();
 
-                    self.expr(test, StackT::Num, false)?;
-                    self.add(Code::JumpIfFalseLbl(if_not_lbl));
-
+                    self.expr(test, test.typ.into(), false)?;
+                    self.add(Code::jump_if_false(test.typ, &if_not_lbl));
                     self.stmt(if_so)?;
                     self.add(Code::JumpLbl(done_lbl));
                     self.insert_lbl(if_not_lbl);
                     self.stmt(if_not)?;
                     self.insert_lbl(done_lbl);
                 } else {
-                    self.expr(test, StackT::Num, false)?;
+                    // test
+                    // JmpIfFalse :if_not
+                    // [IfSo]
+                    // Jmp :done
+                    // :if_not
+                    // [IfNot]
+                    // :done
+
                     let if_not_lbl = self.create_lbl();
-                    self.add(Code::JumpIfFalseLbl(if_not_lbl));
+                    let done_lbl = self.create_lbl();
+                    self.expr(test, test.typ.into(), false)?;
+                    self.add(Code::jump_if_false(test.typ, &if_not_lbl));
                     self.stmt(if_so)?;
-                    self.insert_lbl(if_not_lbl)
+                    self.add(Code::JumpLbl(done_lbl));
+                    self.insert_lbl(if_not_lbl);
+                    self.insert_lbl(done_lbl);
                 }
             }
             Stmt::While(test, body) => {
@@ -123,22 +133,19 @@ impl<'a> FunctionCompiler<'a> {
                 [Body]
                 Jump :Test
                 :Done
-                Pop
-                :BreakToHere
                  */
                 let test_lbl = self.create_and_insert_lbl();
                 let done_lbl = self.create_lbl();
-                let break_lbl = self.create_lbl();
-                self.expr(test, StackT::Num, false)?;
 
-                self.break_labels.push(break_lbl);
-                self.add(Code::JumpIfFalseLbl(done_lbl));
-                self.add(Code::PopNum);
+                // TODO: Implicit convertsion into number doesn't work since str->num
+                // is not the same as truthyness. Need a truthy bytecode
+                self.expr(test, test.typ.into(), false)?;
+
+                self.break_labels.push(done_lbl);
+                self.add(Code::jump_if_false(test.typ.into(), &done_lbl));
                 self.stmt(body)?;
                 self.add(Code::JumpLbl(test_lbl));
                 self.insert_lbl(done_lbl);
-                self.add(Code::PopNum);
-                self.insert_lbl(break_lbl);
                 self.break_labels.pop().unwrap();
             }
             Stmt::Printf { args, fstring } => {
@@ -229,35 +236,29 @@ impl<'a> FunctionCompiler<'a> {
                 StackT::Num
             }
             Expr::LogicalOp(lhs, op, rhs) => {
-                self.expr(lhs, StackT::Var, false)?;
+                self.expr(lhs, lhs.typ.into(), false)?;
                 match op {
                     LogicalOp::And => {
                         /*
                         [LHS]
                         JumpIfFalse :is_false
-                        Pop
                         [RHS]
                         JumpIfFalse :is_false
-                        Pop
                         One
                         Jump :done
                         :is_false
-                        Pop
                         Zero
                         :done
                         */
                         let is_false = self.create_lbl();
                         let done = self.create_lbl();
 
-                        self.add(Code::JumpIfFalseLbl(is_false));
-                        self.add(Code::Pop); // Pop lhs
-                        self.expr(rhs, StackT::Var, false)?;
-                        self.add(Code::JumpIfFalseLbl(is_false));
-                        self.add(Code::Pop); // Pop rhs
+                        self.add(Code::jump_if_false(lhs.typ, &is_false));
+                        self.expr(rhs, rhs.typ.into(), false)?;
+                        self.add(Code::jump_if_false(rhs.typ, &is_false));
                         self.add(Code::FloatOne);
                         self.add(Code::JumpLbl(done));
                         self.insert_lbl(is_false);
-                        self.add(Code::Pop);
                         self.add(Code::FloatZero);
                         self.insert_lbl(done);
                         StackT::Num
@@ -266,31 +267,24 @@ impl<'a> FunctionCompiler<'a> {
                         /*
                         [LHS]
                         JumpIfTrue :is_true
-                        Pop
                         [RHS]
                         JumpIfTrue :is_true
-                        Pop
                         Zero
                         Jump :done
                         :is_true
-                        Pop
                         FloatOne
                         :done
-
                         */
                         let done = self.create_lbl();
                         let is_true = self.create_lbl();
 
-                        self.expr(lhs, StackT::Var, false)?;
-                        self.add(Code::JumpIfTrueLbl(is_true));
-                        self.add(Code::Pop);
-                        self.expr(rhs, StackT::Var, false)?;
-                        self.add(Code::JumpIfTrueLbl(is_true));
-                        self.add(Code::Pop);
+                        self.expr(lhs, lhs.typ.into(), false)?;
+                        self.add(Code::jump_if_true(lhs.typ, &is_true));
+                        self.expr(rhs, rhs.typ.into(), false)?;
+                        self.add(Code::jump_if_true(rhs.typ, &is_true));
                         self.add(Code::FloatZero);
                         self.add(Code::JumpLbl(done));
                         self.insert_lbl(is_true);
-                        self.add(Code::Pop);
                         self.add(Code::FloatOne);
                         self.insert_lbl(done);
                         StackT::Num
@@ -337,13 +331,11 @@ impl<'a> FunctionCompiler<'a> {
                 let is_false = self.create_lbl();
                 let done = self.create_lbl();
 
-                self.expr(test, StackT::Num, false)?;
-                self.add(Code::JumpIfFalseLbl(is_false));
-                self.add(Code::PopNum);
+                self.expr(test, test.typ.into(), false)?;
+                self.add(Code::jump_if_false(test.typ, &is_false));
                 self.expr(if_so, expr.typ.into(), false)?;
                 self.add(Code::JumpLbl(done));
                 self.insert_lbl(is_false);
-                self.add(Code::PopNum);
                 self.expr(if_not, expr.typ.into(), false)?;
                 self.insert_lbl(done);
                 expr.typ.into()
@@ -420,14 +412,15 @@ impl<'a> FunctionCompiler<'a> {
 
                 // Stack: [ere, repl, string]
                 self.add(Code::Sub3 { global: if *global { true } else { false } });
+                // Pushes String with subs and the number of subs
 
                 // Stack: [result]
                 match string {
                     LValue::Variable(name) => {
-                        self.assign_to_scalar(name, ScalarType::Num, true);
+                        self.assign_to_scalar(name, ScalarType::Str, true);
                     }
                     LValue::ArrayIndex { name, indices } => {
-                        self.assign_to_array(name, indices, ScalarType::Num, true)?;
+                        self.assign_to_array(name, indices, ScalarType::Str, true)?;
                     }
                     LValue::Column(_col) => todo!("column assignment"),
                 }

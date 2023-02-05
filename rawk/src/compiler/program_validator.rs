@@ -54,6 +54,8 @@ impl<'a> FunctionValidator<'a> {
     }
 
     fn validate_rec(&mut self, ip: usize, history: &Vec<StackHeights>) {
+
+        println!("ip: {}", ip);
         // If we've been at this ip before make sure height match
         let stack_heights = history.last().unwrap();
         if let Some(existing) = self.stack_heights[ip] {

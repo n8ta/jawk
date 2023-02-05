@@ -8,7 +8,7 @@ pub enum StackT {
     Array,
 }
 
-const VARIANTS: &'static [StackT; 4] = &[StackT::Var,StackT::Str,StackT::Num,StackT::Array];
+const VARIANTS: &'static [StackT; 4] = &[StackT::Var,StackT::Str,StackT::Num, StackT::Array];
 
 impl StackT {
     pub fn iter() -> &'static [StackT; 4] {

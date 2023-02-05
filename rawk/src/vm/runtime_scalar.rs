@@ -9,6 +9,15 @@ pub enum RuntimeScalar {
     StrNum(RcAwkStr),
     Num(f64),
 }
+impl RuntimeScalar {
+    pub fn truthy(&self) -> bool {
+        match self {
+            RuntimeScalar::Str(s) => s.truthy(),
+            RuntimeScalar::StrNum(s) => s.truthy(),
+            RuntimeScalar::Num(num) => *num != 0.0,
+        }
+    }
+}
 
 #[derive(Clone, PartialEq)]
 pub enum StringScalar {
@@ -22,6 +31,12 @@ impl StringScalar {
             StringScalar::StrNum(s) => s,
         };
         s.downgrade_or_clone()
+    }
+    pub fn truthy(&self) -> bool {
+       match self {
+           StringScalar::Str(s) => s.truthy(),
+           StringScalar::StrNum(s) => s.truthy(),
+       }
     }
 }
 impl Deref for StringScalar {
@@ -66,15 +81,5 @@ impl Debug for RuntimeScalar {
             }
         }
 
-    }
-}
-
-impl RuntimeScalar {
-    pub fn truthy(&self) -> bool {
-        match self {
-            RuntimeScalar::Str(s) => s.len() != 0,
-            RuntimeScalar::StrNum(s) => s.len() != 0,
-            RuntimeScalar::Num(n) => *n != 0.0,
-        }
     }
 }
