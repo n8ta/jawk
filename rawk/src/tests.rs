@@ -45,7 +45,7 @@ mod integration_tests {
         fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
             let mut io_buf = self.buf.borrow_mut();
             io_buf.extend_from_slice(buf);
-            Ok(io_buf.len())
+            Ok(buf.len())
         }
         fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
     }
@@ -106,6 +106,67 @@ mod integration_tests {
         file.write_all(str.as_bytes()).unwrap();
     }
 
+    fn test<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog: &str, file: S, oracle_output: StdoutT) {
+        let oracle_output: Vec<u8> = oracle_output.into();
+        println!("Program:\n{}", prog);
+        let mut symbolizer = Symbolizer::new();
+        let program =
+            analyze(parse(lex(&prog, &mut symbolizer).unwrap(), &mut symbolizer).unwrap()).unwrap();
+        // println!("Ast:\n{}", &program);
+
+        let vm_prog = compile(program).unwrap();
+        let prog_pretty = vm_prog.pretty_print();
+        let prog_pretty = unsafe { String::from_utf8_unchecked(prog_pretty) };
+        println!("{}", &prog_pretty);
+
+        validate_program(&vm_prog);
+
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("tmp");
+        std::fs::write(file_path.clone(), file.as_ref()).unwrap();
+        let file_path_string = file_path.to_str().unwrap().to_string();
+
+        let mut fake_stdout = Box::new(IoCapture::new());
+        let mut fake_stderr = Box::new(IoCapture::new());
+
+        let mut vm = VirtualMachine::new(
+            vm_prog,
+            vec![file_path_string],
+            fake_stdout.clone(),
+            fake_stderr.clone());
+
+        let _ = vm.run();
+
+        // These strings may not be valid utf but who cares it's a test
+        let output = fake_stdout.collect();
+        let output = unsafe { from_utf8_unchecked(&output)};
+        let expected = unsafe { from_utf8_unchecked(&oracle_output) };
+
+        assert_eq!(
+            output,
+            expected,
+            "LEFT jawk -- RIGHT oracle, did not match"
+        );
+
+        test_against("awk", prog, &oracle_output, &file_path);
+        test_against("goawk", prog, &oracle_output, &file_path);
+        if prog != PERF_ARRAY_PROGRAM {
+            // Mawk rounds weirdly for this program it's not a bug in jawk
+            test_against("mawk", prog, &oracle_output, &file_path);
+        }
+        if prog != EMPTY_INDEX_PROGRAM {
+            // onetrue awk says index("", "") is 0 whereas everyone else says 1
+            test_against("onetrueawk", prog, &oracle_output, &file_path);
+        }
+
+        if std::env::vars().any(|f| f.0 == "jperf" && (f.1 == "true" || f.1 == "true\n")) {
+            test_perf(test_name, "awk", prog, &oracle_output, &file_path);
+            test_perf(test_name, "mawk", prog, &oracle_output, &file_path);
+            test_perf(test_name, "goawk", prog, &oracle_output, &file_path);
+            test_perf(test_name, "onetrueawk", prog, &oracle_output, &file_path);
+        }
+    }
+
     fn test_perf(
         test_name: &str,
         interpreter: &str,
@@ -146,65 +207,6 @@ mod integration_tests {
             interpreter,
             other_total / 1000
         );
-    }
-
-    fn test<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog: &str, file: S, oracle_output: StdoutT) {
-        let oracle_output: Vec<u8> = oracle_output.into();
-        println!("Program:\n{}", prog);
-        let mut symbolizer = Symbolizer::new();
-        let program =
-            analyze(parse(lex(&prog, &mut symbolizer).unwrap(), &mut symbolizer).unwrap()).unwrap();
-        // println!("Ast:\n{}", &program);
-
-        let vm_prog = compile(program).unwrap();
-        println!("{}", vm_prog.pretty_print());
-        validate_program(&vm_prog);
-
-
-        let temp_dir = tempdir().unwrap();
-        let file_path = temp_dir.path().join("tmp");
-        std::fs::write(file_path.clone(), file.as_ref()).unwrap();
-        let file_path_string = file_path.to_str().unwrap().to_string();
-
-        let mut fake_stdout = Box::new(IoCapture::new());
-        let mut fake_stderr = Box::new(IoCapture::new());
-
-        let mut vm = VirtualMachine::new(
-                vm_prog,
-            vec![file_path_string],
-            fake_stdout.clone(),
-            fake_stderr.clone());
-
-        let _ = vm.run();
-
-        // These strings may not be valid utf but who cares it's a test
-        let output = fake_stdout.collect();
-        let output = unsafe { from_utf8_unchecked(&output)};
-        let expected = unsafe { from_utf8_unchecked(&oracle_output) };
-
-        assert_eq!(
-            output,
-            expected,
-            "LEFT jawk -- RIGHT oracle, did not match"
-        );
-
-        test_against("awk", prog, &oracle_output, &file_path);
-        test_against("goawk", prog, &oracle_output, &file_path);
-        if prog != PERF_ARRAY_PROGRAM {
-            // Mawk rounds weirdly for this program it's not a bug in jawk
-            test_against("mawk", prog, &oracle_output, &file_path);
-        }
-        if prog != EMPTY_INDEX_PROGRAM {
-            // onetrue awk says index("", "") is 0 whereas everyone else says 1
-            test_against("onetrueawk", prog, &oracle_output, &file_path);
-        }
-
-        if std::env::vars().any(|f| f.0 == "jperf" && (f.1 == "true" || f.1 == "true\n")) {
-            test_perf(test_name, "awk", prog, &oracle_output, &file_path);
-            test_perf(test_name, "mawk", prog, &oracle_output, &file_path);
-            test_perf(test_name, "goawk", prog, &oracle_output, &file_path);
-            test_perf(test_name, "onetrueawk", prog, &oracle_output, &file_path);
-        }
     }
 
     macro_rules! test {

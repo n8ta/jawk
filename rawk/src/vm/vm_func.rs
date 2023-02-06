@@ -45,7 +45,7 @@ impl VmFunc {
         self.parser_func.name()
     }
     #[cfg(test)]
-    pub fn pretty_print(&self, func: &VmFunc, prog: &VmProgram, output: &mut String) {
+    pub fn pretty_print(&self, func: &VmFunc, prog: &VmProgram, output: &mut Vec<u8>) {
         self.chunk.pretty_print(func, prog, output)
     }
 }

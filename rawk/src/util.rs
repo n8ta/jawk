@@ -105,7 +105,9 @@ fn index_in_slices_multibyte(needle: &[u8], left: &[u8], right: &[u8], offset: u
 
 pub fn pad(mut str: String, len: usize) -> String {
     if str.len() > len {
-        str.truncate(len)
+        while str.len() > len {
+            str.pop().unwrap();
+        }
     } else {
         while str.len() < len {
             str.push_str(" ");

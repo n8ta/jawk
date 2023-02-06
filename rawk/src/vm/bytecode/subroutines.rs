@@ -1,6 +1,6 @@
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::{binop, mathop};
+use crate::{binop, binop_num_only, mathop};
 use crate::arrays::{split_on_regex, split_on_string};
 use crate::awk_str::{AwkStr, RcAwkStr};
 use crate::util::{clamp_to_max_len, clamp_to_slice_index, index_of};
@@ -128,7 +128,11 @@ pub fn gscl_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
 
 pub fn gscl_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let scl = vm.global_scalars[unsafe { imm.global_scl_id }.id].clone();
-    let num = vm.val_to_num(scl);
+    let num = match scl {
+        RuntimeScalar::Str(_) => unsafe { std::hint::unreachable_unchecked() },
+        RuntimeScalar::StrNum(_) => unsafe { std::hint::unreachable_unchecked() },
+        RuntimeScalar::Num(num) => num,
+    };
     vm.push_num(num);
     ip + 1
 }
@@ -230,6 +234,14 @@ binop!(lteq, crate::vm::bytecode::subroutine_helpers::lteq);
 binop!(gteq, crate::vm::bytecode::subroutine_helpers::gteq);
 binop!(eqeq, crate::vm::bytecode::subroutine_helpers::eq);
 binop!(neq, crate::vm::bytecode::subroutine_helpers::neq);
+
+binop_num_only!(lt_num, crate::vm::bytecode::subroutine_helpers::lt);
+binop_num_only!(gt_num, crate::vm::bytecode::subroutine_helpers::gt);
+binop_num_only!(lteq_num, crate::vm::bytecode::subroutine_helpers::lteq);
+binop_num_only!(gteq_num, crate::vm::bytecode::subroutine_helpers::gteq);
+binop_num_only!(eqeq_num, crate::vm::bytecode::subroutine_helpers::eq);
+binop_num_only!(neq_num, crate::vm::bytecode::subroutine_helpers::neq);
+
 
 pub fn matches(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let regex_str = vm.pop_string(); // the regex
@@ -538,10 +550,11 @@ pub fn rel_jump_if_false_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> 
 }
 pub fn rel_jump_if_false_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
-    if vm.pop_num() == 1.0 {
-        ip + 1
-    } else {
+    let popped = vm.pop_num();
+    if popped == 0.0 {
         offset_ip(ip, offset)
+    } else {
+        ip + 1
     }
 }
 pub fn rel_jump_if_true_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
@@ -606,7 +619,7 @@ pub fn ret(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
 }
 
 pub fn const_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
-    let str = unsafe { imm.string.clone() };
+    let str = unsafe { imm.string };
     let str = unsafe { RcAwkStr::from_raw(str) };
     vm.push_str(StringScalar::Str(str));
     ip + 1

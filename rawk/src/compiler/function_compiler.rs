@@ -165,7 +165,7 @@ impl<'a> FunctionCompiler<'a> {
                 if let Some(ret) = ret {
                     self.expr(ret, StackT::Var)?;
                 } else {
-                    self.add(Code::ConstNum {num: 0.0});
+                    self.add(Code::ConstNum { num: 0.0 });
                     self.add(Code::NumToVar);
                 }
                 self.add(Code::Ret);
@@ -187,7 +187,7 @@ impl<'a> FunctionCompiler<'a> {
                 self.expr(value, value.typ.into())?;
                 let side_effect_only = desired_stack == None;
                 self.assign_to_scalar(scalar_name, value.typ, side_effect_only);
-                if side_effect_only { None} else { Some(value.typ.into())}
+                if side_effect_only { None } else { Some(value.typ.into()) }
             }
             Expr::NumberF64(num) => {
                 self.add(Code::ConstNum { num: *num });
@@ -209,20 +209,36 @@ impl<'a> FunctionCompiler<'a> {
                 Some(StackT::Str)
             }
             Expr::BinOp(lhs, op, rhs) => {
-                let desired_stack = if *op == BinOp::NotMatchedBy || *op == BinOp::MatchedBy
-                { StackT::Str } else { StackT::Var };
-                self.expr(lhs, desired_stack)?;
-                self.expr(rhs, desired_stack)?;
-                match op {
-                    BinOp::Greater => self.add(Code::Gt),
-                    BinOp::GreaterEq => self.add(Code::GtEq),
-                    BinOp::Less => self.add(Code::Lt),
-                    BinOp::LessEq => self.add(Code::LtEq),
-                    BinOp::BangEq => self.add(Code::Neq),
-                    BinOp::EqEq => self.add(Code::EqEq),
-                    BinOp::MatchedBy => self.add(Code::Matches),
-                    BinOp::NotMatchedBy => self.add(Code::NMatches),
-                };
+                if lhs.typ == ScalarType::Num && rhs.typ == ScalarType::Num
+                    && *op != BinOp::NotMatchedBy
+                    && *op != BinOp::MatchedBy {
+                    self.expr(lhs, StackT::Num)?;
+                    self.expr(rhs, StackT::Num)?;
+                    match op {
+                        BinOp::Greater => self.add(Code::GtNum),
+                        BinOp::GreaterEq => self.add(Code::GtEqNum),
+                        BinOp::Less => self.add(Code::LtNum),
+                        BinOp::LessEq => self.add(Code::LtEqNum),
+                        BinOp::BangEq => self.add(Code::NeqNum),
+                        BinOp::EqEq => self.add(Code::EqEqNum),
+                        _ => panic!("not possible")
+                    };
+                } else {
+                    let desired_stack = if *op == BinOp::NotMatchedBy || *op == BinOp::MatchedBy
+                    { StackT::Str } else { StackT::Var };
+                    self.expr(lhs, desired_stack)?;
+                    self.expr(rhs, desired_stack)?;
+                    match op {
+                        BinOp::Greater => self.add(Code::Gt),
+                        BinOp::GreaterEq => self.add(Code::GtEq),
+                        BinOp::Less => self.add(Code::Lt),
+                        BinOp::LessEq => self.add(Code::LtEq),
+                        BinOp::BangEq => self.add(Code::Neq),
+                        BinOp::EqEq => self.add(Code::EqEq),
+                        BinOp::MatchedBy => self.add(Code::Matches),
+                        BinOp::NotMatchedBy => self.add(Code::NMatches),
+                    };
+                }
                 Some(StackT::Num)
             }
             Expr::MathOp(lhs, op, rhs) => {
@@ -258,10 +274,10 @@ impl<'a> FunctionCompiler<'a> {
                         self.add(Code::jump_if_false(lhs.typ, &is_false));
                         self.expr(rhs, rhs.typ.into())?;
                         self.add(Code::jump_if_false(rhs.typ, &is_false));
-                        self.add(Code::ConstNum {num: 1.0});
+                        self.add(Code::ConstNum { num: 1.0 });
                         self.add(Code::JumpLbl(done));
                         self.insert_lbl(is_false);
-                        self.add(Code::ConstNum {num: 0.0});
+                        self.add(Code::ConstNum { num: 0.0 });
                         self.insert_lbl(done);
                         Some(StackT::Num)
                     }
@@ -284,10 +300,10 @@ impl<'a> FunctionCompiler<'a> {
                         self.add(Code::jump_if_true(lhs.typ, &is_true));
                         self.expr(rhs, rhs.typ.into())?;
                         self.add(Code::jump_if_true(rhs.typ, &is_true));
-                        self.add(Code::ConstNum {num: 0.0});
+                        self.add(Code::ConstNum { num: 0.0 });
                         self.add(Code::JumpLbl(done));
                         self.insert_lbl(is_true);
-                        self.add(Code::ConstNum {num: 1.0});
+                        self.add(Code::ConstNum { num: 1.0 });
                         self.insert_lbl(done);
                         Some(StackT::Num)
                     }
@@ -296,13 +312,13 @@ impl<'a> FunctionCompiler<'a> {
             Expr::Variable(scalar) => {
                 if let Some(arg_idx) = self.parser_func.scalar_arg_idx(scalar) {
                     // TODO: function args should be on non-unknown stacks
-                    self.add(Code::arg_scl(ScalarType::Var, arg_idx ));
+                    self.add(Code::arg_scl(ScalarType::Var, arg_idx));
                     Some(StackT::Var)
                 } else if let Some(id) = self.typed_program.global_analysis.global_scalars.get(scalar) {
                     self.add(Code::gscl(*id, expr.typ));
                     Some(expr.typ.into())
                 } else if let Some(arg_idx) = self.parser_func.array_arg_idx(scalar) {
-                    self.add(Code::ArgArray { arg_idx: arg_idx  }); // TODO: u16max
+                    self.add(Code::ArgArray { arg_idx: arg_idx }); // TODO: u16max
                     Some(StackT::Array)
                 } else {
                     let id = self.typed_program.global_analysis.global_arrays.get(scalar).expect("compiler bug in typing pass can't find global array");
@@ -346,14 +362,14 @@ impl<'a> FunctionCompiler<'a> {
                 self.expr(value, value.typ.into())?;
                 let side_effect_only = desired_stack == None;
                 self.assign_to_array(name, indices, value.typ, side_effect_only)?;
-                if side_effect_only { None} else { Some(value.typ.into())}
+                if side_effect_only { None } else { Some(value.typ.into()) }
             }
             Expr::ArrayIndex { name, indices } => {
                 self.push_array(name);
                 for idx in indices {
                     self.expr(idx, StackT::Str)?;
                 };
-                self.add(Code::ArrayIndex { indices: indices.len()  }); // TODO: u16max
+                self.add(Code::ArrayIndex { indices: indices.len() }); // TODO: u16max
                 Some(StackT::Var)
             }
             Expr::InArray { name, indices } => {
@@ -361,7 +377,7 @@ impl<'a> FunctionCompiler<'a> {
                 for idx in indices {
                     self.expr(idx, StackT::Str)?;
                 };
-                self.add(Code::ArrayMember { indices: indices.len()  }); // TODO: u16max
+                self.add(Code::ArrayMember { indices: indices.len() }); // TODO: u16max
                 Some(StackT::Num)
             }
             Expr::Call { target, args } => {
@@ -391,7 +407,7 @@ impl<'a> FunctionCompiler<'a> {
                             }
                         }
                     }
-                    self.add(Code::Call { target: id  });
+                    self.add(Code::Call { target: id });
                     Some(StackT::Var)
                 } else {
                     return Err(PrintableError::new(format!("Attempted to call unknown function: `{}`", target)));
@@ -454,13 +470,13 @@ impl<'a> FunctionCompiler<'a> {
     }
 
     // Value to assign should be top of the stack unless side_effect_only==true
-    fn assign_to_scalar(&mut self, scalar_name: &Symbol, typ: ScalarType, side_effect_only: bool)  {
+    fn assign_to_scalar(&mut self, scalar_name: &Symbol, typ: ScalarType, side_effect_only: bool) {
         // TODO: u16max
         let code = if let Some(arg_idx) = self.parser_func.scalar_arg_idx(scalar_name) {
-            Code::arg_scl_assign(side_effect_only, typ, arg_idx ) // todo u16
+            Code::arg_scl_assign(side_effect_only, typ, arg_idx) // todo u16
         } else {
             let id = self.typed_program.global_analysis.global_scalars.get(scalar_name).expect("compiler bug in typing pass global scalar not found");
-            Code::gscl_assign(side_effect_only,typ, *id)
+            Code::gscl_assign(side_effect_only, typ, *id)
         };
         self.add(code);
     }
@@ -475,7 +491,7 @@ impl<'a> FunctionCompiler<'a> {
         for idx in indices {
             self.expr(idx, StackT::Str)?;
         };
-        self.add(Code::array_assign(indices.len() , result_type, side_effect_only));
+        self.add(Code::array_assign(indices.len(), result_type, side_effect_only));
         Ok(())
     }
 
@@ -535,7 +551,7 @@ impl<'a> FunctionCompiler<'a> {
 
     fn push_array(&mut self, name: &Symbol) {
         if let Some(arg_idx) = self.parser_func.array_arg_idx(name) {
-            self.add(Code::ArgArray { arg_idx: arg_idx  }); // TODO: u16max
+            self.add(Code::ArgArray { arg_idx: arg_idx }); // TODO: u16max
         } else {
             let id = self.typed_program.global_analysis.global_arrays.get(name).expect("compiler bug in typing pass global array not found");
             self.add(Code::GlobalArr(*id));

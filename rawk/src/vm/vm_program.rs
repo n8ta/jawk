@@ -18,14 +18,14 @@ impl VmProgram {
     }
 
     #[cfg(test)]
-    pub fn pretty_print(&self) -> String {
-        let mut s = String::new();
+    pub fn pretty_print(&self) -> Vec<u8> {
+        let mut s = vec![];
         for func in &self.functions {
-            s.push_str("\n\n=-=-=-=-=-=-=-=-=-=-=-=-\nfn ");
-            s.push_str(func.name().to_str());
+            s.extend_from_slice("\n\n=-=-=-=-=-=-=-=-=-=-=-=-\nfn ".as_bytes());
+            s.extend_from_slice(func.name().to_str().as_bytes());
             let id = format!(" {}", func.id());
-            s.push_str(&id);
-            s.push_str("\n=-=-=-=-=-=-=-=-=-=-=-=-\n");
+            s.extend_from_slice(&id.as_bytes());
+            s.extend_from_slice("\n=-=-=-=-=-=-=-=-=-=-=-=-\n".as_bytes());
             func.pretty_print(func, &self, &mut s)
         }
         s

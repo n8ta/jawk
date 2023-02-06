@@ -194,7 +194,7 @@ impl VirtualMachine {
             #[cfg(test)]
             {
                 // Coloring makes it easier to match up scalar stack and array stack visually when debugging
-                print!("pub fn {} ip {:2} {} ", function.name(), ip, function.chunk()[ip].pretty_print_owned());
+                print!("{} ip {:2} {} ", function.name(), ip, function.chunk()[ip].pretty_print_owned());
                 self.print_stacks();
             }
             ip = (function[ip].code)(self, ip, function[ip].imm);

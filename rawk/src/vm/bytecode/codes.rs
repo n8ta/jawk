@@ -10,7 +10,7 @@ use crate::vm::bytecode::code_and_immed::{CodeAndImmed as CI};
 use crate::vm::bytecode::{Immed, Meta};
 use crate::vm::VmProgram;
 
-use crate::vm::bytecode::subroutines::{num_to_var, builtin_atan2, builtin_cos, builtin_exp, builtin_substr2, builtin_substr3, builtin_index, builtin_int, builtin_length0, builtin_length1, builtin_log, builtin_rand, builtin_sin, builtin_split2, builtin_split3, builtin_sqrt, builtin_srand0, builtin_srand1, builtin_tolower, builtin_toupper, num_to_str, str_to_var, str_to_num, var_to_num, var_to_str, pop, pop_str, pop_num, column, next_line, assign_gscl_var, assign_gscl_num, assign_gscl_str, assign_gscl_ret_str, assign_gscl_ret_var, assign_gscl_ret_num, global_arr, gscl_var, gscl_num, gscl_str, assign_arg_var, assign_arg_str, assign_arg_num, assign_arg_ret_var, assign_arg_ret_str, assign_arg_ret_num, arg_var, arg_str, arg_num, arg_arr, exp, mult, div, modulo, add, minus, lt, gt, lteq, gteq, eqeq, neq, matches, nmatches, assign_array_var, assign_array_str, assign_array_num, assign_array_ret_var, assign_array_ret_str, assign_array_ret_num, array_index, array_member, concat, sub3, rel_jump_if_false_var, rel_jump_if_false_str, rel_jump_if_false_num, rel_jump_if_true_var, rel_jump_if_true_str, rel_jump_if_true_num, rel_jump, print, printf, noop, ret, const_num, const_str, call};
+use crate::vm::bytecode::subroutines::{num_to_var, builtin_atan2, builtin_cos, builtin_exp, builtin_substr2, builtin_substr3, builtin_index, builtin_int, builtin_length0, builtin_length1, builtin_log, builtin_rand, builtin_sin, builtin_split2, builtin_split3, builtin_sqrt, builtin_srand0, builtin_srand1, builtin_tolower, builtin_toupper, num_to_str, str_to_var, str_to_num, var_to_num, var_to_str, pop, pop_str, pop_num, column, next_line, assign_gscl_var, assign_gscl_num, assign_gscl_str, assign_gscl_ret_str, assign_gscl_ret_var, assign_gscl_ret_num, global_arr, gscl_var, gscl_num, gscl_str, assign_arg_var, assign_arg_str, assign_arg_num, assign_arg_ret_var, assign_arg_ret_str, assign_arg_ret_num, arg_var, arg_str, arg_num, arg_arr, exp, mult, div, modulo, add, minus, lt, gt, lteq, gteq, eqeq, neq, matches, nmatches, assign_array_var, assign_array_str, assign_array_num, assign_array_ret_var, assign_array_ret_str, assign_array_ret_num, array_index, array_member, concat, sub3, rel_jump_if_false_var, rel_jump_if_false_str, rel_jump_if_false_num, rel_jump_if_true_var, rel_jump_if_true_str, rel_jump_if_true_num, rel_jump, print, printf, noop, ret, const_num, const_str, call, neq_num, gteq_num, eqeq_num, lteq_num, lt_num, gt_num};
 
 pub type LabelId = usize;
 
@@ -81,6 +81,15 @@ pub enum Code {
     GtEq,
     EqEq,
     Neq,
+
+    LtNum,
+    GtNum,
+    LtEqNum,
+    GtEqNum,
+    EqEqNum,
+    NeqNum,
+
+
     Matches,
     NMatches,
 
@@ -285,15 +294,17 @@ impl Code {
         }
     }
 
-
-    pub fn pretty_print(&self, output: &mut String) {
+    #[cfg(test)]
+    pub fn pretty_print(&self, output: &mut Vec<u8>) {
         let mut byte_padded = pad(format!("{:?}", self), 40);
-        output.push_str(&byte_padded);
+        output.extend_from_slice(&byte_padded.as_bytes());
     }
+
+    #[cfg(test)]
     pub fn pretty_print_owned(&self) -> String {
-        let mut s = String::new();
+        let mut s = vec![];
         self.pretty_print(&mut s);
-        s
+        unsafe { String::from_utf8_unchecked(s) }
     }
 
     pub fn meta(&self, functions: &FunctionMap) -> Meta {
@@ -361,6 +372,14 @@ impl Code {
             Code::GtEq => Meta::new(vec![Var, Var], SC::num(1)),
             Code::EqEq => Meta::new(vec![Var, Var], SC::num(1)),
             Code::Neq => Meta::new(vec![Var, Var], SC::num(1)),
+
+            Code::LtNum => Meta::new(vec![Num, Num], SC::num(1)),
+            Code::GtNum => Meta::new(vec![Num, Num], SC::num(1)),
+            Code::LtEqNum => Meta::new(vec![Num, Num], SC::num(1)),
+            Code::GtEqNum => Meta::new(vec![Num, Num], SC::num(1)),
+            Code::EqEqNum => Meta::new(vec![Num, Num], SC::num(1)),
+            Code::NeqNum => Meta::new(vec![Num, Num], SC::num(1)),
+
             Code::Matches => Meta::new(vec![Str, Str], SC::num(1)),
             Code::NMatches => Meta::new(vec![Str, Str], SC::num(1)),
 
@@ -522,6 +541,12 @@ impl Code {
             Code::Label(_) | Code::JumpIfFalseVarLbl(_) |Code::JumpIfFalseNumLbl(_) |Code::JumpIfFalseStrLbl(_) |Code::JumpLbl(_) |Code::JumpIfTrueVarLbl(_) |Code::JumpIfTrueNumLbl(_) |Code::JumpIfTrueStrLbl(_) => {
                 panic!("labels should be removed before direct threading");
             }
+            Code::LtNum => CI::new(lt_num),
+            Code::GtNum => CI::new(gt_num),
+            Code::LtEqNum => CI::new(lteq_num),
+            Code::GtEqNum => CI::new(gteq_num),
+            Code::EqEqNum => CI::new(eqeq_num),
+            Code::NeqNum => CI::new(neq_num),
         }
     }
 }

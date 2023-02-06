@@ -67,17 +67,17 @@ impl Chunk {
     }
 
     #[cfg(test)]
-    pub fn pretty_print(&self, func: &VmFunc, prog: &VmProgram, output: &mut String) {
-        output.push_str("Bytecode:\n");
+    pub fn pretty_print(&self, func: &VmFunc, prog: &VmProgram, output: &mut Vec<u8>) {
+        output.extend_from_slice("Bytecode:\n".as_bytes());
         for (idx, byte) in self.bytecode.iter().enumerate() {
             let ip = format!("\t{:2} ", idx);
-            output.push_str(&ip);
+            output.extend_from_slice(&ip.as_bytes());
 
             byte.pretty_print(output);
 
             let meta = byte.meta(&prog.func_map);
             let side_effect = format!("{:?}\n",  meta);
-            output.push_str(&side_effect);
+            output.extend_from_slice(&side_effect.as_bytes());
         }
     }
 }

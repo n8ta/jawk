@@ -33,15 +33,26 @@ macro_rules! binop {
     }
 }
 
+// Optimized version of binop that only handles num num comparisons
+#[macro_export]
+macro_rules! binop_num_only {
+    ($name:ident, $operator:expr) => {
+        pub fn $name(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+            let right = vm.pop_num();
+            let left = vm.pop_num();
+            let res = $operator(left, right);
+            vm.push_bool(res);
+            ip + 1
+        }
+    }
+}
+
 
 #[inline(always)]
 pub fn add(a: f64, b: f64) -> f64 { a + b }
 
 #[inline(always)]
-pub fn minus(a: f64, b: f64) -> f64 { a + b }
-
-#[inline(always)]
-pub fn sub(a: f64, b: f64) -> f64 { a - b }
+pub fn minus(a: f64, b: f64) -> f64 { a - b }
 
 #[inline(always)]
 pub fn div(a: f64, b: f64) -> f64 { a / b }
