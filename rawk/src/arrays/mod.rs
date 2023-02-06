@@ -6,6 +6,7 @@ use crate::awk_str::{RcAwkStr};
 use crate::vm::RuntimeScalar;
 
 pub use split::{split_on_string, split_on_regex};
+use crate::util::unwrap;
 
 #[derive(Hash, Clone, Eq, PartialEq)]
 pub struct MapKey {
@@ -51,35 +52,35 @@ impl Arrays {
     pub fn new() -> Self {
         Self { arrays: Vec::new() }
     }
-    pub fn allocate(&mut self, count: u16) {
-        self.arrays = Vec::with_capacity(count as usize);
+    pub fn allocate(&mut self, count: usize) {
+        self.arrays = Vec::with_capacity(count);
         for _ in 0..count {
             self.arrays.push(AwkMap::new())
         }
     }
-    pub fn clear(&mut self, array_id: u16) -> Drain<'_, MapKey, RuntimeScalar> {
-        let array = self.arrays.get_mut(array_id as usize).expect("array to exist based on id");
+    pub fn clear(&mut self, array_id: usize) -> Drain<'_, MapKey, RuntimeScalar> {
+        let array = self.arrays.get_mut(array_id).expect("array to exist based on id");
         array.drain()
     }
 
     #[inline(never)]
-    pub fn access(&mut self, array_id: u16, key: RcAwkStr) -> Option<&RuntimeScalar> {
-        let array = self.arrays.get_mut(array_id as usize).expect("array to exist based on id");
+    pub fn access(&mut self, array_id: usize, key: RcAwkStr) -> Option<&RuntimeScalar> {
+        let array = self.arrays.get_mut(array_id).expect("array to exist based on id");
         array.access(&MapKey::new(key))
     }
 
     pub fn assign(
         &mut self,
-        array_id: u16,
+        array_id: usize,
         indices: RcAwkStr,
         value: RuntimeScalar,
     ) -> Option<RuntimeScalar> {
-        let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize) };
+        let array = unwrap(self.arrays.get_mut(array_id));
         array.assign(&MapKey::new(indices), value)
     }
 
-    pub fn in_array(&mut self, array_id: u16, indices: RcAwkStr) -> bool {
-        let array = unsafe { self.arrays.get_unchecked_mut(array_id as usize) };
+    pub fn in_array(&mut self, array_id: usize, indices: RcAwkStr) -> bool {
+        let array = unwrap(self.arrays.get_mut(array_id));;
         array.in_array(&MapKey::new(indices))
     }
 }

@@ -3,7 +3,6 @@ mod vm_func;
 mod vm_program;
 mod machine;
 mod converter;
-mod ops;
 mod regex_cache;
 mod vm_special_vars;
 mod runtime_scalar;

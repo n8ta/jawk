@@ -1,6 +1,18 @@
 use crate::typing::{FunctionMap, GlobalArrayId, GlobalScalarId, ITypedFunction};
+use std::fmt::{Debug, Write};
+use std::rc::Rc;
+use crate::awk_str::RcAwkStr;
+use crate::parser::{ArgT, ScalarType};
+use crate::stack_counter::{StackCounter as SC};
+use crate::stackt::StackT;
+use crate::util::pad;
+use crate::vm::bytecode::code_and_immed::{CodeAndImmed as CI};
+use crate::vm::bytecode::{Immed, Meta};
+use crate::vm::VmProgram;
 
-pub type LabelId = u16;
+use crate::vm::bytecode::subroutines::{num_to_var, builtin_atan2, builtin_cos, builtin_exp, builtin_substr2, builtin_substr3, builtin_index, builtin_int, builtin_length0, builtin_length1, builtin_log, builtin_rand, builtin_sin, builtin_split2, builtin_split3, builtin_sqrt, builtin_srand0, builtin_srand1, builtin_tolower, builtin_toupper, num_to_str, str_to_var, str_to_num, var_to_num, var_to_str, pop, pop_str, pop_num, column, next_line, assign_gscl_var, assign_gscl_num, assign_gscl_str, assign_gscl_ret_str, assign_gscl_ret_var, assign_gscl_ret_num, global_arr, gscl_var, gscl_num, gscl_str, assign_arg_var, assign_arg_str, assign_arg_num, assign_arg_ret_var, assign_arg_ret_str, assign_arg_ret_num, arg_var, arg_str, arg_num, arg_arr, exp, mult, div, modulo, add, minus, lt, gt, lteq, gteq, eqeq, neq, matches, nmatches, assign_array_var, assign_array_str, assign_array_num, assign_array_ret_var, assign_array_ret_str, assign_array_ret_num, array_index, array_member, concat, sub3, rel_jump_if_false_var, rel_jump_if_false_str, rel_jump_if_false_num, rel_jump_if_true_var, rel_jump_if_true_str, rel_jump_if_true_num, rel_jump, print, printf, noop, ret, const_num, const_str, call};
+
+pub type LabelId = usize;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct Label {
@@ -21,9 +33,6 @@ pub enum Code {
     StrToNum,
     VarToNum,
     VarToStr,
-
-    FloatZero,
-    FloatOne,
 
     Pop,
     PopStr,
@@ -46,20 +55,18 @@ pub enum Code {
     GsclNum(GlobalScalarId),
     GsclStr(GlobalScalarId),
 
-    AssignArgVar { arg_idx: u16 },
-    AssignArgStr { arg_idx: u16 },
-    AssignArgNum { arg_idx: u16 },
+    AssignArgVar { arg_idx: usize },
+    AssignArgStr { arg_idx: usize },
+    AssignArgNum { arg_idx: usize },
 
-    AssignRetArgVar { arg_idx: u16 },
-    // Returns prior value of variable
-    AssignRetArgStr { arg_idx: u16 },
-    // Returns prior value of variable
-    AssignRetArgNum { arg_idx: u16 }, // Returns prior value of variable
+    AssignRetArgVar { arg_idx: usize },
+    AssignRetArgStr { arg_idx: usize },
+    AssignRetArgNum { arg_idx: usize },
 
-    ArgVar { arg_idx: u16 },
-    ArgNum { arg_idx: u16 },
-    ArgStr { arg_idx: u16 },
-    ArgArray { arg_idx: u16 },
+    ArgVar { arg_idx: usize },
+    ArgNum { arg_idx: usize },
+    ArgStr { arg_idx: usize },
+    ArgArray { arg_idx: usize },
 
     Exp,
 
@@ -77,34 +84,33 @@ pub enum Code {
     Matches,
     NMatches,
 
-    Concat { count: u16 },
+    Concat { count: usize },
 
-    ArrayMember { indices: u16 },
+    ArrayMember { indices: usize },
 
-    AssignArray { indices: u16 },
-    AssignArrayNum { indices: u16 },
-    AssignArrayStr { indices: u16 },
+    AssignArray { indices: usize },
+    AssignArrayNum { indices: usize },
+    AssignArrayStr { indices: usize },
 
-    AssignRetArray { indices: u16 },
-    AssignRetArrayNum { indices: u16 },
-    AssignRetArrayStr { indices: u16 }, // str stack
+    AssignRetArray { indices: usize },
+    AssignRetArrayNum { indices: usize },
+    AssignRetArrayStr { indices: usize }, // str stack
 
-    ArrayIndex { indices: u16 },
+    ArrayIndex { indices: usize },
 
-    Call { target: u16 },
+    Call { target: usize },
 
     Print,
 
-    Printf { num_args: u16 }, // excluding fstring
+    Printf { num_args: usize }, // excluding fstring
 
     NoOp,
 
     Ret,
 
-    // ConstI16(i16), // TODO: float which is exactly representable as an i16?
     // Index in constant table
-    ConstLkpStr { idx: u16 },
-    ConstLkpNum { idx: u16 },
+    ConstStr { string: RcAwkStr },
+    ConstNum { num: f64 },
 
     // BEGIN BUILTINS FUNCS
     BuiltinAtan2,
@@ -143,18 +149,18 @@ pub enum Code {
     Label(Label), // n/a
 
     // Transformed into these
-    RelJumpIfFalseNum { offset: i16 },
-    RelJumpIfFalseVar { offset: i16 },
-    RelJumpIfTrueNum { offset: i16 },
-    RelJumpIfFalseStr { offset: i16 },
-    RelJumpIfTrueStr { offset: i16 },
-    RelJumpIfTrueVar { offset: i16 },
+    RelJumpIfFalseNum { offset: isize },
+    RelJumpIfFalseVar { offset: isize },
+    RelJumpIfTrueNum { offset: isize },
+    RelJumpIfFalseStr { offset: isize },
+    RelJumpIfTrueStr { offset: isize },
+    RelJumpIfTrueVar { offset: isize },
 
-    RelJump { offset: i16 }, // n/a
+    RelJump { offset: isize },
 }
 
 impl Code {
-    pub fn resolve_label_to_offset(&mut self, offset: i16) {
+    pub fn resolve_label_to_offset(&mut self, offset: isize) {
         let mut replacement_jump = match self {
             Code::JumpIfFalseStrLbl(_) => { Self::RelJumpIfFalseStr { offset } }
             Code::JumpIfFalseNumLbl(_) => { Self::RelJumpIfFalseNum { offset } }
@@ -195,7 +201,7 @@ impl Code {
         }
     }
 
-    pub fn arg_scl(typ: ScalarType, arg_idx: u16) -> Self {
+    pub fn arg_scl(typ: ScalarType, arg_idx: usize) -> Self {
         return Code::ArgVar { arg_idx };
         // match typ {
         //     ScalarType::Variable => Code::ArgScl { arg_idx },
@@ -233,7 +239,7 @@ impl Code {
             ScalarType::Num => Code::GsclNum(id),
         }
     }
-    pub fn arg_scl_assign(side_effect_only: bool, typ: ScalarType, arg_idx: u16) -> Self {
+    pub fn arg_scl_assign(side_effect_only: bool, typ: ScalarType, arg_idx: usize) -> Self {
         if !side_effect_only {
             match typ {
                 ScalarType::Str => Code::AssignRetArgStr { arg_idx },
@@ -263,7 +269,7 @@ impl Code {
             }
         }
     }
-    pub fn array_assign(indices: u16, typ: ScalarType, side_effect_only: bool) -> Self {
+    pub fn array_assign(indices: usize, typ: ScalarType, side_effect_only: bool) -> Self {
         if side_effect_only {
             match typ {
                 ScalarType::Str => Code::AssignArrayStr { indices },
@@ -278,62 +284,8 @@ impl Code {
             }
         }
     }
-}
-
-use std::fmt::{Debug, Formatter};
-use crate::parser::{ArgT, ScalarType};
-use crate::stack_counter::{StackCounter as SC};
-use crate::stackt::StackT;
-use crate::util::pad;
-use crate::vm::{VmFunc};
-use crate::vm::VmProgram;
 
 
-impl Debug for Meta {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let args = pad(format!("[{:?}]", self.args), 20);
-        let rets = self.returns.make_array();
-        let ret = pad(format!("[{:?}]", rets), 40);
-        write!(f, "args: {} push: {}", args, ret)
-    }
-}
-
-pub struct Meta {
-    // Stacks that arguments come from
-    args: Vec<StackT>,
-    // Stacks that are pushed to after the instruction
-    returns: SC,
-    is_ret: bool,
-    descendant_offsets: Vec<isize>,
-}
-
-impl Meta {
-    pub fn args(&self) -> &[StackT] {
-        &self.args
-    }
-    pub fn new(args: Vec<StackT>, returns: SC) -> Self {
-        Self { args, returns: returns, is_ret: false, descendant_offsets: vec![1] }
-    }
-    pub fn set_is_ret(mut self) -> Self {
-        self.is_ret = true;
-        self
-    }
-    pub fn jump(mut self, offsets: Vec<isize>) -> Self {
-        self.descendant_offsets = offsets;
-        self
-    }
-    pub fn returns(&self) -> &SC {
-        &self.returns
-    }
-    pub fn is_ret(&self) -> bool {
-        self.is_ret
-    }
-    pub fn descendants(&self) -> &[isize] {
-        &self.descendant_offsets
-    }
-}
-
-impl Code {
     pub fn pretty_print(&self, output: &mut String) {
         let mut byte_padded = pad(format!("{:?}", self), 40);
         output.push_str(&byte_padded);
@@ -366,8 +318,6 @@ impl Code {
             Code::BuiltinSrand1 => Meta::new(vec![Num], SC::num(1)),
             Code::BuiltinTolower => Meta::new(vec![Str], SC::str(1)),
             Code::BuiltinToupper => Meta::new(vec![Str], SC::str(1)),
-            Code::FloatZero => Meta::new(vec![], SC::num(1)),
-            Code::FloatOne => Meta::new(vec![], SC::num(1)),
             Code::Pop => Meta::new(vec![Var], SC::new()),
             Code::PopStr => Meta::new(vec![Str], SC::new()),
             Code::PopNum => Meta::new(vec![Num], SC::new()),
@@ -441,11 +391,11 @@ impl Code {
                 Meta::new(arg_stacks, SC::var(1))
             }
             Code::Print => Meta::new(vec![Str], SC::new()),
-            Code::Printf { num_args } => Meta::new((0..*num_args).map(|_| Str).collect(), SC::new()),
+            Code::Printf { num_args } => Meta::new((0..*num_args + 1).map(|_| Str).collect(), SC::new()),
             Code::NoOp => Meta::new(vec![], SC::new()),
             Code::Ret => Meta::new(vec![Var], SC::var(1)).set_is_ret(),
-            Code::ConstLkpStr { .. } => Meta::new(vec![], SC::str(1)),
-            Code::ConstLkpNum { .. } => Meta::new(vec![], SC::num(1)),
+            Code::ConstStr { .. } => Meta::new(vec![], SC::str(1)),
+            Code::ConstNum { .. } => Meta::new(vec![], SC::num(1)),
             // Sub op doesn't do the assignment that'd be too complex
             Code::Sub3 { global } => Meta::new(vec![Str, Str, Str], SC::str(1).set(Num, 1)),
             Code::RelJumpIfFalseNum { offset } => Meta::new(vec![Num], SC::new()).jump(vec![*offset as isize, 1]),
@@ -455,7 +405,7 @@ impl Code {
             Code::RelJumpIfTrueVar { offset } => Meta::new(vec![Var], SC::new()).jump(vec![*offset as isize, 1]),
             Code::RelJumpIfFalseVar { offset } => Meta::new(vec![Var], SC::new()).jump(vec![*offset as isize, 1]),
             Code::RelJump { offset } => Meta::new(vec![], SC::new()).jump(vec![*offset as isize]),
-            Code::JumpIfTrueVarLbl(_) | Code::JumpIfFalseVarLbl(_)  | Code::JumpIfFalseNumLbl(_) | Code::JumpIfFalseStrLbl(_) | Code::JumpLbl(_) | Code::JumpIfTrueNumLbl(_) | Code::JumpIfTrueStrLbl(_) | Code::Label(_) => panic!("labels should be removed before bytecode analysis"),
+            Code::JumpIfTrueVarLbl(_) | Code::JumpIfFalseVarLbl(_) | Code::JumpIfFalseNumLbl(_) | Code::JumpIfFalseStrLbl(_) | Code::JumpLbl(_) | Code::JumpIfTrueNumLbl(_) | Code::JumpIfTrueStrLbl(_) | Code::Label(_) => panic!("labels should be removed before bytecode analysis"),
             Code::NumToVar => Meta::new(vec![Num], SC::var(1)),
             Code::NumToStr => Meta::new(vec![Num], SC::str(1)),
             Code::StrToVar => Meta::new(vec![Str], SC::var(1)),
@@ -464,22 +414,122 @@ impl Code {
             Code::VarToStr => Meta::new(vec![Var], SC::str(1)),
         }
     }
+
+    pub fn transform(&self) -> CI {
+        match self {
+            Code::NumToVar => CI::new(num_to_var),
+            Code::NumToStr => CI::new(num_to_str),
+            Code::StrToVar => CI::new(str_to_var),
+            Code::StrToNum => CI::new(str_to_num),
+            Code::VarToNum => CI::new(var_to_num),
+            Code::VarToStr => CI::new(var_to_str),
+            Code::Pop => CI::new(pop),
+            Code::PopStr => CI::new(pop_str),
+            Code::PopNum => CI::new(pop_num),
+            Code::Column => CI::new(column),
+            Code::NextLine => CI::new(next_line),
+            Code::AssignGsclVar(id) => CI::imm(assign_gscl_var, Immed { global_scl_id: *id }),
+            Code::AssignGsclNum(id) => CI::imm(assign_gscl_num, Immed { global_scl_id: *id }),
+            Code::AssignGsclStr(id) => CI::imm(assign_gscl_str, Immed { global_scl_id: *id }),
+            Code::AssignRetGsclVar(id) => CI::imm(assign_gscl_ret_var, Immed { global_scl_id: *id }),
+            Code::AssignRetGsclNum(id) => CI::imm(assign_gscl_ret_num, Immed { global_scl_id: *id }),
+            Code::AssignRetGsclStr(id) => CI::imm(assign_gscl_ret_str, Immed { global_scl_id: *id }),
+
+            Code::GlobalArr(id) => CI::imm(global_arr, Immed { global_arr_id: *id }),
+            Code::GsclVar(id) => CI::imm(gscl_var, Immed { global_scl_id: *id }),
+            Code::GsclNum(id) => CI::imm(gscl_num, Immed { global_scl_id: *id }),
+            Code::GsclStr(id) => CI::imm(gscl_str, Immed { global_scl_id: *id }),
+
+            Code::AssignArgVar { arg_idx } => CI::imm(assign_arg_var, Immed { arg_idx: *arg_idx}),
+            Code::AssignArgStr { arg_idx } => CI::imm(assign_arg_str, Immed { arg_idx: *arg_idx}),
+            Code::AssignArgNum { arg_idx } => CI::imm(assign_arg_num, Immed { arg_idx: *arg_idx}),
+            Code::AssignRetArgVar { arg_idx } => CI::imm(assign_arg_ret_var, Immed { arg_idx: *arg_idx}),
+            Code::AssignRetArgStr { arg_idx } => CI::imm(assign_arg_ret_str, Immed { arg_idx: *arg_idx}),
+            Code::AssignRetArgNum { arg_idx } => CI::imm(assign_arg_ret_num, Immed { arg_idx: *arg_idx}),
+            Code::ArgVar { arg_idx } => CI::imm(arg_var, Immed { arg_idx: *arg_idx}),
+            Code::ArgNum { arg_idx } => CI::imm(arg_num, Immed { arg_idx: *arg_idx}),
+            Code::ArgStr { arg_idx } => CI::imm(arg_str, Immed { arg_idx: *arg_idx}),
+            Code::ArgArray { arg_idx } => CI::imm(arg_arr, Immed { arg_idx: *arg_idx}),
+
+            Code::Exp => CI::new(exp),
+            Code::Mult => CI::new(mult),
+            Code::Div => CI::new(div),
+            Code::Mod => CI::new(modulo),
+            Code::Add => CI::new(add),
+            Code::Minus => CI::new(minus),
+            Code::Lt => CI::new(lt),
+            Code::Gt => CI::new(gt),
+            Code::LtEq => CI::new(lteq),
+            Code::GtEq => CI::new(gteq),
+            Code::EqEq => CI::new(eqeq),
+            Code::Neq => CI::new(neq),
+            Code::Matches => CI::new(matches),
+            Code::NMatches => CI::new(nmatches),
+
+            Code::Concat { count } => CI::imm(concat, Immed { concat_count: *count}),
+            Code::ArrayMember { indices } => CI::imm(array_member, Immed { array_indices: *indices}),
+            Code::ArrayIndex { indices } => CI::imm(array_index, Immed { array_indices: *indices}),
+
+            Code::AssignArray { indices } => CI::imm(assign_array_var, Immed { array_indices: *indices}),
+            Code::AssignArrayStr { indices } => CI::imm(assign_array_str, Immed { array_indices: *indices}),
+            Code::AssignArrayNum { indices } => CI::imm(assign_array_num, Immed { array_indices: *indices}),
+            Code::AssignRetArray { indices } => CI::imm(assign_array_ret_var, Immed { array_indices: *indices}),
+            Code::AssignRetArrayStr { indices } => CI::imm(assign_array_ret_str, Immed { array_indices: *indices}),
+            Code::AssignRetArrayNum { indices } => CI::imm(assign_array_ret_num, Immed { array_indices: *indices}),
+
+            Code::BuiltinAtan2 => CI::new(builtin_atan2),
+            Code::BuiltinCos => CI::new(builtin_cos),
+            Code::BuiltinExp => CI::new(builtin_exp),
+            Code::BuiltinSubstr2 => CI::new(builtin_substr2),
+            Code::BuiltinSubstr3 => CI::new(builtin_substr3),
+            Code::BuiltinIndex => CI::new(builtin_index),
+            Code::BuiltinInt => CI::new(builtin_int),
+            Code::BuiltinLength0 => CI::new(builtin_length0),
+            Code::BuiltinLength1 => CI::new(builtin_length1),
+            Code::BuiltinLog => CI::new(builtin_log),
+            Code::BuiltinRand => CI::new(builtin_rand),
+            Code::BuiltinSin => CI::new(builtin_sin),
+            Code::BuiltinSplit2 => CI::new(builtin_split2),
+            Code::BuiltinSplit3 => CI::new(builtin_split3),
+            Code::BuiltinSqrt => CI::new(builtin_sqrt),
+            Code::BuiltinSrand0 => CI::new(builtin_srand0),
+            Code::BuiltinSrand1 => CI::new(builtin_srand1),
+            Code::BuiltinTolower => CI::new(builtin_tolower),
+            Code::BuiltinToupper => CI::new(builtin_toupper),
+            Code::Sub3 { global } => CI::imm(sub3, Immed { sub3_isglobal: *global }),
+
+            Code::Print => CI::new(print),
+            Code::Printf { num_args } => CI::imm(printf, Immed { printf_args: *num_args}),
+            Code::NoOp => CI::new(noop),
+            Code::Ret => CI::new(ret),
+
+            Code::Call { target } => CI::imm(call, Immed { call_target: *target }),
+
+
+            Code::RelJumpIfFalseVar { offset } => CI::imm(rel_jump_if_false_var, Immed { offset: *offset}),
+            Code::RelJumpIfFalseStr { offset } => CI::imm(rel_jump_if_false_str, Immed { offset: *offset}),
+            Code::RelJumpIfFalseNum { offset } => CI::imm(rel_jump_if_false_num, Immed { offset: *offset}),
+
+            Code::RelJumpIfTrueVar { offset } => CI::imm(rel_jump_if_true_var, Immed { offset: *offset}),
+            Code::RelJumpIfTrueStr { offset } => CI::imm(rel_jump_if_true_str, Immed { offset: *offset}),
+            Code::RelJumpIfTrueNum { offset } => CI::imm(rel_jump_if_true_num, Immed { offset: *offset}),
+
+            Code::RelJump { offset } => CI::imm(rel_jump, Immed { offset: *offset}),
+
+            Code::ConstStr { string } => CI::imm(const_str, Immed { string: unsafe {string.clone().into_raw() }}),
+            Code::ConstNum { num } => CI::imm(const_num, Immed { num: *num }),
+
+            Code::Label(_) | Code::JumpIfFalseVarLbl(_) |Code::JumpIfFalseNumLbl(_) |Code::JumpIfFalseStrLbl(_) |Code::JumpLbl(_) |Code::JumpIfTrueVarLbl(_) |Code::JumpIfTrueNumLbl(_) |Code::JumpIfTrueStrLbl(_) => {
+                panic!("labels should be removed before direct threading");
+            }
+        }
+    }
 }
 
 
-fn add_indices(mut v: Vec<StackT>, num_arr_indices: &u16) -> Vec<StackT> {
+fn add_indices(mut v: Vec<StackT>, num_arr_indices: &usize) -> Vec<StackT> {
     for _ in 0..*num_arr_indices {
         v.push(StackT::Str)
     }
     v
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::vm::Code;
-
-    #[test]
-    fn test_size() {
-        assert_eq!(std::mem::size_of::<Code>(), 4);
-    }
 }

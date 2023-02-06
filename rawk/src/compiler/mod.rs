@@ -31,6 +31,5 @@ pub fn compile(mut program: TypedProgram) -> Result<VmProgram, PrintableError> {
         functions.push(compiler.compile()?);
     }
     let prog = VmProgram::new(functions, program.global_analysis, program.functions);
-
     Ok(prog)
 }

@@ -114,6 +114,15 @@ pub fn pad(mut str: String, len: usize) -> String {
     str
 }
 
+#[cfg(debug_assertions)]
+pub fn unwrap<T>(value: Option<T>) -> T {
+    value.unwrap()
+}
+#[cfg(not(debug_assertions))]
+pub fn unwrap<T>(value: Option<T>) -> T {
+    unsafe { value.unwrap_unchecked() }
+}
+
 // Search left and right for needle. Return index of result + offset.
 pub fn index_in_slices(needle: &[u8], slices: (&[u8], &[u8]), offset: usize) -> Option<usize> {
     let (left, right) = slices;

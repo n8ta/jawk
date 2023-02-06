@@ -16,6 +16,17 @@ impl Deref for RcAwkStr {
 }
 
 impl RcAwkStr {
+    pub unsafe fn into_raw(self) -> *const AwkStr {
+        Rc::into_raw(self.str)
+    }
+    pub unsafe fn from_raw(string: *const AwkStr) -> RcAwkStr {
+        let original = unsafe { Rc::from_raw(string) };
+        let copy = original.clone();
+        Rc::into_raw(original);
+        Self {
+            str: copy
+        }
+    }
     pub fn new(str: AwkStr) -> Self {
         Self { str: Rc::new(str) }
     }

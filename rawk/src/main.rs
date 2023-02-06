@@ -10,7 +10,7 @@ pub use crate::lexer::lex;
 pub use crate::parser::parse;
 pub use crate::symbolizer::Symbolizer;
 pub use crate::typing::analyze;
-use crate::vm::VirtualMachine;
+use crate::vm::{Code, VirtualMachine};
 
 mod lexer;
 mod parser;
@@ -41,11 +41,11 @@ pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     if args.debug {
         println!("{}", ast);
     }
-    let bytecode = compile(ast)?;
-    let mut out = BufWriter::new(stdout().lock());
-    let mut err = stderr().lock();
-    let mut vm = VirtualMachine::new(args.files, &mut out, &mut err);
-    vm.run(&bytecode);
+    let prog = compile(ast)?;
+    let mut out = Box::new(BufWriter::new(stdout().lock()));
+    let mut err = Box::new(stderr().lock());
+    let mut vm = VirtualMachine::new(prog, args.files,  out, err);
+    let (mut out, err) = vm.run();
     out.flush().unwrap();
     Ok(())
 }

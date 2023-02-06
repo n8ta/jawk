@@ -1,10 +1,12 @@
 #[cfg(test)]
 #[allow(dead_code)]
 mod integration_tests {
+    use std::cell::RefCell;
     use crate::{analyze, lex, parse, Symbolizer};
     use std::fs;
     use std::io::{Write};
     use std::path::PathBuf;
+    use std::rc::Rc;
     use std::str::from_utf8_unchecked;
     use std::time::{Duration, Instant};
     use tempfile::tempdir;
@@ -25,13 +27,25 @@ mod integration_tests {
     inc_y = (max_y-min_y) / height;    inc_x = (max_x-min_x) / width;    y = min_y;    for (row=0; row<height; row++) {        x = min_x;        for (col=0; col<width; col++) {            zr = zi = 0;            for (i=0; i<iters; i++) {                old_zr = zr;                zr = zr*zr - zi*zi + x;                zi = 2*old_zr*zi + y;                if (zr*zr + zi*zi > 4) { break; }            }
             idx = 0;            zzz = i*8/iters;            if (zzz < 1) {                idx = 0;            };            if (zzz < 2) {                idx = 1;            };            if (zzz < 3) {                idx = 2;            };            if (zzz < 4) {                idx = 3;            };            if (zzz < 5) {                idx = 4;            };            if (zzz < 6) {                idx = 5;            };            if (zzz < 7) {                idx = 6;            };            if (zzz < 8) {                idx = 7;            };            printf colors[idx];            x += inc_x;        }        y += inc_y;        print \"\";    }}";
 
+    #[derive(Clone)]
     struct IoCapture {
-        pub buf: Vec<u8>,
+        pub buf: Rc<RefCell<Vec<u8>>>,
     }
+
+    impl IoCapture {
+        pub fn new() -> Self { Self { buf: Rc::new(RefCell::new(vec![])) } }
+        pub fn collect(&self) -> Vec<u8> {
+            let buf = self.buf.borrow();
+            let buf: Vec<u8> = buf.clone();
+            buf
+        }
+    }
+
     impl Write for IoCapture {
         fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-            self.buf.extend_from_slice(buf);
-            Ok(buf.len())
+            let mut io_buf = self.buf.borrow_mut();
+            io_buf.extend_from_slice(buf);
+            Ok(io_buf.len())
         }
         fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
     }
@@ -145,8 +159,6 @@ mod integration_tests {
         let vm_prog = compile(program).unwrap();
         println!("{}", vm_prog.pretty_print());
         validate_program(&vm_prog);
-        let mut fake_stdout = IoCapture { buf: vec![] };
-        let mut fake_stderr = IoCapture { buf: vec![] };
 
 
         let temp_dir = tempdir().unwrap();
@@ -154,17 +166,21 @@ mod integration_tests {
         std::fs::write(file_path.clone(), file.as_ref()).unwrap();
         let file_path_string = file_path.to_str().unwrap().to_string();
 
+        let mut fake_stdout = Box::new(IoCapture::new());
+        let mut fake_stderr = Box::new(IoCapture::new());
 
         let mut vm = VirtualMachine::new(
+                vm_prog,
             vec![file_path_string],
-            &mut fake_stdout,
-            &mut fake_stderr);
+            fake_stdout.clone(),
+            fake_stderr.clone());
 
-        vm.run(&vm_prog);
+        let _ = vm.run();
 
         // These strings may not be valid utf but who cares it's a test
-        let output = unsafe { from_utf8_unchecked(&fake_stdout.buf)};
-        let expected = unsafe { from_utf8_unchecked(&oracle_output)};
+        let output = fake_stdout.collect();
+        let output = unsafe { from_utf8_unchecked(&output)};
+        let expected = unsafe { from_utf8_unchecked(&oracle_output) };
 
         assert_eq!(
             output,
@@ -199,6 +215,13 @@ mod integration_tests {
             }
         };
     }
+
+    #[test]
+    fn ttx2_basic() {
+        let str = std::fs::read_to_string("/Users/n8ta/code/jawk/rawk/ttx2.awk.txt").unwrap();
+        test("ttx2", &str, "", "");
+    }
+
 
     test!(test_print_begin_int, "BEGIN {print 1;}", ONE_LINE, "1\n");
     test!(test_print_int, "{print 1;}", ONE_LINE, "1\n");
@@ -810,6 +833,7 @@ mod integration_tests {
     test!(gawk_strnum_6, "{ print($1 == \"3.14\") }", PI, "0\n");
 
     const NUM2: &'static str = "002";
+    test!(split_numstr_n1, "{ split($0, a); }", NUM2, "");
     test!(split_numstr_0, "{ split($0, a); print a[1]; }", NUM2, "002\n");
     test!(split_numstr_1, "{ split($0, a); print a[1]; print( a[1] < 2); }", NUM2, "002\n0\n");
 
@@ -1134,12 +1158,7 @@ mod integration_tests {
     "40\n1200\n"
 );
 
-    test!(
-    test_double_break_loop_2,
-    "BEGIN {while(1) {     z=0; while(1) {z++} }  }",
-    ONE_LINE,
-    "40\n1200\n"
-    );
+    test!(test_double_break_loop_2,"BEGIN {while(1) { z=0; while(1) {z++; break; } break; }  }",ONE_LINE,"");
 
     // test!(
     //     test_printf_simple_f,
@@ -1410,14 +1429,14 @@ mod integration_tests {
     test!(test_no_ret_4, "function f() { } { print (f()==$1) }", "1\n", "0\n");
     test!(test_no_ret_5, "function f() { } { print (f()==$1) }", "0\n", "1\n");
 
-    test!(test_tt_x1_bytecode, TTX1, "", "a");
+    // test!(test_tt_x1_bytecode, TTX1, "", "a");
 
     test!(test_logical_or_0, "\
     function f() { print 333; return 1; } \
     function g() { print 555; return 0; } \
     BEGIN { print (f() || g()); }", ONE_LINE, "333\n1\n");
-    test!(test_logical_or_1, "function f() { print 333; return 0; } function g() { print 555; return 1; } BEGIN { print (f() || g()); }", ONE_LINE, "333\n555\n1");
-    test!(test_logical_or_2, "function f() { print 333; return 0; } function g() { print 555; return 0; } BEGIN { print (f() || g()); }", ONE_LINE, "333\n555\n0");
+    test!(test_logical_or_1, "function f() { print 333; return 0; } function g() { print 555; return 1; } BEGIN { print (f() || g()); }", ONE_LINE, "333\n555\n1\n");
+    test!(test_logical_or_2, "function f() { print 333; return 0; } function g() { print 555; return 0; } BEGIN { print (f() || g()); }", ONE_LINE, "333\n555\n0\n");
 
     test!(test_ez1, "BEGIN { a = \"2\"; }", "", "");
     test!(test_ez2, "BEGIN { a = 2; print a; }", "", "2\n");

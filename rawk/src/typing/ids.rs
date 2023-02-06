@@ -1,22 +1,21 @@
 use std::fmt::{Debug, Formatter};
+use std::ops::Deref;
 use crate::global_scalars::SymbolMappingValue;
 
 #[derive(PartialEq, Clone, Copy)]
 pub struct GlobalArrayId {
-    pub id: u16,
+    pub     id: usize,
 }
 impl SymbolMappingValue  for GlobalArrayId {
-    // TODO: handle u16max
-    fn create(id: usize) -> Self { Self { id: id as u16 } }
+    fn create(id: usize) -> Self { Self { id } }
 }
 
 #[derive(PartialEq, Clone, Copy)]
 pub struct GlobalScalarId {
-    pub id: u16,
+    pub id: usize,
 }
 impl SymbolMappingValue  for GlobalScalarId {
-    // TODO: handle u16max
-    fn create(id: usize) -> Self { Self { id: id as u16 } }
+    fn create(id: usize) -> Self { Self { id } }
 }
 
 impl Debug for GlobalScalarId {
