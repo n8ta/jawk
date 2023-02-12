@@ -24,13 +24,12 @@ impl Columns {
         }
     }
 
-    pub fn get(&mut self, column: usize) -> AwkStr {
-        let bytes = self.reader.get(column);
+    pub fn get(&mut self, column: usize) -> Vec<u8> {
         // TODO: check utf8
-        AwkStr::new(bytes)
+        self.reader.get(column)
     }
 
-    pub fn set(&mut self, _column: usize, _bytes: &[u8]) -> AwkStr {
+    pub fn set(&mut self, _column: usize, _bytes: &[u8]) -> Vec<u8> {
         todo!()
     }
 

@@ -1,5 +1,5 @@
 use std::io::Write;
-use crate::awk_str::{AwkStr, RcAwkStr};
+use crate::awk_str::{AwkByteStr, RcAwkStr};
 use crate::typing::{GlobalArrayId, GlobalScalarId};
 use crate::vm::VirtualMachine;
 
@@ -17,7 +17,7 @@ pub union Immed {
     pub sub3_isglobal: bool,
     pub printf_args: usize,
     pub call_target: usize,
-    pub string: *const AwkStr,
+    pub string: *const AwkByteStr,
 }
 
 #[derive(Copy, Clone)]

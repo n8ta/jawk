@@ -5,7 +5,7 @@ use crate::{PrintableError, Symbolizer};
 use std::iter::Peekable;
 use std::str::Chars;
 pub use types::{BinOp, LogicalOp, MathOp, Token, TokenType};
-use crate::awk_str::AwkStr;
+use crate::awk_str::{AwkStr, RcAwkStr};
 use crate::lexer::escaped_string_reader::escaped_string_reader;
 
 type LexerResult = Result<Vec<Token>, PrintableError>;
@@ -80,7 +80,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
         }
         let regex = self.collect_buffer();
         self.advance();
-        self.add_token(Token::Regex(AwkStr::new_rc(regex.into_bytes())));
+        self.add_token(Token::Regex(AwkStr::new_string(regex).rc()));
         return Ok(());
     }
     fn number(&mut self) -> Result<Token, PrintableError> {
@@ -284,7 +284,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
             ';' => self.add_token(Token::Semicolon),
             '"' => {
                 let str = escaped_string_reader(&mut self.src)?;
-                self.add_token(Token::String(AwkStr::new_rc(str)))
+                self.add_token(Token::String(RcAwkStr::new_bytes(str)));
             },
             '\r' => (),
             '\t' => (),
@@ -583,7 +583,7 @@ fn test_string() {
         lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::LeftBrace,
-            Token::String(AwkStr::new_rc("x".to_string().into_bytes())),
+            Token::String(RcAwkStr::new_bytes("x".to_string().into_bytes())),
             Token::RightBrace,
             Token::EOF
         ]
@@ -598,7 +598,7 @@ fn test_string_2() {
         lex_test(str, &mut symbolizer).unwrap(),
         vec![
             Token::LeftBrace,
-            Token::String(AwkStr::new_rc("abc123 444".to_string().into_bytes())),
+            Token::String(RcAwkStr::new_bytes("abc123 444".to_string().into_bytes())),
             Token::RightBrace,
             Token::EOF
         ]
@@ -722,7 +722,7 @@ fn test_regex_slash() {
         vec![
             Token::Ident(symbolizer.get("a")),
             Token::BinOp(BinOp::MatchedBy),
-            Token::Regex(AwkStr::new_rc("match".to_string().into_bytes())),
+            Token::Regex(RcAwkStr::new_bytes("match".to_string().into_bytes())),
             Token::EOF
         ]
     );
@@ -737,7 +737,7 @@ fn test_regex_slash_not() {
         vec![
             Token::Ident(symbolizer.get("a")),
             Token::BinOp(BinOp::NotMatchedBy),
-            Token::Regex(AwkStr::new_rc("match".to_string().into_bytes())),
+            Token::Regex(RcAwkStr::new_bytes("match".to_string().into_bytes())),
             Token::EOF
         ]
     );

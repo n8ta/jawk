@@ -45,6 +45,6 @@ impl GlobalScalarSpecials {
         let empty_strnum = RuntimeScalar::StrNum(RcAwkStr::new_bytes(vec![]));
         vec![empty_strnum.clone(),
              empty_strnum,
-             RuntimeScalar::StrNum(RcAwkStr::new_bytes(" ".as_bytes().to_vec()))]
+             RuntimeScalar::StrNum(RcAwkStr::new_bytes("".as_bytes().to_vec()))]
     }
 }

@@ -79,7 +79,9 @@ pub fn lteq<T: PartialEq + PartialOrd>(a: T, b: T) -> bool { a <= b }
 pub fn gteq<T: PartialEq + PartialOrd>(a: T, b: T) -> bool { a >= b }
 
 #[inline(always)]
-pub fn eq<T: PartialEq + PartialOrd>(a: T, b: T) -> bool { a == b }
+pub fn eq<T: PartialEq + PartialOrd>(a: T, b: T) -> bool {
+    a == b
+}
 
 #[inline(always)]
 pub fn neq<T: PartialEq + PartialOrd>(a: T, b: T) -> bool { a != b }

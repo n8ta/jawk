@@ -3,7 +3,7 @@
 #![allow(non_snake_case)]
 #![allow(improper_ctypes)]
 
-include!("./bindings.rs");
+include!("./trimmed_bindings.rs");
 
 #[test]
 fn test_regex() {

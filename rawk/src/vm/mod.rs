@@ -6,6 +6,7 @@ mod converter;
 mod regex_cache;
 mod vm_special_vars;
 mod runtime_scalar;
+mod rc_manager;
 
 pub use bytecode::{Code, LabelId, Label};
 pub use vm_func::{VmFunc};

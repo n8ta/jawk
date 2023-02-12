@@ -4,10 +4,11 @@ use crate::arrays::{Arrays, split_on_regex, split_on_string};
 use crate::awk_str::{AwkStr, RcAwkStr};
 use crate::columns::Columns;
 use crate::{binop, mathop};
-use crate::typing::GlobalArrayId;
+use crate::typing::{GlobalArrayId, GlobalScalarId};
 use crate::vm::{Code, VmFunc, VmProgram};
 use crate::vm::converter::Converter;
 use crate::util::{clamp_to_max_len, clamp_to_slice_index, index_of, unwrap};
+use crate::vm::rc_manager::RcManager;
 use crate::vm::regex_cache::RegexCache;
 use crate::vm::runtime_scalar::{RuntimeScalar, StringScalar};
 use crate::vm::vm_special_vars::{NUM_GSCALAR_SPECIALS, GlobalScalarSpecials};
@@ -25,6 +26,7 @@ pub struct VirtualMachine {
     pub vm_program: &'static VmProgram,
 
     pub global_scalars: Vec<RuntimeScalar>,
+    pub shitty_malloc: RcManager,
 
     // Value stacks
     pub unknown_stack: Vec<RuntimeScalar>,
@@ -64,6 +66,7 @@ impl VirtualMachine {
             stdout,
             stderr,
             srand_seed: 09171998.0,
+            shitty_malloc: RcManager::new(),
         };
         debug_assert!(s.global_scalars.len() == NUM_GSCALAR_SPECIALS);
         s
@@ -71,10 +74,16 @@ impl VirtualMachine {
     pub fn run(mut self) -> (Box<dyn Write>, Box<dyn Write>) {
         self.arrays.allocate(self.vm_program.analysis.global_arrays.len()); // TODO u16max
         for _ in 0..self.vm_program.analysis.global_scalars.len() {
-            self.global_scalars.push(RuntimeScalar::Str(RcAwkStr::new(AwkStr::new(vec![]))));
+            self.global_scalars.push(RuntimeScalar::Str(RcAwkStr::new_bytes(vec![])));
         }
         self.run_function(self.vm_program.main());
         (self.stdout, self.stderr)
+    }
+
+    pub fn assign_gscl(&mut self, idx: GlobalScalarId, mut scalar: RuntimeScalar) {
+        let mut existing = unwrap(self.global_scalars.get_mut(idx.id));
+        let prior_value = std::mem::replace(existing,  scalar);
+        self.shitty_malloc.drop_scalar(prior_value)
     }
 
     pub fn push_unknown(&mut self, scalar: RuntimeScalar) {
@@ -147,7 +156,7 @@ impl VirtualMachine {
         match value {
             RuntimeScalar::Str(s) => s,
             RuntimeScalar::StrNum(s) => s,
-            RuntimeScalar::Num(n) => AwkStr::new_rc(self.converter.num_to_str_internal(n).to_vec()),
+            RuntimeScalar::Num(n) => self.shitty_malloc.copy_from_slice(self.converter.num_to_str_internal(n)).rc(),
         }
     }
 
@@ -155,7 +164,7 @@ impl VirtualMachine {
         match value {
             RuntimeScalar::Str(s) => StringScalar::Str(s),
             RuntimeScalar::StrNum(s) => StringScalar::StrNum(s),
-            RuntimeScalar::Num(n) => StringScalar::Str(AwkStr::new_rc(self.converter.num_to_str_internal(n).to_vec())),
+            RuntimeScalar::Num(n) => StringScalar::Str(self.shitty_malloc.copy_from_slice(self.converter.num_to_str_internal(n)).rc())
         }
     }
 

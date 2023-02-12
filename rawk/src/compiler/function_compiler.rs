@@ -39,12 +39,13 @@ impl<'a> FunctionCompiler<'a> {
 
         // If function doesn't end with a user provided return return the empty string
         if !self.chunk.ends_with(&[Code::Ret]) {
-            let string = RcAwkStr::new_bytes("".as_bytes().to_vec());
-            self.add(Code::ConstStr { string });
+            let strnum = RcAwkStr::new_bytes("".as_bytes().to_vec());
+            self.add(Code::ConstStrNum { strnum });
             self.add(Code::StrToVar);
             self.add(Code::Ret);
         }
 
+        self.chunk.optimize();
         self.chunk.resolve_labels();
         Ok(VmFunc::new(self.chunk, id, self.parser_func.clone()))
     }
@@ -124,28 +125,60 @@ impl<'a> FunctionCompiler<'a> {
                 }
             }
             Stmt::While(test, body) => {
-                /*
-                :Test
-                [Test]
-                JumpIfFalse :Done
-                Pop
-                [Body]
-                Jump :Test
-                :Done
-                 */
-                let test_lbl = self.create_and_insert_lbl();
-                let done_lbl = self.create_lbl();
 
-                // TODO: Implicit convertsion into number doesn't work since str->num
-                // is not the same as truthyness. Need a truthy bytecode
-                self.expr(test, test.typ.into())?;
+                if test.expr == Expr::NextLine {
+                    /*
+                        JumpIfFalseNextLine
+                        :body
+                        [Body]
+                        JumpIfTrueNextLine :body
+                        :done
+                    */
+                    let body_lbl = self.create_lbl();
+                    let done_lbl = self.create_lbl();
 
-                self.break_labels.push(done_lbl);
-                self.add(Code::jump_if_false(test.typ.into(), &done_lbl));
-                self.stmt(body)?;
-                self.add(Code::JumpLbl(test_lbl));
-                self.insert_lbl(done_lbl);
-                self.break_labels.pop().unwrap();
+                    self.add(Code::JumpIfFalseNextLineLbl(done_lbl));
+                    self.break_labels.push(done_lbl);
+                    self.insert_lbl(body_lbl);
+                    self.stmt(body)?;
+                    self.add(Code::JumpIfTrueNextLineLbl(body_lbl));
+                    self.insert_lbl(done_lbl);
+                    self.break_labels.pop().unwrap();
+
+                } else {
+                    /*
+                    [Test]
+                    JumpIfFalse :done
+                    :body
+                    [Body]
+                    [Test]
+                    JumpIfTrue :body
+                    :done
+
+                    :test
+                    [Test]
+                    JumpIfFalse :done
+                    :body
+                    [Body]
+                    jump :test
+                    :done
+
+                     */
+                    let body_lbl = self.create_lbl();
+                    let done_lbl = self.create_lbl();
+
+                    let test_typ = test.typ;
+                    ;
+                    self.expr(test, test_typ.into())?;
+                    self.add(Code::jump_if_false(test_typ, &done_lbl));
+                    self.break_labels.push(done_lbl);
+                    self.insert_lbl(body_lbl);
+                    self.stmt(body)?;
+                    self.expr(test, test_typ.into())?;
+                    self.add(Code::jump_if_true(test_typ, &body_lbl));
+                    self.insert_lbl(done_lbl);
+                    self.break_labels.pop().unwrap();
+                }
             }
             Stmt::Printf { args, fstring } => {
                 for arg in args {
@@ -194,11 +227,11 @@ impl<'a> FunctionCompiler<'a> {
                 Some(StackT::Num)
             }
             Expr::String(str) => {
-                self.add(Code::ConstStr { string: str.clone() });
+                self.add(Code::ConstStr { str: str.clone() });
                 Some(StackT::Str)
             }
             Expr::Regex(reg) => {
-                self.add(Code::ConstStr { string: reg.clone() });
+                self.add(Code::ConstStr { str: reg.clone() });
                 Some(StackT::Str)
             }
             Expr::Concatenation(exprs) => {
@@ -332,8 +365,7 @@ impl<'a> FunctionCompiler<'a> {
                 Some(StackT::Str)
             }
             Expr::NextLine => {
-                self.add(Code::NextLine);
-                Some(StackT::Num)
+                panic!("compiler bug: checking for next line should be handled within while");
             }
             Expr::Ternary(test, if_so, if_not) => {
                 /*

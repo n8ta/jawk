@@ -273,7 +273,7 @@ mod tests {
     fn test_typing_array_fails_no_ret() {
         test_exception(
             "function a(arg) { if(arg) { b[0] = 1; return b; } } BEGIN { print 0; }",
-            "attempt to use",
+            "attempted to use array b in scalar context",
         )
     }
 

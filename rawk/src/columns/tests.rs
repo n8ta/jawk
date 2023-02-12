@@ -16,35 +16,35 @@ fn test_files() {
     ]);
 
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "a b c".into());
-    assert_eq!(cols.get(1), "a".into());
-    assert_eq!(cols.get(2), "b".into());
-    assert_eq!(cols.get(3), "c".into());
+    assert_eq!(cols.get(0), "a b c".as_bytes());
+    assert_eq!(cols.get(1), "a".as_bytes());
+    assert_eq!(cols.get(2), "b".as_bytes());
+    assert_eq!(cols.get(3), "c".as_bytes());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(3), "f".into());
-    assert_eq!(cols.get(2), "e".into());
-    assert_eq!(cols.get(1), "d".into());
-    assert_eq!(cols.get(0), "d e f".into());
+    assert_eq!(cols.get(3), "f".as_bytes());
+    assert_eq!(cols.get(2), "e".as_bytes());
+    assert_eq!(cols.get(1), "d".as_bytes());
+    assert_eq!(cols.get(0), "d e f".as_bytes());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(3), "i".into());
-    assert_eq!(cols.get(2), "h".into());
-    assert_eq!(cols.get(1), "g".into());
-    assert_eq!(cols.get(0), "g h i".into());
+    assert_eq!(cols.get(3), "i".as_bytes());
+    assert_eq!(cols.get(2), "h".as_bytes());
+    assert_eq!(cols.get(1), "g".as_bytes());
+    assert_eq!(cols.get(0), "g h i".as_bytes());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "1 2 3".into());
-    assert_eq!(cols.get(3), "3".into());
-    assert_eq!(cols.get(2), "2".into());
-    assert_eq!(cols.get(1), "1".into());
+    assert_eq!(cols.get(0), "1 2 3".as_bytes());
+    assert_eq!(cols.get(3), "3".as_bytes());
+    assert_eq!(cols.get(2), "2".as_bytes());
+    assert_eq!(cols.get(1), "1".as_bytes());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(3), "6".into());
-    assert_eq!(cols.get(2), "5".into());
-    assert_eq!(cols.get(1), "4".into());
-    assert_eq!(cols.get(0), "4 5 6".into());
+    assert_eq!(cols.get(3), "6".as_bytes());
+    assert_eq!(cols.get(2), "5".as_bytes());
+    assert_eq!(cols.get(1), "4".as_bytes());
+    assert_eq!(cols.get(0), "4 5 6".as_bytes());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(3), "9".into());
-    assert_eq!(cols.get(2), "8".into());
-    assert_eq!(cols.get(1), "7".into());
-    assert_eq!(cols.get(0), "7 8 9".into());
+    assert_eq!(cols.get(3), "9".as_bytes());
+    assert_eq!(cols.get(2), "8".as_bytes());
+    assert_eq!(cols.get(1), "7".as_bytes());
+    assert_eq!(cols.get(0), "7 8 9".as_bytes());
     assert_eq!(cols.next_line().unwrap(), false);
     assert_eq!(cols.next_line().unwrap(), false);
 }
@@ -62,14 +62,14 @@ fn test_files_set_rs() {
     ]);
 
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "a b c".into());
+    assert_eq!(cols.get(0), "a b c".as_bytes());
     cols.set_record_sep("-".to_string());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "\n".into());
+    assert_eq!(cols.get(0), "\n".as_bytes());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "ZZZ1".into());
+    assert_eq!(cols.get(0), "ZZZ1".as_bytes());
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "ZZZ2".into());
+    assert_eq!(cols.get(0), "ZZZ2".as_bytes());
     assert_eq!(cols.next_line().unwrap(), false);
     assert_eq!(cols.next_line().unwrap(), false);
 }
@@ -88,7 +88,7 @@ fn test_simple_one_line() {
     ]);
 
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "1 2 3".into());
+    assert_eq!(cols.get(0), "1 2 3".as_bytes());
     assert_eq!(cols.next_line().unwrap(), false);
 }
 
@@ -106,13 +106,13 @@ fn test_setting_fields() {
     ]);
 
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(0), "1 2 3".into());
+    assert_eq!(cols.get(0), "1 2 3".as_bytes());
     let c = "c".as_bytes();
     cols.set(2, c);
-    assert_eq!(cols.get(0), "1 c 3".into());
-    assert_eq!(cols.get(1), "1".into());
-    assert_eq!(cols.get(2), "c".into());
-    assert_eq!(cols.get(3), "3".into());
+    assert_eq!(cols.get(0), "1 c 3".as_bytes());
+    assert_eq!(cols.get(1), "1".as_bytes());
+    assert_eq!(cols.get(2), "c".as_bytes());
+    assert_eq!(cols.get(3), "3".as_bytes());
 }
 
 
@@ -129,13 +129,13 @@ fn test_setting_0() {
     ]);
 
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(1), "1".into());
+    assert_eq!(cols.get(1), "1".as_bytes());
     let c = "A B C".as_bytes();
     cols.set(0, c);
-    assert_eq!(cols.get(1), "A".into());
-    assert_eq!(cols.get(2), "B".into());
-    assert_eq!(cols.get(3), "C".into());
-    assert_eq!(cols.get(0), "A B C".into());
+    assert_eq!(cols.get(1), "A".as_bytes());
+    assert_eq!(cols.get(2), "B".as_bytes());
+    assert_eq!(cols.get(3), "C".as_bytes());
+    assert_eq!(cols.get(0), "A B C".as_bytes());
 }
 
 
@@ -152,12 +152,12 @@ fn test_setting_fs_0() {
     ]);
 
     assert!(cols.next_line().unwrap());
-    assert_eq!(cols.get(2), "B".into());
+    assert_eq!(cols.get(2), "B".as_bytes());
     cols.set_field_sep("B".as_bytes());
     cols.set(0, "A B C".as_bytes());
-    assert_eq!(cols.get(2), " C".into());
-    assert_eq!(cols.get(1), "A ".into());
-    assert_eq!(cols.get(0), "A B C".into());
+    assert_eq!(cols.get(2), " C".as_bytes());
+    assert_eq!(cols.get(1), "A ".as_bytes());
+    assert_eq!(cols.get(0), "A B C".as_bytes());
     cols.set(2, "Z".as_bytes());
-    assert_eq!(cols.get(0), "A B Z".into());
+    assert_eq!(cols.get(0), "A B Z".as_bytes());
 }

@@ -20,6 +20,7 @@ tempfile = "3.3.0"
 [profile.release]
 lto = true
 codegen-units = 1
-debug = 2
+debug = true
+panic = "abort"
 overflow-checks = false
 incremental = false

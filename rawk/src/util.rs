@@ -15,6 +15,7 @@ pub fn clamp_to_slice_index(zero_indexed: f64, slice_len: usize) -> usize {
     }
 }
 
+
 pub fn clamp_to_max_len(max_chars: f64, start_idx: usize, slice_len: usize) -> usize {
     debug_assert!(slice_len >= start_idx);
     let max_chars = max_chars.trunc();
@@ -121,6 +122,7 @@ pub fn unwrap<T>(value: Option<T>) -> T {
     value.unwrap()
 }
 #[cfg(not(debug_assertions))]
+#[inline(always)]
 pub fn unwrap<T>(value: Option<T>) -> T {
     unsafe { value.unwrap_unchecked() }
 }

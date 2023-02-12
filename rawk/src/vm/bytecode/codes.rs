@@ -8,9 +8,10 @@ use crate::stackt::StackT;
 use crate::util::pad;
 use crate::vm::bytecode::code_and_immed::{CodeAndImmed as CI};
 use crate::vm::bytecode::{Immed, Meta};
-use crate::vm::VmProgram;
+use crate::vm::{StringScalar, VmProgram};
 
-use crate::vm::bytecode::subroutines::{num_to_var, builtin_atan2, builtin_cos, builtin_exp, builtin_substr2, builtin_substr3, builtin_index, builtin_int, builtin_length0, builtin_length1, builtin_log, builtin_rand, builtin_sin, builtin_split2, builtin_split3, builtin_sqrt, builtin_srand0, builtin_srand1, builtin_tolower, builtin_toupper, num_to_str, str_to_var, str_to_num, var_to_num, var_to_str, pop, pop_str, pop_num, column, next_line, assign_gscl_var, assign_gscl_num, assign_gscl_str, assign_gscl_ret_str, assign_gscl_ret_var, assign_gscl_ret_num, global_arr, gscl_var, gscl_num, gscl_str, assign_arg_var, assign_arg_str, assign_arg_num, assign_arg_ret_var, assign_arg_ret_str, assign_arg_ret_num, arg_var, arg_str, arg_num, arg_arr, exp, mult, div, modulo, add, minus, lt, gt, lteq, gteq, eqeq, neq, matches, nmatches, assign_array_var, assign_array_str, assign_array_num, assign_array_ret_var, assign_array_ret_str, assign_array_ret_num, array_index, array_member, concat, sub3, rel_jump_if_false_var, rel_jump_if_false_str, rel_jump_if_false_num, rel_jump_if_true_var, rel_jump_if_true_str, rel_jump_if_true_num, rel_jump, print, printf, noop, ret, const_num, const_str, call, neq_num, gteq_num, eqeq_num, lteq_num, lt_num, gt_num};
+
+use crate::vm::bytecode::subroutines::{num_to_var, builtin_atan2, builtin_cos, builtin_exp, builtin_substr2, builtin_substr3, builtin_index, builtin_int, builtin_length0, builtin_length1, builtin_log, builtin_rand, builtin_sin, builtin_split2, builtin_split3, builtin_sqrt, builtin_srand0, builtin_srand1, builtin_tolower, builtin_toupper, num_to_str, str_to_var, str_to_num, var_to_num, var_to_str, pop, pop_str, pop_num, column, assign_gscl_var, assign_gscl_num, assign_gscl_str, assign_gscl_ret_str, assign_gscl_ret_var, assign_gscl_ret_num, global_arr, gscl_var, gscl_num, gscl_str, assign_arg_var, assign_arg_str, assign_arg_num, assign_arg_ret_var, assign_arg_ret_str, assign_arg_ret_num, arg_var, arg_str, arg_num, arg_arr, exp, mult, div, modulo, add, minus, lt, gt, lteq, gteq, eqeq, neq, matches, nmatches, assign_array_var, assign_array_str, assign_array_num, assign_array_ret_var, assign_array_ret_str, assign_array_ret_num, array_index, array_member, concat, sub3, rel_jump_if_false_var, rel_jump_if_false_str, rel_jump_if_false_num, rel_jump_if_true_var, rel_jump_if_true_str, rel_jump_if_true_num, rel_jump, print, printf, noop, ret, const_num, const_str, const_str_num, call, neq_num, gteq_num, eqeq_num, lteq_num, lt_num, gt_num, clear_gscl, clear_argscl, rel_jump_if_true_next_line, rel_jump_if_false_next_line};
 
 pub type LabelId = usize;
 
@@ -25,7 +26,7 @@ impl Label {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Code {
     NumToVar,
     NumToStr,
@@ -40,7 +41,8 @@ pub enum Code {
 
     Column,
 
-    NextLine,
+    ClearGscl(GlobalScalarId),
+    ClearArgScl(usize),
 
     AssignGsclVar(GlobalScalarId),
     AssignGsclNum(GlobalScalarId),
@@ -89,7 +91,6 @@ pub enum Code {
     EqEqNum,
     NeqNum,
 
-
     Matches,
     NMatches,
 
@@ -118,7 +119,8 @@ pub enum Code {
     Ret,
 
     // Index in constant table
-    ConstStr { string: RcAwkStr },
+    ConstStr { str: RcAwkStr },
+    ConstStrNum { strnum: RcAwkStr },
     ConstNum { num: f64 },
 
     // BEGIN BUILTINS FUNCS
@@ -148,6 +150,8 @@ pub enum Code {
     Sub3 { global: bool },
 
     // These will be transformed before reaching VM
+    JumpIfTrueNextLineLbl(Label),
+    JumpIfFalseNextLineLbl(Label),
     JumpIfFalseVarLbl(Label),
     JumpIfFalseNumLbl(Label),
     JumpIfFalseStrLbl(Label),
@@ -164,6 +168,8 @@ pub enum Code {
     RelJumpIfFalseStr { offset: isize },
     RelJumpIfTrueStr { offset: isize },
     RelJumpIfTrueVar { offset: isize },
+    RelJumpIfTrueNextLine { offset: isize },
+    RelJumpIfFalseNextLine { offset: isize },
 
     RelJump { offset: isize },
 }
@@ -178,6 +184,8 @@ impl Code {
             Code::JumpIfTrueStrLbl(_) => { Self::RelJumpIfTrueStr { offset } }
             Code::JumpIfTrueNumLbl(_) => { Self::RelJumpIfTrueNum { offset } }
             Code::JumpIfTrueVarLbl(_) => { Self::RelJumpIfTrueVar { offset } }
+            Code::JumpIfFalseNextLineLbl(_) => { Self::RelJumpIfFalseNextLine { offset } }
+            Code::JumpIfTrueNextLineLbl(_) => { Self::RelJumpIfTrueNextLine  { offset } }
             _ => return,
         };
         // Replace a jump to a label with a rel jump with an offset
@@ -333,7 +341,6 @@ impl Code {
             Code::PopStr => Meta::new(vec![Str], SC::new()),
             Code::PopNum => Meta::new(vec![Num], SC::new()),
             Code::Column => Meta::new(vec![Num], SC::str(1)),
-            Code::NextLine => Meta::new(vec![], SC::num(1)),
 
             // Global assignments
             Code::AssignGsclVar(_) => Meta::new(vec![Var], SC::new()),
@@ -387,6 +394,9 @@ impl Code {
                 let mut args: Vec<StackT> = (0..*count).map(|_| Str).collect();
                 Meta::new(args, SC::str(1))
             }
+            Code::ClearGscl { .. } => Meta::new(vec![], SC::new()),
+            Code::ClearArgScl { .. } => Meta::new(vec![], SC::new()),
+
             Code::GlobalArr(_) => Meta::new(vec![], SC::arr(1)),
             Code::ArgArray { .. } => Meta::new(vec![], SC::arr(1)),
 
@@ -414,17 +424,24 @@ impl Code {
             Code::NoOp => Meta::new(vec![], SC::new()),
             Code::Ret => Meta::new(vec![Var], SC::var(1)).set_is_ret(),
             Code::ConstStr { .. } => Meta::new(vec![], SC::str(1)),
+            Code::ConstStrNum { .. } => Meta::new(vec![], SC::str(1)),
             Code::ConstNum { .. } => Meta::new(vec![], SC::num(1)),
             // Sub op doesn't do the assignment that'd be too complex
             Code::Sub3 { global } => Meta::new(vec![Str, Str, Str], SC::str(1).set(Num, 1)),
-            Code::RelJumpIfFalseNum { offset } => Meta::new(vec![Num], SC::new()).jump(vec![*offset as isize, 1]),
-            Code::RelJumpIfTrueNum { offset } => Meta::new(vec![Num], SC::new()).jump(vec![*offset as isize, 1]),
-            Code::RelJumpIfTrueStr { offset } => Meta::new(vec![Str], SC::new()).jump(vec![*offset as isize, 1]),
-            Code::RelJumpIfFalseStr { offset } => Meta::new(vec![Str], SC::new()).jump(vec![*offset as isize, 1]),
-            Code::RelJumpIfTrueVar { offset } => Meta::new(vec![Var], SC::new()).jump(vec![*offset as isize, 1]),
-            Code::RelJumpIfFalseVar { offset } => Meta::new(vec![Var], SC::new()).jump(vec![*offset as isize, 1]),
-            Code::RelJump { offset } => Meta::new(vec![], SC::new()).jump(vec![*offset as isize]),
-            Code::JumpIfTrueVarLbl(_) | Code::JumpIfFalseVarLbl(_) | Code::JumpIfFalseNumLbl(_) | Code::JumpIfFalseStrLbl(_) | Code::JumpLbl(_) | Code::JumpIfTrueNumLbl(_) | Code::JumpIfTrueStrLbl(_) | Code::Label(_) => panic!("labels should be removed before bytecode analysis"),
+            Code::RelJumpIfFalseNum { offset } => Meta::new(vec![Num], SC::new()).jump(vec![*offset, 1]),
+            Code::RelJumpIfTrueNum { offset } => Meta::new(vec![Num], SC::new()).jump(vec![*offset, 1]),
+            Code::RelJumpIfTrueStr { offset } => Meta::new(vec![Str], SC::new()).jump(vec![*offset, 1]),
+            Code::RelJumpIfFalseStr { offset } => Meta::new(vec![Str], SC::new()).jump(vec![*offset, 1]),
+            Code::RelJumpIfTrueVar { offset } => Meta::new(vec![Var], SC::new()).jump(vec![*offset, 1]),
+            Code::RelJumpIfFalseVar { offset } => Meta::new(vec![Var], SC::new()).jump(vec![*offset, 1]),
+            Code::RelJump { offset } => Meta::new(vec![], SC::new()).jump(vec![*offset]),
+            Code::RelJumpIfTrueNextLine { offset } => Meta::new(vec![], SC::new()).jump(vec![*offset as isize, 1]),
+            Code::RelJumpIfFalseNextLine { offset } => Meta::new(vec![], SC::new()).jump(vec![*offset as isize, 1]),
+            Code::JumpIfFalseNextLineLbl(_) | Code::JumpIfTrueNextLineLbl(_) | Code::JumpIfTrueVarLbl(_)
+            | Code::JumpIfFalseVarLbl(_) | Code::JumpIfFalseNumLbl(_) | Code::JumpIfFalseStrLbl(_)
+            | Code::JumpLbl(_) | Code::JumpIfTrueNumLbl(_) | Code::JumpIfTrueStrLbl(_)
+            | Code::Label(_) =>
+                panic!("labels should be removed before bytecode analysis"),
             Code::NumToVar => Meta::new(vec![Num], SC::var(1)),
             Code::NumToStr => Meta::new(vec![Num], SC::str(1)),
             Code::StrToVar => Meta::new(vec![Str], SC::var(1)),
@@ -446,7 +463,6 @@ impl Code {
             Code::PopStr => CI::new(pop_str),
             Code::PopNum => CI::new(pop_num),
             Code::Column => CI::new(column),
-            Code::NextLine => CI::new(next_line),
             Code::AssignGsclVar(id) => CI::imm(assign_gscl_var, Immed { global_scl_id: *id }),
             Code::AssignGsclNum(id) => CI::imm(assign_gscl_num, Immed { global_scl_id: *id }),
             Code::AssignGsclStr(id) => CI::imm(assign_gscl_str, Immed { global_scl_id: *id }),
@@ -459,16 +475,16 @@ impl Code {
             Code::GsclNum(id) => CI::imm(gscl_num, Immed { global_scl_id: *id }),
             Code::GsclStr(id) => CI::imm(gscl_str, Immed { global_scl_id: *id }),
 
-            Code::AssignArgVar { arg_idx } => CI::imm(assign_arg_var, Immed { arg_idx: *arg_idx}),
-            Code::AssignArgStr { arg_idx } => CI::imm(assign_arg_str, Immed { arg_idx: *arg_idx}),
-            Code::AssignArgNum { arg_idx } => CI::imm(assign_arg_num, Immed { arg_idx: *arg_idx}),
-            Code::AssignRetArgVar { arg_idx } => CI::imm(assign_arg_ret_var, Immed { arg_idx: *arg_idx}),
-            Code::AssignRetArgStr { arg_idx } => CI::imm(assign_arg_ret_str, Immed { arg_idx: *arg_idx}),
-            Code::AssignRetArgNum { arg_idx } => CI::imm(assign_arg_ret_num, Immed { arg_idx: *arg_idx}),
-            Code::ArgVar { arg_idx } => CI::imm(arg_var, Immed { arg_idx: *arg_idx}),
-            Code::ArgNum { arg_idx } => CI::imm(arg_num, Immed { arg_idx: *arg_idx}),
-            Code::ArgStr { arg_idx } => CI::imm(arg_str, Immed { arg_idx: *arg_idx}),
-            Code::ArgArray { arg_idx } => CI::imm(arg_arr, Immed { arg_idx: *arg_idx}),
+            Code::AssignArgVar { arg_idx } => CI::imm(assign_arg_var, Immed { arg_idx: *arg_idx }),
+            Code::AssignArgStr { arg_idx } => CI::imm(assign_arg_str, Immed { arg_idx: *arg_idx }),
+            Code::AssignArgNum { arg_idx } => CI::imm(assign_arg_num, Immed { arg_idx: *arg_idx }),
+            Code::AssignRetArgVar { arg_idx } => CI::imm(assign_arg_ret_var, Immed { arg_idx: *arg_idx }),
+            Code::AssignRetArgStr { arg_idx } => CI::imm(assign_arg_ret_str, Immed { arg_idx: *arg_idx }),
+            Code::AssignRetArgNum { arg_idx } => CI::imm(assign_arg_ret_num, Immed { arg_idx: *arg_idx }),
+            Code::ArgVar { arg_idx } => CI::imm(arg_var, Immed { arg_idx: *arg_idx }),
+            Code::ArgNum { arg_idx } => CI::imm(arg_num, Immed { arg_idx: *arg_idx }),
+            Code::ArgStr { arg_idx } => CI::imm(arg_str, Immed { arg_idx: *arg_idx }),
+            Code::ArgArray { arg_idx } => CI::imm(arg_arr, Immed { arg_idx: *arg_idx }),
 
             Code::Exp => CI::new(exp),
             Code::Mult => CI::new(mult),
@@ -485,16 +501,17 @@ impl Code {
             Code::Matches => CI::new(matches),
             Code::NMatches => CI::new(nmatches),
 
-            Code::Concat { count } => CI::imm(concat, Immed { concat_count: *count}),
-            Code::ArrayMember { indices } => CI::imm(array_member, Immed { array_indices: *indices}),
-            Code::ArrayIndex { indices } => CI::imm(array_index, Immed { array_indices: *indices}),
+            Code::Concat { count } => CI::imm(concat, Immed { concat_count: *count }),
 
-            Code::AssignArray { indices } => CI::imm(assign_array_var, Immed { array_indices: *indices}),
-            Code::AssignArrayStr { indices } => CI::imm(assign_array_str, Immed { array_indices: *indices}),
-            Code::AssignArrayNum { indices } => CI::imm(assign_array_num, Immed { array_indices: *indices}),
-            Code::AssignRetArray { indices } => CI::imm(assign_array_ret_var, Immed { array_indices: *indices}),
-            Code::AssignRetArrayStr { indices } => CI::imm(assign_array_ret_str, Immed { array_indices: *indices}),
-            Code::AssignRetArrayNum { indices } => CI::imm(assign_array_ret_num, Immed { array_indices: *indices}),
+            Code::ArrayMember { indices } => CI::imm(array_member, Immed { array_indices: *indices }),
+            Code::ArrayIndex { indices } => CI::imm(array_index, Immed { array_indices: *indices }),
+
+            Code::AssignArray { indices } => CI::imm(assign_array_var, Immed { array_indices: *indices }),
+            Code::AssignArrayStr { indices } => CI::imm(assign_array_str, Immed { array_indices: *indices }),
+            Code::AssignArrayNum { indices } => CI::imm(assign_array_num, Immed { array_indices: *indices }),
+            Code::AssignRetArray { indices } => CI::imm(assign_array_ret_var, Immed { array_indices: *indices }),
+            Code::AssignRetArrayStr { indices } => CI::imm(assign_array_ret_str, Immed { array_indices: *indices }),
+            Code::AssignRetArrayNum { indices } => CI::imm(assign_array_ret_num, Immed { array_indices: *indices }),
 
             Code::BuiltinAtan2 => CI::new(builtin_atan2),
             Code::BuiltinCos => CI::new(builtin_cos),
@@ -518,28 +535,30 @@ impl Code {
             Code::Sub3 { global } => CI::imm(sub3, Immed { sub3_isglobal: *global }),
 
             Code::Print => CI::new(print),
-            Code::Printf { num_args } => CI::imm(printf, Immed { printf_args: *num_args}),
+            Code::Printf { num_args } => CI::imm(printf, Immed { printf_args: *num_args }),
             Code::NoOp => CI::new(noop),
             Code::Ret => CI::new(ret),
 
             Code::Call { target } => CI::imm(call, Immed { call_target: *target }),
 
+            Code::RelJumpIfFalseVar { offset } => CI::imm(rel_jump_if_false_var, Immed { offset: *offset }),
+            Code::RelJumpIfFalseStr { offset } => CI::imm(rel_jump_if_false_str, Immed { offset: *offset }),
+            Code::RelJumpIfFalseNum { offset } => CI::imm(rel_jump_if_false_num, Immed { offset: *offset }),
 
-            Code::RelJumpIfFalseVar { offset } => CI::imm(rel_jump_if_false_var, Immed { offset: *offset}),
-            Code::RelJumpIfFalseStr { offset } => CI::imm(rel_jump_if_false_str, Immed { offset: *offset}),
-            Code::RelJumpIfFalseNum { offset } => CI::imm(rel_jump_if_false_num, Immed { offset: *offset}),
+            Code::RelJumpIfTrueVar { offset } => CI::imm(rel_jump_if_true_var, Immed { offset: *offset }),
+            Code::RelJumpIfTrueStr { offset } => CI::imm(rel_jump_if_true_str, Immed { offset: *offset }),
+            Code::RelJumpIfTrueNum { offset } => CI::imm(rel_jump_if_true_num, Immed { offset: *offset }),
+            Code::RelJumpIfTrueNextLine { offset } => CI::imm(rel_jump_if_true_next_line, Immed { offset: *offset }),
+            Code::RelJumpIfFalseNextLine { offset } => CI::imm(rel_jump_if_false_next_line, Immed { offset: *offset }),
 
-            Code::RelJumpIfTrueVar { offset } => CI::imm(rel_jump_if_true_var, Immed { offset: *offset}),
-            Code::RelJumpIfTrueStr { offset } => CI::imm(rel_jump_if_true_str, Immed { offset: *offset}),
-            Code::RelJumpIfTrueNum { offset } => CI::imm(rel_jump_if_true_num, Immed { offset: *offset}),
+            Code::RelJump { offset } => CI::imm(rel_jump, Immed { offset: *offset }),
 
-            Code::RelJump { offset } => CI::imm(rel_jump, Immed { offset: *offset}),
-
-            Code::ConstStr { string } => CI::imm(const_str, Immed { string: unsafe {string.clone().into_raw() }}),
+            Code::ConstStr { str: string } => CI::imm(const_str, Immed { string: unsafe { string.clone().into_raw() } }),
+            Code::ConstStrNum { strnum: string } => CI::imm(const_str_num, Immed { string: unsafe { string.clone().into_raw() } }),
             Code::ConstNum { num } => CI::imm(const_num, Immed { num: *num }),
 
-            Code::Label(_) | Code::JumpIfFalseVarLbl(_) |Code::JumpIfFalseNumLbl(_) |Code::JumpIfFalseStrLbl(_) |Code::JumpLbl(_) |Code::JumpIfTrueVarLbl(_) |Code::JumpIfTrueNumLbl(_) |Code::JumpIfTrueStrLbl(_) => {
-                panic!("labels should be removed before direct threading");
+            Code::Label(_) | Code::JumpIfTrueNextLineLbl(_) | Code::JumpIfFalseNextLineLbl(_) | Code::JumpIfFalseVarLbl(_) | Code::JumpIfFalseNumLbl(_) | Code::JumpIfFalseStrLbl(_) | Code::JumpLbl(_) | Code::JumpIfTrueVarLbl(_) | Code::JumpIfTrueNumLbl(_) | Code::JumpIfTrueStrLbl(_) => {
+                panic!("labels should be removed before direct threading {:?}", self);
             }
             Code::LtNum => CI::new(lt_num),
             Code::GtNum => CI::new(gt_num),
@@ -547,6 +566,8 @@ impl Code {
             Code::GtEqNum => CI::new(gteq_num),
             Code::EqEqNum => CI::new(eqeq_num),
             Code::NeqNum => CI::new(neq_num),
+            Code::ClearGscl(id) => CI::imm(clear_gscl, Immed { global_scl_id: *id }),
+            Code::ClearArgScl(arg_idx) => CI::imm(clear_argscl, Immed { arg_idx: *arg_idx })
         }
     }
 }

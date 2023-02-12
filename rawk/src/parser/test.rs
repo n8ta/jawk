@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod parser_tests {
-    use crate::awk_str::AwkStr;
+    use crate::awk_str::{RcAwkStr};
     use crate::lexer::Token;
     use crate::lexer::{BinOp, LogicalOp, MathOp};
     use crate::parser::{parse, Expr, Function, PatternAction, Program, Stmt, TypedExpr};
@@ -599,8 +599,8 @@ mod parser_tests {
     #[test]
     fn string_concat2() {
         actual!(actual, "{ print (\"a\" \"b\") } ", symbolizer);
-        let a = texpr!(Expr::String(AwkStr::new_rc("a".to_string().into_bytes())));
-        let b = texpr!(Expr::String(AwkStr::new_rc("b".to_string().into_bytes())));
+        let a = texpr!(Expr::String(RcAwkStr::new_bytes("a".to_string().into_bytes())));
+        let b = texpr!(Expr::String(RcAwkStr::new_bytes("b".to_string().into_bytes())));
         let print = Stmt::Print(texpr!(Expr::Concatenation(vec![a, b])));
         assert_eq!(actual, sprogram!(print, &mut symbolizer));
     }
@@ -839,7 +839,7 @@ mod parser_tests {
     fn test_printf_multi() {
         actual!(actual, "{ printf \"%s%s%s\", 1, 2, 3 }", symbolizer);
         let stmt = Stmt::Printf {
-            fstring: Expr::String(AwkStr::new_rc("%s%s%s".to_string().into_bytes())).into(),
+            fstring: Expr::String(RcAwkStr::new_bytes("%s%s%s".to_string().into_bytes())).into(),
             args: vec![num!(1.0), num!(2.0), num!(3.0)],
         }
             .into();
@@ -905,7 +905,7 @@ mod parser_tests {
         let a = symbolizer.get("a");
         let args = vec![
             Expr::NumberF64(1.0).into(),
-            Expr::String(AwkStr::new_rc_str("2")).into(),
+            Expr::String(RcAwkStr::new_str("2")).into(),
         ];
         let begin = Stmt::Expr(Expr::Call { target: a, args }.into());
         assert_eq!(

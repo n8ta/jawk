@@ -9,12 +9,13 @@ pub struct Chunk {
     bytecode: Vec<Code>,
 }
 
-impl Deref  for Chunk {
+impl Deref for Chunk {
     type Target = Vec<Code>;
     fn deref(&self) -> &Self::Target {
         &self.bytecode
     }
 }
+
 impl DerefMut for Chunk {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.bytecode
@@ -38,7 +39,7 @@ impl Chunk {
                     let mut nop = Code::NoOp;
                     std::mem::swap(byte, &mut nop);
                 }
-                _ => {},
+                _ => {}
             }
         }
         let chunk_len = self.bytecode.len();
@@ -51,6 +52,8 @@ impl Chunk {
                 Code::JumpIfTrueNumLbl(lbl) => lbl,
                 Code::JumpIfTrueStrLbl(lbl) => lbl,
                 Code::JumpIfTrueVarLbl(lbl) => lbl,
+                Code::JumpIfTrueNextLineLbl(lbl) => lbl,
+                Code::JumpIfFalseNextLineLbl(lbl) => lbl,
                 _ => continue,
             };
             let mut label_idx = *label_indices.get(lbl).unwrap();
@@ -61,9 +64,29 @@ impl Chunk {
                 label_idx += 1;
             }
             let label_idx = label_idx as isize;
-            let offset = label_idx - (idx as isize) ;
+            let offset = label_idx - (idx as isize);
             byte.resolve_label_to_offset(offset)
         }
+    }
+
+    pub fn optimize(&mut self) {
+
+        // Optimize concat to clear the destination scalar before concat'ing.
+        // This allows RcAwkStr's to be downgraded for efficient extension
+        let mut new_code = vec![];
+        for pair in self.bytecode.windows(2) {
+            if let Code::Concat { count } = pair[0] {
+                if let Code::AssignGsclStr(id) = pair[1] {
+                    new_code.push(Code::ClearGscl(id));
+                }
+                if let Code::AssignArgStr { arg_idx } = pair[1] {
+                    new_code.push(Code::ClearArgScl(arg_idx));
+                }
+            }
+            new_code.push(pair[0].clone());
+        }
+        new_code.push(self.bytecode.last().unwrap().clone());
+        self.bytecode = new_code;
     }
 
     #[cfg(test)]
@@ -76,7 +99,7 @@ impl Chunk {
             byte.pretty_print(output);
 
             let meta = byte.meta(&prog.func_map);
-            let side_effect = format!("{:?}\n",  meta);
+            let side_effect = format!("{:?}\n", meta);
             output.extend_from_slice(&side_effect.as_bytes());
         }
     }

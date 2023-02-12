@@ -1,9 +1,10 @@
+use std::arch::x86_64::_mm_storel_pd;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::{binop, binop_num_only, mathop};
 use crate::arrays::{split_on_regex, split_on_string};
-use crate::awk_str::{AwkStr, RcAwkStr};
-use crate::util::{clamp_to_max_len, clamp_to_slice_index, index_of};
+use crate::awk_str::{RcAwkStr};
+use crate::util::{clamp_to_max_len, clamp_to_slice_index, index_of, unwrap};
 use crate::vm::bytecode::code_and_immed::Immed;
 use crate::vm::{RuntimeScalar, StringScalar, VirtualMachine};
 use crate::vm::machine::FunctionScope;
@@ -66,52 +67,52 @@ pub fn pop_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
 pub fn column(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let index = vm.pop_num();
     let idx = index.round() as usize;
-    let field = vm.columns.get(idx);
-    vm.push_str(StringScalar::StrNum(field.rc()));
+    let mut owned_str = vm.shitty_malloc.get();
+    vm.columns.get_into_buf(idx, owned_str.as_mut_vec());
+    vm.push_str(StringScalar::StrNum(owned_str.rc()));
     ip + 1
 }
 
-pub fn next_line(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
-    let more_lines = vm.columns.next_line().unwrap();
-    vm.push_bool(more_lines);
+pub fn clear_gscl(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+    vm.global_scalars[unsafe { imm.global_scl_id }.id] = RuntimeScalar::Num(0.0);
     ip + 1
 }
 
 pub fn assign_gscl_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let scalar = vm.pop_unknown();
-    vm.global_scalars[unsafe { imm.global_scl_id }.id] = scalar;
+    vm.assign_gscl(unsafe { imm.global_scl_id }, scalar);
     ip + 1
 }
 
 pub fn assign_gscl_ret_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let scalar = vm.pop_unknown();
-    vm.global_scalars[unsafe { imm.global_scl_id }.id] = scalar.clone();
+    vm.assign_gscl(unsafe { imm.global_scl_id }, scalar.clone());
     vm.push_unknown(scalar);
     ip + 1
 }
 
 pub fn assign_gscl_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num = vm.pop_num();
-    vm.global_scalars[unsafe { imm.global_scl_id }.id] = RuntimeScalar::Num(num);
+    vm.assign_gscl(unsafe { imm.global_scl_id }, RuntimeScalar::Num(num));
     ip + 1
 }
 
 pub fn assign_gscl_ret_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num = vm.pop_num();
-    vm.global_scalars[unsafe { imm.global_scl_id }.id] = RuntimeScalar::Num(num);
+    vm.assign_gscl(unsafe { imm.global_scl_id }, RuntimeScalar::Num(num));
     vm.push_num(num);
     ip + 1
 }
 
 pub fn assign_gscl_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let str: RuntimeScalar = vm.pop_string().into();
-    vm.global_scalars[unsafe { imm.global_scl_id }.id] = str;
+    vm.assign_gscl(unsafe { imm.global_scl_id }, str);
     ip + 1
 }
 
 pub fn assign_gscl_ret_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let str: RuntimeScalar = vm.pop_string().into();
-    vm.global_scalars[unsafe { imm.global_scl_id }.id] = str.clone();
+    vm.assign_gscl(unsafe { imm.global_scl_id }, str.clone());
     vm.push_unknown(str);
     ip + 1
 }
@@ -143,6 +144,14 @@ pub fn gscl_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     vm.push_str(str);
     ip + 1
 }
+
+pub fn clear_argscl(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+    let arg_idx = unsafe { imm.arg_idx };
+    let new_value = RuntimeScalar::Num(0.0);
+    vm.set_scalar_arg(arg_idx, new_value);
+    ip + 1
+}
+
 
 pub fn assign_arg_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let arg_idx = unsafe { imm.arg_idx };
@@ -260,54 +269,60 @@ pub fn nmatches(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     vm.push_bool(!is_match);
     ip + 1
 }
+
 pub fn assign_array_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num_indices = unsafe { imm.array_indices };
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
     let value = vm.pop_unknown();
-    let _ = vm.arrays.assign(array.id, RcAwkStr::new(indices), value);
+    let _ = vm.arrays.assign(array.id, indices.rc(), value);
     ip + 1
 }
+
 pub fn assign_array_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num_indices = unsafe { imm.array_indices };
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
     let value = vm.pop_string();
-    let _ = vm.arrays.assign(array.id, RcAwkStr::new(indices), value.clone().into());
+    let _ = vm.arrays.assign(array.id, indices.rc(), value.clone().into());
     ip + 1
 }
+
 pub fn assign_array_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num_indices = unsafe { imm.array_indices };
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
     let value = vm.pop_num();
-    let _ = vm.arrays.assign(array.id, RcAwkStr::new(indices), RuntimeScalar::Num(value));
+    let _ = vm.arrays.assign(array.id, indices.rc(), RuntimeScalar::Num(value));
     ip + 1
 }
+
 pub fn assign_array_ret_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num_indices = unsafe { imm.array_indices };
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
     let value = vm.pop_unknown();
-    let _ = vm.arrays.assign(array.id, RcAwkStr::new(indices), value.clone());
+    let _ = vm.arrays.assign(array.id, indices.rc(), value.clone());
     vm.push_unknown(value);
     ip + 1
 }
+
 pub fn assign_array_ret_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num_indices = unsafe { imm.array_indices };
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
     let value = vm.pop_string();
-    let _ = vm.arrays.assign(array.id, RcAwkStr::new(indices), value.clone().into());
+    let _ = vm.arrays.assign(array.id, indices.rc(), value.clone().into());
     vm.push_str(value);
     ip + 1
 }
+
 pub fn assign_array_ret_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num_indices = unsafe { imm.array_indices };
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
     let value = vm.pop_num();
-    let _ = vm.arrays.assign(array.id, RcAwkStr::new(indices), RuntimeScalar::Num(value));
+    let _ = vm.arrays.assign(array.id, indices.rc(), RuntimeScalar::Num(value));
     vm.push_num(value);
     ip + 1
 }
@@ -316,19 +331,20 @@ pub fn array_member(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num_indices = unsafe { imm.array_indices };
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
-    let contains = vm.arrays.in_array(array.id, RcAwkStr::new(indices));
+    let contains = vm.arrays.in_array(array.id, indices.rc());
     vm.push_bool(contains);
     ip + 1
 }
+
 pub fn array_index(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num_indices = unsafe { imm.array_indices };
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
-    let result = vm.arrays.access(array.id, RcAwkStr::new(indices)); // TODO: Skip this Rc::new() ?
+    let result = vm.arrays.access(array.id, indices.rc()); // TODO: Skip this Rc::new() ?
     let value = if let Some(result) = result {
         result.clone()
     } else {
-        RuntimeScalar::StrNum(RcAwkStr::new_bytes("".as_bytes().to_vec()))
+        RuntimeScalar::StrNum(vm.shitty_malloc.get().rc())
     };
     vm.push_unknown(value);
     ip + 1
@@ -353,24 +369,28 @@ pub fn builtin_atan2(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     vm.push_num(arg1.atan2(arg2));
     ip + 1
 }
+
 pub fn builtin_cos(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let arg1 = vm.pop_num();
     vm.push_num(arg1.cos());
     ip + 1
 }
+
 pub fn builtin_exp(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let arg1 = vm.pop_num();
     vm.push_num(arg1.exp());
     ip + 1
 }
+
 pub fn builtin_substr2(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let start_idx = vm.pop_num();
     let string = vm.pop_string();
     let start_idx = clamp_to_slice_index(start_idx - 1.0, string.bytes().len());
-    let output = AwkStr::new_rc(string.bytes()[start_idx..].to_vec());
-    vm.push_str(StringScalar::Str(output));
+    let output = vm.shitty_malloc.copy_from_slice(&string.bytes()[start_idx..]);
+    vm.push_str(StringScalar::Str(output.rc()));
     ip + 1
 }
+
 pub fn builtin_substr3(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let max_chars = vm.pop_num();
     let start_idx = vm.pop_num();
@@ -378,10 +398,11 @@ pub fn builtin_substr3(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize 
     let str_len = string.bytes().len();
     let start_idx = clamp_to_slice_index(start_idx - 1.0, str_len);
     let max_chars = clamp_to_max_len(max_chars, start_idx, str_len);
-    let awk_str = AwkStr::new_rc(string.bytes()[start_idx..start_idx + max_chars].to_vec());
-    vm.push_str(StringScalar::Str(awk_str));
+    let output = vm.shitty_malloc.copy_from_slice(&string.bytes()[start_idx..start_idx + max_chars]);
+    vm.push_str(StringScalar::Str(output.rc()));
     ip + 1
 }
+
 pub fn builtin_index(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let needle = vm.pop_string();
     let haystack = vm.pop_string();
@@ -393,37 +414,46 @@ pub fn builtin_index(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     vm.push_num(number);
     ip + 1
 }
+
 pub fn builtin_int(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let flt = vm.pop_num();
     vm.push_num(flt.trunc());
     ip + 1
 }
+
 pub fn builtin_length0(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num_fields = vm.columns.get(0);
+    // TODO: UTF 8
     vm.push_num(num_fields.len() as f64);
     ip + 1
 }
+
 pub fn builtin_length1(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let s = vm.pop_string();
+    // TODO: UTF 8
     vm.push_num(s.len() as f64);
     ip + 1
 }
+
 pub fn builtin_log(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num = vm.pop_num();
     vm.push_num(num.ln());
     ip + 1
 }
+
 pub fn builtin_rand(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let rand = unsafe { libc::rand() } as f64;
     let num = rand / libc::RAND_MAX as f64;
     vm.push_num(num);
     ip + 1
 }
+
 pub fn builtin_sin(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num = vm.pop_num();
     vm.push_num(num.sin());
     ip + 1
 }
+
 pub fn builtin_split2(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let array = vm.pop_array();
     let string = vm.pop_string();
@@ -432,14 +462,15 @@ pub fn builtin_split2(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     for (idx, elem) in split_on_string(vm.columns.get_field_sep(), &string).enumerate()
     {
         count += 1.0;
-        let string = AwkStr::new_rc(elem.to_vec());
+        let string = vm.shitty_malloc.copy_from_slice(elem);
         let _ = vm.arrays.assign(array.id,
-                                 AwkStr::new_rc(format!("{}", idx + 1).into_bytes()),
-                                 RuntimeScalar::StrNum(string));
+                                 RcAwkStr::new_bytes(format!("{}", idx + 1).into_bytes()),
+                                 RuntimeScalar::StrNum(string.rc()));
     }
     vm.push_num(count);
     ip + 1
 }
+
 pub fn builtin_split3(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let reg_str = vm.pop_string();
     let array = vm.pop_array();
@@ -450,19 +481,21 @@ pub fn builtin_split3(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     for (idx, elem) in split_on_regex(&reg, &string).enumerate()
     {
         count += 1.0;
-        let string = AwkStr::new_rc(elem.to_vec());
+        let string = vm.shitty_malloc.copy_from_slice(elem);
         let _ = vm.arrays.assign(array.id,
-                                 AwkStr::new_rc(format!("{}", idx + 1).into_bytes()),
-                                 RuntimeScalar::StrNum(string));
+                                 vm.shitty_malloc.from_vec(format!("{}", idx + 1).into_bytes()).rc(),
+                                 RuntimeScalar::StrNum(string.rc()));
     }
     vm.push_num(count);
     ip + 1
 }
+
 pub fn builtin_sqrt(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num = vm.pop_num();
     vm.push_num(num.sqrt());
     ip + 1
 }
+
 pub fn builtin_srand0(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let prior = vm.srand_seed;
     let start = SystemTime::now();
@@ -474,6 +507,7 @@ pub fn builtin_srand0(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     vm.push_num(prior);
     ip + 1
 }
+
 pub fn builtin_srand1(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let seed = vm.pop_num();
     let prior = vm.srand_seed;
@@ -483,20 +517,22 @@ pub fn builtin_srand1(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     vm.push_num(prior);
     ip + 1
 }
+
 pub fn builtin_tolower(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let mut str = vm.pop_string().downgrade_or_clone();
     // TODO lowercase non-ascii
     let bytes = str.as_bytes_mut();
     bytes.make_ascii_lowercase();
-    vm.push_str(StringScalar::Str(RcAwkStr::new(str)));
+    vm.push_str(StringScalar::Str(str.rc()));
     ip + 1
 }
+
 pub fn builtin_toupper(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let mut str = vm.pop_string().downgrade_or_clone();
     // TODO lowercase non-ascii
     let bytes = str.as_bytes_mut();
     bytes.make_ascii_uppercase();
-    vm.push_str(StringScalar::Str(RcAwkStr::new(str)));
+    vm.push_str(StringScalar::Str(str.rc()));
     ip + 1
 }
 
@@ -513,7 +549,7 @@ pub fn sub3(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let matched = regex.match_idx(&*input_str);
     if let Some(mtc) = matched {
         let input_bytes = input_str.bytes();
-        let mut new_string = AwkStr::new((&input_bytes[0..mtc.start]).to_vec());
+        let mut new_string = vm.shitty_malloc.copy_from_slice(&input_bytes[0..mtc.start]);
         new_string.push_str(replacement.bytes());
         new_string.push_str(&input_bytes[mtc.start + mtc.len..]);
         vm.push_num(1.0);
@@ -537,8 +573,8 @@ pub fn rel_jump_if_false_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> 
     } else {
         offset_ip(ip, offset)
     }
-
 }
+
 pub fn rel_jump_if_false_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
     if vm.pop_string().truthy() {
@@ -546,8 +582,8 @@ pub fn rel_jump_if_false_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> 
     } else {
         offset_ip(ip, offset)
     }
-
 }
+
 pub fn rel_jump_if_false_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
     let popped = vm.pop_num();
@@ -557,6 +593,7 @@ pub fn rel_jump_if_false_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> 
         ip + 1
     }
 }
+
 pub fn rel_jump_if_true_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
     if vm.pop_unknown().truthy() {
@@ -564,8 +601,8 @@ pub fn rel_jump_if_true_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> u
     } else {
         ip + 1
     }
-
 }
+
 pub fn rel_jump_if_true_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
     if vm.pop_string().truthy() {
@@ -573,8 +610,8 @@ pub fn rel_jump_if_true_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> u
     } else {
         ip + 1
     }
-
 }
+
 pub fn rel_jump_if_true_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
     if vm.pop_num() != 0.0 {
@@ -584,10 +621,31 @@ pub fn rel_jump_if_true_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> u
     }
 }
 
+pub fn rel_jump_if_true_next_line(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+    let offset = unsafe { imm.offset };
+    let more_lines = vm.columns.next_line().unwrap();
+    if more_lines {
+        offset_ip(ip, offset)
+    } else {
+        ip + 1
+    }
+}
+
+pub fn rel_jump_if_false_next_line(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+    let offset = unsafe { imm.offset };
+    let more_lines = vm.columns.next_line().unwrap();
+    if more_lines {
+        ip + 1
+    } else {
+        offset_ip(ip, offset)
+    }
+}
+
 pub fn rel_jump(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
     offset_ip(ip, offset)
 }
+
 pub fn print(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let value = vm.pop_string();
     vm.stdout.write_all(&value).unwrap();
@@ -596,9 +654,10 @@ pub fn print(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     }
     ip + 1
 }
+
 pub fn printf(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     // TODO: Actually call printf
-    let num_args = unsafe { imm.printf_args};
+    let num_args = unsafe { imm.printf_args };
     let fstring = vm.pop_string();
     vm.stdout.write_all(&fstring).unwrap();
 
@@ -622,6 +681,13 @@ pub fn const_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let str = unsafe { imm.string };
     let str = unsafe { RcAwkStr::from_raw(str) };
     vm.push_str(StringScalar::Str(str));
+    ip + 1
+}
+
+pub fn const_str_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+    let str = unsafe { imm.string };
+    let str = unsafe { RcAwkStr::from_raw(str) };
+    vm.push_str(StringScalar::StrNum(str));
     ip + 1
 }
 

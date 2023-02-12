@@ -1,3 +1,5 @@
+extern crate core;
+
 use std::io::{BufWriter, stderr, stdout, Write};
 use crate::args::AwkArgs;
 use crate::compiler::compile;
@@ -16,7 +18,6 @@ mod lexer;
 mod parser;
 mod printable_error;
 mod typing;
-mod awk_str;
 mod symbolizer;
 mod args;
 mod global_scalars;
@@ -25,10 +26,11 @@ mod compiler;
 mod arrays;
 mod columns;
 mod util;
-#[cfg(test)]
-mod tests;
 mod stackt;
 mod stack_counter;
+#[cfg(test)]
+mod test;
+mod awk_str;
 
 pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let args = AwkArgs::new(args)?;

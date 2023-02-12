@@ -3,6 +3,7 @@ use std::ops::Deref;
 use std::str::from_utf8_unchecked;
 use crate::awk_str::{AwkStr, RcAwkStr};
 
+
 #[derive(Clone, PartialEq)]
 pub enum RuntimeScalar {
     Str(RcAwkStr),
