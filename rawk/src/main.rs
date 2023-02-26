@@ -33,6 +33,7 @@ mod stack_counter;
 mod awk_str;
 #[cfg(test)]
 mod test;
+mod specials;
 
 pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let args = AwkArgs::new(args)?;
@@ -41,14 +42,14 @@ pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let ast = analyze(parse(
         lex(&args.program, &mut symbolizer)?,
         &mut symbolizer,
-    )?)?;
+    )?, &mut symbolizer)?;
     if args.debug {
         println!("{}", ast);
     }
     let prog = compile(ast)?;
     let mut out = Box::new(BufWriter::new(stdout().lock()));
     let err = Box::new(stderr().lock());
-    let vm = VirtualMachine::new(prog, args.files,  out, err);
+    let vm = VirtualMachine::new(prog, args.files, out, err);
     let (mut out, _err) = vm.run();
     out.flush().unwrap();
     Ok(())

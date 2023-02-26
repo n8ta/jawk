@@ -47,7 +47,6 @@ mod parser_tests {
     macro_rules! sprogram {
         ($body:expr, $symbolizer:expr) => {
             Program::new(
-                $symbolizer.get("main function"),
                 vec![],
                 vec![],
                 vec![PatternAction::new_action_only($body)],
@@ -79,7 +78,6 @@ mod parser_tests {
         let mut symbolizer = Symbolizer::new();
 
         let prog = Program::new(
-            symbolizer.get("main function"),
             vec![],
             vec![],
             vec![PatternAction::new_action_only(Stmt::Expr(mathop!(
@@ -150,7 +148,6 @@ mod parser_tests {
         assert_eq!(
             parse_unwrap(lex("{2 ^ 2;}", &mut symbolizer).unwrap(), &mut symbolizer),
             Program::new(
-                symbolizer.get("main function"),
                 vec![],
                 vec![],
                 vec![PatternAction::new_action_only(Stmt::Expr(mathop!(
@@ -344,7 +341,6 @@ mod parser_tests {
         assert_eq!(
             actual,
             Program::new(
-                symbolizer.get("main function"),
                 begins,
                 ends,
                 vec![generic],
@@ -362,7 +358,6 @@ mod parser_tests {
         assert_eq!(
             actual,
             Program::new(
-                symbolizer.get("main function"),
                 vec![],
                 vec![],
                 vec![PatternAction::new_pattern_only(texpr!(Expr::Variable(
@@ -382,7 +377,6 @@ mod parser_tests {
         assert_eq!(
             actual,
             Program::new(
-                symbolizer.get("main function"),
                 vec![],
                 vec![],
                 vec![PatternAction::new_action_only(Stmt::Print(num!(1.0)))],
@@ -406,7 +400,6 @@ mod parser_tests {
         assert_eq!(
             actual,
             Program::new(
-                symbolizer.get("main function"),
                 vec![],
                 vec![],
                 vec![pa],
@@ -430,7 +423,6 @@ mod parser_tests {
         assert_eq!(
             actual,
             Program::new(
-                symbolizer.get("main function"),
                 vec![],
                 vec![],
                 vec![pa],
@@ -449,7 +441,6 @@ mod parser_tests {
         assert_eq!(
             actual,
             Program::new(
-                symbolizer.get("main function"),
                 vec![],
                 vec![],
                 vec![PatternAction::new_action_only(body)],
@@ -857,12 +848,11 @@ mod parser_tests {
         let b = symbolizer.get("b");
         let c = symbolizer.get("c");
         let body = Stmt::Print(Expr::NumberF64(1.0).into());
-        let function = Function::new(symbolizer.get("abc"), vec![a, b, c], body);
+        let function = Function::new(symbolizer.get("abc"), vec![a, b, c], body).unwrap();
         let begin = Stmt::Print(Expr::NumberF64(1.0).into());
         assert_eq!(
             actual,
             Program::new(
-                symbolizer.get("main function"),
                 vec![begin],
                 vec![],
                 vec![],
@@ -884,12 +874,11 @@ mod parser_tests {
         let c = symbolizer.get("c");
         let body = Stmt::Print(Expr::NumberF64(1.0).into());
         let ret = Stmt::Return(Some(Expr::NumberF64(1.0).into()));
-        let function = Function::new(symbolizer.get("abc"), vec![a, b, c], Stmt::Group(vec![body, ret]));
+        let function = Function::new(symbolizer.get("abc"), vec![a, b, c], Stmt::Group(vec![body, ret])).unwrap();
         let begin = Stmt::Print(Expr::NumberF64(1.0).into());
         assert_eq!(
             actual,
             Program::new(
-                symbolizer.get("main function"),
                 vec![begin],
                 vec![],
                 vec![],
@@ -911,7 +900,6 @@ mod parser_tests {
         assert_eq!(
             actual,
             Program::new(
-                symbolizer.get("main function"),
                 vec![begin],
                 vec![],
                 vec![],

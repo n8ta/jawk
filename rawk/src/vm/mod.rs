@@ -4,7 +4,6 @@ mod vm_program;
 mod machine;
 mod converter;
 mod regex_cache;
-mod vm_special_vars;
 mod runtime_scalar;
 mod rc_manager;
 

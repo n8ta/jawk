@@ -12,7 +12,7 @@ mod tests {
     pub fn gen_ast(program: &str) -> Result<TypedProgram, PrintableError> {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
-        analyze(parse(lex(program, &mut symbolizer).unwrap(), &mut symbolizer).unwrap())
+        analyze(parse(lex(program, &mut symbolizer)?, &mut symbolizer)?, &mut symbolizer)
     }
 
     pub fn test_exception(program: &str, error_includes_msg: &str) {

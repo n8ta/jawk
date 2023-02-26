@@ -56,7 +56,7 @@ pub fn test_runner<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog:
     println!("Program:\n{}", prog);
     let mut symbolizer = Symbolizer::new();
     let program =
-        analyze(parse(lex(&prog, &mut symbolizer).unwrap(), &mut symbolizer).unwrap()).unwrap();
+        analyze(parse(lex(&prog, &mut symbolizer).unwrap(), &mut symbolizer).unwrap(), &mut symbolizer).unwrap();
     // println!("Ast:\n{}", &program);
 
     let vm_prog = compile(program).unwrap();

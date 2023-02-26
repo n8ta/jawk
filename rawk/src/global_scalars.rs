@@ -3,21 +3,17 @@ use std::collections::HashMap;
 
 
 pub trait SymbolMappingValue {
-    fn create(idx: usize) -> Self;
+    fn create(symbol: &Symbol, idx: usize) -> Self;
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct SymbolMapping<T: SymbolMappingValue> {
-    // Offset all ids by `start_at` useful for global scalars
-    // we want to reserve some space at the top for special vars.
-    start_at: usize,
     mapping: HashMap<Symbol, T>,
 }
 
 impl<T: SymbolMappingValue> SymbolMapping<T> {
-    pub fn new(start_at: usize) -> Self {
+    pub fn new() -> Self {
         Self {
-            start_at,
             mapping: HashMap::new(),
         }
     }
@@ -25,9 +21,10 @@ impl<T: SymbolMappingValue> SymbolMapping<T> {
         if self.mapping.contains_key(&symbol) {
             return;
         } else {
-            self.mapping.insert(symbol.clone(), T::create(self.mapping.len()+self.start_at))
+            self.mapping.insert(symbol.clone(), T::create(symbol,self.mapping.len()))
         };
     }
+
     pub fn get(&self, symbol: &Symbol) -> Option<&T> {
         self.mapping.get(symbol)
     }

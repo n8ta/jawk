@@ -32,34 +32,35 @@ pub struct Program {
 
 impl Program {
     #[cfg(test)]
-    fn new_action_only(name: Symbol, action: Stmt, symbolizer: Symbolizer) -> Program {
+    fn new_action_only(name: Symbol, action: Stmt, mut symbolizer: Symbolizer) -> Program {
         let body = transform(vec![], vec![], vec![PatternAction::new_action_only(action)]);
         let mut functions = HashMap::new();
-        functions.insert(name.clone(), Function::new(name, vec![], body));
+        functions.insert(name.clone(), Function::new(name, vec![], body).unwrap());
+        let global_analysis = AnalysisResults::empty();
         Program {
             functions,
-            global_analysis: AnalysisResults::new(),
+            global_analysis,
             symbolizer,
         }
     }
     pub fn new(
-        name: Symbol,
         begins: Vec<Stmt>,
         ends: Vec<Stmt>,
         pas: Vec<PatternAction>,
         parsed_functions: Vec<Function>,
-        symbolizer: Symbolizer,
+        mut symbolizer: Symbolizer,
     ) -> Program {
         let body = transform(begins, ends, pas);
-        let main = Function::new(name.clone(), vec![], body);
+        let main_fn_name = symbolizer.get("main function");
+        let main = Function::main(body, &mut symbolizer);
         let mut functions = HashMap::new();
-        functions.insert(name, main);
+        functions.insert(main_fn_name, main);
         for func in parsed_functions {
             functions.insert(func.name.clone(), func);
         }
         Program {
             functions,
-            global_analysis: AnalysisResults::new(),
+            global_analysis: AnalysisResults::empty(),
             symbolizer,
         }
     }
@@ -131,6 +132,13 @@ macro_rules! flags {
 }
 
 impl<'a> Parser<'a> {
+    fn ident_consume(&mut self, error_msg: &str) -> Result<Symbol, PrintableError> {
+        if let Token::Ident(ident) = self.consume(TokenType::Ident, error_msg)? {
+            return Ok(ident);
+        }
+        unreachable!()
+    }
+
     fn parse(&mut self) -> Result<Program, PrintableError> {
         let mut begins = vec![];
         let mut ends = vec![];
@@ -139,12 +147,6 @@ impl<'a> Parser<'a> {
         while !self.is_at_end() {
             if self.matches(flags!(TokenType::Function)) {
                 let name = self.ident_consume("Function name must follow function keyword")?;
-                if BuiltinFunc::get(&name.sym).is_some() {
-                    return Err(PrintableError::new(format!(
-                        "Cannot name a function {} as that is a builtin function",
-                        name
-                    )));
-                }
                 self.consume(
                     TokenType::LeftParen,
                     "Function name must be followed by '('",
@@ -170,7 +172,7 @@ impl<'a> Parser<'a> {
                     "Expected right paren after function arguments",
                 )?;
                 let body = self.group()?;
-                functions.push(Function::new(name, args, body))
+                functions.push(Function::new(name, args, body)?)
             } else {
                 match self.pattern_action()? {
                     PAType::Normal(pa) => pattern_actions.push(pa),
@@ -180,20 +182,12 @@ impl<'a> Parser<'a> {
             }
         }
         Ok(Program::new(
-            self.symbolizer.get("main function"),
             begins,
             ends,
             pattern_actions,
             functions,
             self.symbolizer.clone(),
         ))
-    }
-
-    fn ident_consume(&mut self, error_msg: &str) -> Result<Symbol, PrintableError> {
-        if let Token::Ident(ident) = self.consume(TokenType::Ident, error_msg)? {
-            return Ok(ident);
-        }
-        unreachable!()
     }
 
     fn check(&mut self, typ: TokenType) -> bool {

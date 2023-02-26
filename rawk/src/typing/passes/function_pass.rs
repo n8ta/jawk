@@ -3,12 +3,12 @@ use crate::global_scalars::{SymbolMapping};
 use crate::parser::{ArgT, LValue, Program, ScalarType, Stmt, TypedExpr};
 use crate::symbolizer::Symbol;
 use crate::typing::structs::{Call, CallArg, FunctionMap, TypedUserFunction};
-use crate::typing::{AnalysisResults, ITypedFunction, MapT, TypedProgram};
-use crate::{Expr, PrintableError};
+use crate::typing::{AnalysisResults, GlobalArrayId, ITypedFunction, MapT, TypedProgram};
+use crate::{Expr, PrintableError, Symbolizer};
 use hashbrown::{HashMap};
 use std::rc::Rc;
 use crate::awk_str::RcAwkStr;
-use crate::typing::ids::GlobalArrayId;
+use crate::specials::{ArrSpecial, SCL_SPECIAL_NAMES, SclSpecial};
 
 pub struct FunctionAnalysis {
     global_scalars: MapT,
@@ -17,15 +17,25 @@ pub struct FunctionAnalysis {
     functions: FunctionMap,
 }
 
-pub fn function_pass(prog: Program) -> Result<TypedProgram, PrintableError> {
+pub fn function_pass(prog: Program, symbolizer: &mut Symbolizer) -> Result<TypedProgram, PrintableError> {
     let mut functions = HashMap::new();
     for (name, function) in prog.functions {
         functions.insert(name, Rc::new(TypedUserFunction::new(function)));
     }
 
+    let global_scalars = MapT::new();
+    for (_, name, scalar_type) in SclSpecial::variants() {
+        global_scalars.insert(symbolizer.get(name), *scalar_type);
+    }
+
+    let mut global_arrays = SymbolMapping::new();
+    for (_, name) in ArrSpecial::variants() {
+        global_arrays.insert(&symbolizer.get(name))
+    }
+
     let analysis = FunctionAnalysis {
-        global_scalars: MapT::new(),
-        global_arrays: SymbolMapping::new(0),
+        global_scalars,
+        global_arrays,
         str_consts: Default::default(),
         functions: FunctionMap::new(functions, &prog.symbolizer),
     };
@@ -45,15 +55,15 @@ impl FunctionAnalysis {
             self.analyze_stmt(&mut parser_func.body, &func)?;
         }
 
-        let mut global_scalars = SymbolMapping::new(0);
-        for (scalar, _) in self.global_scalars.into_iter() {
-            global_scalars.insert(scalar)
+        let mut global_scalars = SymbolMapping::new();
+        for (name, _) in self.global_scalars.into_iter() {
+            global_scalars.insert(name);
         }
-        let results = AnalysisResults {
+
+        let results = AnalysisResults::new(
             global_scalars,
-            str_consts: self.str_consts,
-            global_arrays: self.global_arrays,
-        };
+            self.global_arrays,
+            self.str_consts);
 
         Ok(TypedProgram::new(self.functions, results))
     }
@@ -68,6 +78,14 @@ impl FunctionAnalysis {
         typ: ScalarType,
         function: &Rc<TypedUserFunction>,
     ) -> Result<(), PrintableError> {
+
+        if SCL_SPECIAL_NAMES.contains(&var.to_str()) {
+            // For now all special awk variables are variable type since they can be
+            // reset in ways the type checker doesn't expect right now.
+            // Bail here so the types of the global special scalars are always variable.
+            return Ok(());
+        }
+
         if let Some((_idx, arg_t)) = function.get_arg_idx_and_type(var) {
             match arg_t {
                 ArgT::Scalar => {} // scalar arg used as scalar, lgtm
@@ -95,7 +113,6 @@ impl FunctionAnalysis {
                 var
             )));
         }
-        function.use_global(var);
         self.global_scalars = self.global_scalars.insert(var.clone(), typ).0;
         Ok(())
     }
@@ -304,10 +321,7 @@ impl FunctionAnalysis {
                         )));
                     }
                 } else if self.global_arrays.contains_key(var) && is_returned {
-                    return Err(PrintableError::new(format!(
-                        "fatal: attempted to use array {} in scalar context",
-                        var
-                    )));
+                    return Err(PrintableError::new(format!("fatal: attempted to use array {} in scalar context", var)));
                 } else if let Some(typ) = self.global_scalars.get(var) {
                     expr.typ = *typ;
                 } else {

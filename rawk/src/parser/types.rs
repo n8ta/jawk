@@ -2,6 +2,10 @@ use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::symbolizer::Symbol;
 use std::fmt::{Display, Formatter};
 use crate::awk_str::{RcAwkStr};
+use crate::printable_error::PrintableError;
+use crate::specials::{ARR_SPECIAL_NAMES, SCL_SPECIAL_NAMES};
+use crate::Symbolizer;
+use crate::typing::BuiltinFunc;
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 #[repr(i32)]
@@ -236,7 +240,6 @@ fn display_comma_sep_list<T: Display>(f: &mut Formatter<'_>, indices: &[T]) -> s
 
 impl Display for Expr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-
         #[cfg(not(debug_assertions))]
         panic!("compiler bug: displaying u8 strings cannot use rust format! it is not utf-8 safe");
 
@@ -254,7 +257,7 @@ impl Display for Expr {
             Expr::String(str) => {
                 let str = unsafe { String::from_utf8_unchecked(str.bytes().to_vec()) };
                 write!(f, "\"{}\"", str)
-            },
+            }
             Expr::Regex(reg) => {
                 let reg = unsafe { String::from_utf8_unchecked(reg.bytes().to_vec()) };
                 write!(f, "\"{}\"", reg)
@@ -296,7 +299,7 @@ impl Display for Expr {
             }
 
             Expr::CallSub { ere: arg1, replacement: arg2, string: arg3, global } => {
-                let name = if *global { "gsub"} else { "sub"};
+                let name = if *global { "gsub" } else { "sub" };
                 write!(f, "{}({},{},{})", name, arg1, arg2, arg3)
             }
         }
@@ -351,13 +354,38 @@ pub struct Function {
     pub body: Stmt,
 }
 
+fn assert_safe_name(name: &Symbol, used_as: &str) -> Result<(), PrintableError> {
+    if BuiltinFunc::get(name.to_str()).is_some() {
+        return Err(PrintableError::new(format!(
+            "Cannot use `{}` as a {} since it is a builtin function",
+            name,
+            used_as,
+        )));
+    }
+    if SCL_SPECIAL_NAMES.contains(&name.to_str()) || ARR_SPECIAL_NAMES.contains(&name.to_str()) {
+        return Err(PrintableError::new(format!("Cannot use `{}` as a {} since it is a special awk variable", name, used_as)));
+    }
+    Ok(())
+}
+
 impl Function {
-    pub fn new(name: Symbol, args: Vec<Symbol>, body: Stmt) -> Self {
+    pub fn main(body: Stmt, symbolizer: &mut Symbolizer) -> Self {
         Function {
+            name: symbolizer.get("main function"),
+            args: vec![],
+            body,
+        }
+    }
+    pub fn new(name: Symbol, args: Vec<Symbol>, body: Stmt) -> Result<Self, PrintableError> {
+        assert_safe_name(&name, "function name")?;
+        for arg in &args {
+            assert_safe_name(arg, "function argument name")?;
+        }
+        Ok(Function {
             name: name.into(),
             args,
             body,
-        }
+        })
     }
 }
 

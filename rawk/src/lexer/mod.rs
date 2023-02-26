@@ -116,36 +116,36 @@ impl<'a, 'b> Lexer<'a, 'b> {
             self.advance();
         }
         let src: String = self.collect_buffer();
-        let src = src.to_ascii_lowercase();
-        if src == "true" {
+        let src_lowercase = src.to_ascii_lowercase();
+        if src_lowercase == "true" {
             self.add_token(Token::True);
-        } else if src == "false" {
+        } else if src_lowercase == "false" {
             self.add_token(Token::False);
-        } else if src == "return" {
+        } else if src_lowercase == "return" {
             self.add_token(Token::Ret);
-        } else if src == "function" {
+        } else if src_lowercase == "function" {
             self.add_token(Token::Function);
-        } else if src == "if" {
+        } else if src_lowercase == "if" {
             self.add_token(Token::If);
-        } else if src == "else" {
+        } else if src_lowercase == "else" {
             self.add_token(Token::Else);
-        } else if src == "begin" {
+        } else if src_lowercase == "begin" {
             self.add_token(Token::Begin);
-        } else if src == "for" {
+        } else if src_lowercase == "for" {
             self.add_token(Token::For);
-        } else if src == "while" {
+        } else if src_lowercase == "while" {
             self.add_token(Token::While);
-        } else if src == "do" {
+        } else if src_lowercase == "do" {
             self.add_token(Token::Do);
-        } else if src == "end" {
+        } else if src_lowercase == "end" {
             self.add_token(Token::End);
-        } else if src == "print" {
+        } else if src_lowercase == "print" {
             self.add_token(Token::Print);
-        } else if src == "in" {
+        } else if src_lowercase == "in" {
             self.add_token(Token::In);
-        } else if src == "break" {
+        } else if src_lowercase == "break" {
             self.add_token(Token::Break);
-        } else if src == "printf" {
+        } else if src_lowercase == "printf" {
             self.add_token(Token::Printf);
         } else {
             let ident = self.symbolizer.get_from_string(src);

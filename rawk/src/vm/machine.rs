@@ -4,6 +4,7 @@ use crate::arrays::{Arrays, split_on_regex, split_on_string};
 use crate::awk_str::{AwkStr, RcAwkStr};
 use crate::columns::Columns;
 use crate::{binop, mathop};
+use crate::specials::{SclSpecial};
 use crate::typing::{GlobalArrayId, GlobalScalarId};
 use crate::vm::{Code, VmFunc, VmProgram};
 use crate::vm::converter::Converter;
@@ -91,10 +92,21 @@ impl VirtualMachine {
         (self.stdout, self.stderr)
     }
 
+    pub fn gscl(&mut self, idx: GlobalScalarId) -> &RuntimeScalar {
+        unwrap(self.global_scalars.get(idx.id))
+    }
+
     pub fn assign_gscl(&mut self, idx: GlobalScalarId, scalar: RuntimeScalar) {
         let existing = unwrap(self.global_scalars.get_mut(idx.id));
         let prior_value = std::mem::replace(existing,  scalar);
         self.shitty_malloc.drop_scalar(prior_value)
+    }
+
+    pub fn assign_gscl_special(&mut self, idx: GlobalScalarId, scalar: RuntimeScalar) {
+        todo!("assign special");
+        // let existing = unwrap(self.global_scalars.get_mut(idx as usize));
+        // let prior_value = std::mem::replace(existing,  scalar);
+        // self.shitty_malloc.drop_scalar(prior_value)
     }
 
     pub fn push_unknown(&mut self, scalar: RuntimeScalar) {

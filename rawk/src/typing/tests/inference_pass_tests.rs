@@ -16,7 +16,7 @@ mod inference_tests {
         use crate::{lex, parse};
         let mut symbolizer = Symbolizer::new();
         let prog =
-            function_pass(parse(lex(prog, &mut symbolizer).unwrap(), &mut symbolizer).unwrap())
+            function_pass(parse(lex(prog, &mut symbolizer).unwrap(), &mut symbolizer).unwrap(), &mut symbolizer)
                 .unwrap();
         (prog, symbolizer)
     }
@@ -53,7 +53,7 @@ mod inference_tests {
             vec![Call::new(
                 main.clone(),
                 helper,
-                vec![CallArg::new(sym.get("a"))]
+                vec![CallArg::new(sym.get("a"))],
             )]
         );
     }
@@ -156,7 +156,7 @@ mod inference_tests {
             vec![Call::new(
                 main.clone(),
                 helper.clone(),
-                vec![CallArg::new(sym.get("a"))]
+                vec![CallArg::new(sym.get("a"))],
             )]
         );
         assert_eq!(helper.args()[0].typ, ArgT::Array);
@@ -250,7 +250,7 @@ mod inference_tests {
             vec![Call::new(
                 main.clone(),
                 helper1.clone(),
-                vec![CallArg::new(sym.get("a"))]
+                vec![CallArg::new(sym.get("a"))],
             )]
         );
         assert_eq!(
@@ -258,7 +258,7 @@ mod inference_tests {
             vec![Call::new(
                 helper1.clone(),
                 helper2.clone(),
-                vec![CallArg::new(sym.get("arg1"))]
+                vec![CallArg::new(sym.get("arg1"))],
             )]
         );
         assert_eq!(helper2.args()[0].name, sym.get("arg2"));

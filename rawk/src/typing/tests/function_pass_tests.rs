@@ -212,8 +212,7 @@ mod tests {
                 lex("BEGIN { a = 0; a[0] = 1; }", &mut symbolizer).unwrap(),
                 &mut symbolizer,
             )
-            .unwrap(),
-        );
+            .unwrap(), &mut symbolizer);
         assert!(res.is_err());
     }
 
@@ -226,7 +225,7 @@ mod tests {
                 lex("BEGIN { a[0] = 1; a = 0;  }", &mut symbolizer).unwrap(),
                 &mut symbolizer,
             )
-            .unwrap(),
+            .unwrap(), &mut symbolizer
         );
         assert!(ast.is_err());
     }
@@ -240,7 +239,7 @@ mod tests {
                 lex("BEGIN { if(x) { a[0] = 1; } a = 0;  }", &mut symbolizer).unwrap(),
                 &mut symbolizer,
             )
-            .unwrap(),
+                .unwrap(), &mut symbolizer
         );
         assert!(ast.is_err());
     }
@@ -266,6 +265,38 @@ mod tests {
         test_exception(
             "function a(arg) { if(arg) { return 1; } b[0] = 2; return b } BEGIN { print 0; }",
             "attempted to use",
+        )
+    }
+
+    #[test]
+    fn test_special_as_func_name() {
+        test_exception(
+            "function FS(arg) { } BEGIN { print 1 }",
+            "Cannot use `FS` as a function name since it is a special awk variable",
+        )
+    }
+
+    #[test]
+    fn test_special_as_func_arg() {
+        test_exception(
+            "function f(FS) { } BEGIN { print 1 }",
+            "Cannot use `FS` as a function argument name since it is a special awk variable",
+        )
+    }
+
+    #[test]
+    fn test_builtin_as_func_name() {
+        test_exception(
+            "function int() { } BEGIN { print 1 }",
+            "Cannot use `int` as a function name since it is a builtin function",
+        )
+    }
+
+    #[test]
+    fn test_builtin_as_func_arg() {
+        test_exception(
+            "function f(int) { } BEGIN { print 1 }",
+            "Cannot use `int` as a function argument name since it is a builtin function",
         )
     }
 

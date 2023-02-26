@@ -5,7 +5,9 @@ use crate::symbolizer::Symbol;
 use immutable_chunkmap::map::Map;
 use std::fmt::Debug;
 use crate::awk_str::{RcAwkStr};
-use crate::typing::ids::{GlobalArrayId, GlobalScalarId};
+use crate::specials::{ARR_SPECIAL_NAMES};
+use crate::Symbolizer;
+use crate::typing::{GlobalArrayId, GlobalScalarId};
 
 pub type MapT = Map<Symbol, ScalarType, 1000>;
 
@@ -17,11 +19,22 @@ pub struct AnalysisResults {
 }
 
 impl AnalysisResults {
-    pub fn new() -> Self {
+    pub fn empty() -> Self {
         Self {
-            global_scalars: SymbolMapping::new(0),
-            global_arrays: SymbolMapping::new(0),
-            str_consts: Default::default(),
+            global_scalars: SymbolMapping::new(),
+            global_arrays: SymbolMapping::new(),
+            str_consts: HashSet::new(),
+        }
+    }
+
+    pub fn new(global_scalars: SymbolMapping<GlobalScalarId>,
+               global_arrays: SymbolMapping<GlobalArrayId>,
+               str_consts: HashSet<RcAwkStr>,) -> Self {
+        Self {
+            global_scalars,
+            global_arrays,
+            str_consts,
         }
     }
 }
+

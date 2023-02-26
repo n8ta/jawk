@@ -16,7 +16,9 @@ pub use ids::{GlobalScalarId, GlobalArrayId};
 use crate::parser::Program;
 use crate::printable_error::PrintableError;
 use passes::{function_pass, inference_pass};
+use crate::Symbolizer;
+use crate::symbolizer::Symbol;
 
-pub fn analyze(stmt: Program) -> Result<TypedProgram, PrintableError> {
-    inference_pass(function_pass(stmt)?)
+pub fn analyze(stmt: Program, symbolizer: &mut Symbolizer) -> Result<TypedProgram, PrintableError> {
+    inference_pass(function_pass(stmt, symbolizer)?)
 }

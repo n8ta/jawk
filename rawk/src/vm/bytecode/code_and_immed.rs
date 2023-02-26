@@ -1,5 +1,6 @@
 use std::io::Write;
 use crate::awk_str::{AwkByteStr, RcAwkStr};
+use crate::specials::SclSpecial;
 use crate::typing::{GlobalArrayId, GlobalScalarId};
 use crate::vm::VirtualMachine;
 
@@ -18,6 +19,7 @@ pub union Immed {
     pub printf_args: usize,
     pub call_target: usize,
     pub string: *const AwkByteStr,
+    pub special: SclSpecial,
 }
 
 #[derive(Copy, Clone)]
@@ -39,4 +41,11 @@ impl CodeAndImmed {
             imm,
         }
     }
+}
+
+#[test]
+fn test_imm_size() {
+    let size = std::mem::size_of::<Immed>();
+    println!("{}", size);
+    assert!(size <= 8);
 }

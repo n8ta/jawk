@@ -5,6 +5,7 @@ use crate::{binop, binop_num_only, mathop};
 use crate::arrays::{split_on_regex, split_on_string};
 use crate::awk_str::{AwkStr, RcAwkStr, SubReplStr};
 use crate::printable_error::PrintableError;
+use crate::typing::GlobalScalarId;
 use crate::util::{clamp_to_max_len, clamp_to_slice_index, index_of, unwrap};
 use crate::vm::bytecode::code_and_immed::Immed;
 use crate::vm::{RuntimeScalar, StringScalar, VirtualMachine};
@@ -91,6 +92,25 @@ pub fn clear_gscl(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     ip + 1
 }
 
+pub fn assign_scl_special(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+    let value = vm.pop_unknown();
+    vm.assign_gscl_special(unsafe { imm.global_scl_id },  value);
+    ip + 1
+}
+
+pub fn assign_ret_scl_special(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+    let value = vm.pop_unknown();
+    vm.assign_gscl_special(unsafe { imm.global_scl_id },  value.clone());
+    vm.push_unknown(value);
+    ip + 1
+}
+
+pub fn scl_special(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+    let gscl_special = vm.gscl(unsafe { imm.global_scl_id }).clone();
+    vm.push_unknown(gscl_special);
+    ip + 1
+}
+
 pub fn assign_gscl_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let scalar = vm.pop_unknown();
     vm.assign_gscl(unsafe { imm.global_scl_id }, scalar);
@@ -136,12 +156,13 @@ pub fn global_arr(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
 }
 
 pub fn gscl_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
-    vm.push_unknown(vm.global_scalars[unsafe { imm.global_scl_id }.id].clone());
+    let gscl = vm.gscl(unsafe { imm.global_scl_id}).clone();
+    vm.push_unknown(gscl);
     ip + 1
 }
 
 pub fn gscl_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
-    let scl = vm.global_scalars[unsafe { imm.global_scl_id }.id].clone();
+    let scl = vm.gscl(unsafe { imm.global_scl_id }).clone();
     let num = match scl {
         RuntimeScalar::Str(_) => unsafe { std::hint::unreachable_unchecked() },
         RuntimeScalar::StrNum(_) => unsafe { std::hint::unreachable_unchecked() },
@@ -153,7 +174,7 @@ pub fn gscl_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
 
 pub fn gscl_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     // TODO: avoid the match in val_to_string_scalar
-    let scl = vm.global_scalars[unsafe { imm.global_scl_id }.id].clone();
+    let scl = vm.gscl(unsafe { imm.global_scl_id }).clone();
     let str = vm.val_to_string_scalar(scl);
     vm.push_str(str);
     ip + 1
@@ -289,7 +310,7 @@ pub fn assign_array_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
     let value = vm.pop_unknown();
-    let _ = vm.arrays.assign(array.id, indices.rc(), value);
+    let _ = vm.arrays.assign(array, indices.rc(), value);
     ip + 1
 }
 
@@ -298,7 +319,7 @@ pub fn assign_array_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
     let value = vm.pop_string();
-    let _ = vm.arrays.assign(array.id, indices.rc(), value.clone().into());
+    let _ = vm.arrays.assign(array, indices.rc(), value.clone().into());
     ip + 1
 }
 
@@ -307,7 +328,7 @@ pub fn assign_array_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
     let value = vm.pop_num();
-    let _ = vm.arrays.assign(array.id, indices.rc(), RuntimeScalar::Num(value));
+    let _ = vm.arrays.assign(array, indices.rc(), RuntimeScalar::Num(value));
     ip + 1
 }
 
@@ -316,7 +337,7 @@ pub fn assign_array_ret_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> u
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
     let value = vm.pop_unknown();
-    let _ = vm.arrays.assign(array.id, indices.rc(), value.clone());
+    let _ = vm.arrays.assign(array, indices.rc(), value.clone());
     vm.push_unknown(value);
     ip + 1
 }
@@ -326,7 +347,7 @@ pub fn assign_array_ret_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> u
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
     let value = vm.pop_string();
-    let _ = vm.arrays.assign(array.id, indices.rc(), value.clone().into());
+    let _ = vm.arrays.assign(array, indices.rc(), value.clone().into());
     vm.push_str(value);
     ip + 1
 }
@@ -336,7 +357,7 @@ pub fn assign_array_ret_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> u
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
     let value = vm.pop_num();
-    let _ = vm.arrays.assign(array.id, indices.rc(), RuntimeScalar::Num(value));
+    let _ = vm.arrays.assign(array, indices.rc(), RuntimeScalar::Num(value));
     vm.push_num(value);
     ip + 1
 }
@@ -345,7 +366,7 @@ pub fn array_member(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num_indices = unsafe { imm.array_indices };
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
-    let contains = vm.arrays.in_array(array.id, indices.rc());
+    let contains = vm.arrays.in_array(array, indices.rc());
     vm.push_bool(contains);
     ip + 1
 }
@@ -354,7 +375,7 @@ pub fn array_index(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let num_indices = unsafe { imm.array_indices };
     let indices = vm.concat_array_indices(num_indices);
     let array = vm.pop_array();
-    let result = vm.arrays.access(array.id, indices.rc()); // TODO: Skip this Rc::new() ?
+    let result = vm.arrays.access(array, indices.rc()); // TODO: Skip this Rc::new() ?
     let value = if let Some(result) = result {
         result.clone()
     } else {
@@ -472,12 +493,12 @@ pub fn builtin_split2(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize 
     let array = vm.pop_array();
     let string = vm.pop_string();
     let mut count: f64 = 0.0;
-    let _ = vm.arrays.clear(array.id);
+    let _ = vm.arrays.clear(array);
     for (idx, elem) in split_on_string(vm.columns.get_field_sep(), &string).enumerate()
     {
         count += 1.0;
         let string = vm.shitty_malloc.copy_from_slice(elem);
-        let _ = vm.arrays.assign(array.id,
+        let _ = vm.arrays.assign(array,
                                  RcAwkStr::new_bytes(format!("{}", idx + 1).into_bytes()),
                                  RuntimeScalar::StrNum(string.rc()));
     }
@@ -488,7 +509,7 @@ pub fn builtin_split2(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize 
 pub fn builtin_split3(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let reg_str = vm.pop_string();
     let array = vm.pop_array();
-    let _ = vm.arrays.clear(array.id);
+    let _ = vm.arrays.clear(array);
     let string = vm.pop_string();
     let reg = vm.regex_cache.get(&reg_str);
     let mut count: f64 = 0.0;
@@ -496,7 +517,7 @@ pub fn builtin_split3(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize 
     {
         count += 1.0;
         let string = vm.shitty_malloc.copy_from_slice(elem);
-        let _ = vm.arrays.assign(array.id,
+        let _ = vm.arrays.assign(array,
                                  vm.shitty_malloc.from_vec(format!("{}", idx + 1).into_bytes()).rc(),
                                  RuntimeScalar::StrNum(string.rc()));
     }

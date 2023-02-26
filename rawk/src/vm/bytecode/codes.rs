@@ -3,15 +3,14 @@ use std::fmt::{Debug, Write};
 use std::rc::Rc;
 use crate::awk_str::RcAwkStr;
 use crate::parser::{ArgT, ScalarType};
+use crate::specials::SclSpecial;
 use crate::stack_counter::{StackCounter as SC};
 use crate::stackt::StackT;
 use crate::util::pad;
 use crate::vm::bytecode::code_and_immed::{CodeAndImmed as CI};
 use crate::vm::bytecode::{Immed, Meta};
 use crate::vm::{StringScalar, VmProgram};
-
-
-use crate::vm::bytecode::subroutines::{num_to_var, builtin_atan2, builtin_cos, builtin_exp, builtin_substr2, builtin_substr3, builtin_index, builtin_int, builtin_length0, builtin_length1, builtin_log, builtin_rand, builtin_sin, builtin_split2, builtin_split3, builtin_sqrt, builtin_srand0, builtin_srand1, builtin_tolower, builtin_toupper, num_to_str, str_to_var, str_to_num, var_to_num, var_to_str, pop, pop_str, pop_num, column, assign_gscl_var, assign_gscl_num, assign_gscl_str, assign_gscl_ret_str, assign_gscl_ret_var, assign_gscl_ret_num, global_arr, gscl_var, gscl_num, gscl_str, assign_arg_var, assign_arg_str, assign_arg_num, assign_arg_ret_var, assign_arg_ret_str, assign_arg_ret_num, arg_var, arg_str, arg_num, arg_arr, exp, mult, div, modulo, add, minus, lt, gt, lteq, gteq, eqeq, neq, matches, nmatches, assign_array_var, assign_array_str, assign_array_num, assign_array_ret_var, assign_array_ret_str, assign_array_ret_num, array_index, array_member, concat, gsub3, sub3, rel_jump_if_false_var, rel_jump_if_false_str, rel_jump_if_false_num, rel_jump_if_true_var, rel_jump_if_true_str, rel_jump_if_true_num, rel_jump, print, printf, noop, ret, const_num, const_str, const_str_num, call, neq_num, gteq_num, eqeq_num, lteq_num, lt_num, gt_num, clear_gscl, clear_argscl, rel_jump_if_true_next_line, rel_jump_if_false_next_line};
+use crate::vm::bytecode::subroutines::{num_to_var, builtin_atan2, builtin_cos, builtin_exp, builtin_substr2, builtin_substr3, builtin_index, builtin_int, builtin_length0, builtin_length1, builtin_log, builtin_rand, builtin_sin, builtin_split2, builtin_split3, builtin_sqrt, builtin_srand0, builtin_srand1, builtin_tolower, builtin_toupper, num_to_str, str_to_var, str_to_num, var_to_num, var_to_str, pop, pop_str, pop_num, column, assign_gscl_var, assign_gscl_num, assign_gscl_str, assign_gscl_ret_str, assign_gscl_ret_var, assign_gscl_ret_num, global_arr, gscl_var, gscl_num, gscl_str, assign_arg_var, assign_arg_str, assign_arg_num, assign_arg_ret_var, assign_arg_ret_str, assign_arg_ret_num, arg_var, arg_str, arg_num, arg_arr, exp, mult, div, modulo, add, minus, lt, gt, lteq, gteq, eqeq, neq, matches, nmatches, assign_array_var, assign_array_str, assign_array_num, assign_array_ret_var, assign_array_ret_str, assign_array_ret_num, array_index, array_member, concat, gsub3, sub3, rel_jump_if_false_var, rel_jump_if_false_str, rel_jump_if_false_num, rel_jump_if_true_var, rel_jump_if_true_str, rel_jump_if_true_num, rel_jump, print, printf, noop, ret, const_num, const_str, const_str_num, call, neq_num, gteq_num, eqeq_num, lteq_num, lt_num, gt_num, clear_gscl, clear_argscl, rel_jump_if_true_next_line, rel_jump_if_false_next_line, scl_special, assign_scl_special, assign_ret_scl_special};
 
 pub type LabelId = usize;
 
@@ -69,6 +68,10 @@ pub enum Code {
     ArgNum { arg_idx: usize },
     ArgStr { arg_idx: usize },
     ArgArray { arg_idx: usize },
+
+    AssignSclSpecialVar(GlobalScalarId),
+    AssignRetSclSpecialVar(GlobalScalarId),
+    SclSpecialVar(GlobalScalarId),
 
     Exp,
 
@@ -448,6 +451,10 @@ impl Code {
             Code::StrToNum => Meta::new(vec![Str], SC::num(1)),
             Code::VarToNum => Meta::new(vec![Var], SC::num(1)),
             Code::VarToStr => Meta::new(vec![Var], SC::str(1)),
+
+            Code::AssignSclSpecialVar(_) => Meta::new(vec![Var], SC::new()),
+            Code::AssignRetSclSpecialVar(_) => Meta::new(vec![Var], SC::var(1)),
+            Code::SclSpecialVar(_) => Meta::new(vec![], SC::var(1)),
         }
     }
 
@@ -556,9 +563,6 @@ impl Code {
             Code::ConstStrNum { strnum: string } => CI::imm(const_str_num, Immed { string: unsafe { string.clone().into_raw() } }),
             Code::ConstNum { num } => CI::imm(const_num, Immed { num: *num }),
 
-            Code::Label(_) | Code::JumpIfTrueNextLineLbl(_) | Code::JumpIfFalseNextLineLbl(_) | Code::JumpIfFalseVarLbl(_) | Code::JumpIfFalseNumLbl(_) | Code::JumpIfFalseStrLbl(_) | Code::JumpLbl(_) | Code::JumpIfTrueVarLbl(_) | Code::JumpIfTrueNumLbl(_) | Code::JumpIfTrueStrLbl(_) => {
-                panic!("labels should be removed before direct threading {:?}", self);
-            }
             Code::LtNum => CI::new(lt_num),
             Code::GtNum => CI::new(gt_num),
             Code::LtEqNum => CI::new(lteq_num),
@@ -566,7 +570,15 @@ impl Code {
             Code::EqEqNum => CI::new(eqeq_num),
             Code::NeqNum => CI::new(neq_num),
             Code::ClearGscl(id) => CI::imm(clear_gscl, Immed { global_scl_id: *id }),
-            Code::ClearArgScl(arg_idx) => CI::imm(clear_argscl, Immed { arg_idx: *arg_idx })
+            Code::ClearArgScl(arg_idx) => CI::imm(clear_argscl, Immed { arg_idx: *arg_idx }),
+
+            Code::AssignSclSpecialVar(special) => CI::imm(assign_scl_special, Immed { global_scl_id: *special }),
+            Code::AssignRetSclSpecialVar(special) => CI::imm(assign_ret_scl_special, Immed { global_scl_id: *special }),
+            Code::SclSpecialVar(special) => CI::imm(scl_special, Immed { global_scl_id: *special }),
+
+            Code::Label(_) | Code::JumpIfTrueNextLineLbl(_) | Code::JumpIfFalseNextLineLbl(_) | Code::JumpIfFalseVarLbl(_) | Code::JumpIfFalseNumLbl(_) | Code::JumpIfFalseStrLbl(_) | Code::JumpLbl(_) | Code::JumpIfTrueVarLbl(_) | Code::JumpIfTrueNumLbl(_) | Code::JumpIfTrueStrLbl(_) => {
+                panic!("labels should be removed before direct threading {:?}", self);
+            }
         }
     }
 }

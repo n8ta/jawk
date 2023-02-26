@@ -17,7 +17,6 @@ pub struct TypedUserFunction {
     calls: RefCell<Vec<Call>>,
     #[allow(dead_code)]
     return_type: RefCell<ScalarType>,
-    globals_used: RefCell<HashSet<Symbol>>,
     args: RefCell<Vec<Arg>>,
     name: Symbol,
 
@@ -138,7 +137,6 @@ impl TypedUserFunction {
             callers: RefCell::new(HashSet::new()),
             calls: RefCell::new(vec![]),
             return_type: RefCell::new(ScalarType::Var),
-            globals_used: RefCell::new(HashSet::new()),
             args: RefCell::new(args),
             name,
             num_scalar_args: RefCell::new(None),
@@ -209,10 +207,6 @@ impl TypedUserFunction {
         }
     }
 
-    pub fn globals_used(&self) -> Ref<'_, HashSet<Symbol>> {
-        self.globals_used.borrow()
-    }
-
     fn use_as_array(
         &self,
         var: &Symbol,
@@ -276,10 +270,6 @@ impl TypedUserFunction {
     pub fn add_call(&self, call: Call) {
         let mut calls = self.calls.borrow_mut();
         calls.push(call);
-    }
-    pub fn use_global(&self, var: &Symbol) {
-        let mut globals_used = self.globals_used.borrow_mut();
-        globals_used.insert(var.clone());
     }
     pub fn set_arg_type(&self, var: &Symbol, typ: ArgT) -> Result<(), PrintableError> {
         let mut args = self.args.borrow_mut();

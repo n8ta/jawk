@@ -6,6 +6,7 @@ use crate::awk_str::{RcAwkStr};
 use crate::vm::RuntimeScalar;
 
 pub use split::{split_on_string, split_on_regex};
+use crate::typing::GlobalArrayId;
 use crate::util::unwrap;
 
 #[derive(Hash, Clone, Eq, PartialEq)]
@@ -57,29 +58,28 @@ impl Arrays {
         Self { arrays }
     }
 
-    pub fn clear(&mut self, array_id: usize) -> Drain<'_, MapKey, RuntimeScalar> {
-        let array = self.arrays.get_mut(array_id).expect("array to exist based on id");
+    pub fn clear(&mut self, arr: GlobalArrayId) -> Drain<'_, MapKey, RuntimeScalar> {
+        let array = self.arrays.get_mut(arr.id).expect("array to exist based on id");
         array.drain()
     }
 
-    #[inline(never)]
-    pub fn access(&mut self, array_id: usize, key: RcAwkStr) -> Option<&RuntimeScalar> {
-        let array = self.arrays.get_mut(array_id).expect("array to exist based on id");
+    pub fn access(&mut self, arr: GlobalArrayId, key: RcAwkStr) -> Option<&RuntimeScalar> {
+        let array = self.arrays.get_mut(arr.id).expect("array to exist based on id");
         array.access(&MapKey::new(key))
     }
 
     pub fn assign(
         &mut self,
-        array_id: usize,
+        arr: GlobalArrayId,
         indices: RcAwkStr,
         value: RuntimeScalar,
     ) -> Option<RuntimeScalar> {
-        let array = unwrap(self.arrays.get_mut(array_id));
+        let array = unwrap(self.arrays.get_mut(arr.id));
         array.assign(&MapKey::new(indices), value)
     }
 
-    pub fn in_array(&mut self, array_id: usize, indices: RcAwkStr) -> bool {
-        let array = unwrap(self.arrays.get_mut(array_id));
+    pub fn in_array(&mut self, arr: GlobalArrayId, indices: RcAwkStr) -> bool {
+        let array = unwrap(self.arrays.get_mut(arr.id));
         array.in_array(&MapKey::new(indices))
     }
 }
