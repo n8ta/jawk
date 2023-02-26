@@ -49,15 +49,14 @@ pub struct Arrays {
 }
 
 impl Arrays {
-    pub fn new() -> Self {
-        Self { arrays: Vec::new() }
-    }
-    pub fn allocate(&mut self, count: usize) {
-        self.arrays = Vec::with_capacity(count);
+    pub fn new(count: usize) -> Self {
+        let mut arrays = Vec::with_capacity(count);
         for _ in 0..count {
-            self.arrays.push(AwkMap::new())
+            arrays.push(AwkMap::new())
         }
+        Self { arrays }
     }
+
     pub fn clear(&mut self, array_id: usize) -> Drain<'_, MapKey, RuntimeScalar> {
         let array = self.arrays.get_mut(array_id).expect("array to exist based on id");
         array.drain()

@@ -22,9 +22,11 @@ pub struct FunctionScope {
 
 
 pub struct VirtualMachine {
-    pub vm_program: &'static VmProgram,
+    pub vm_program: &'static VmProgram, // Just leak it so we don't need to litter the program with runtimes.
 
     pub global_scalars: Vec<RuntimeScalar>,
+
+    // Distributes and recycles awk strings, saves lots of malloc'ing by reusing Rc's.
     pub shitty_malloc: RcManager,
 
     // Value stacks
@@ -33,18 +35,23 @@ pub struct VirtualMachine {
     pub str_stack: Vec<StringScalar>,
     pub arr_stack: Vec<GlobalArrayId>,
 
+    // Scopes
     pub scopes: Vec<FunctionScope>,
+
+    // Runtime modules managing various piece of state
     pub arrays: Arrays,
     pub columns: Columns,
     pub converter: Converter,
     pub regex_cache: RegexCache,
+    pub srand_seed: f64,
 
+    // IO
     pub stdout: Box<dyn Write>,
     stderr: Box<dyn Write>,
 
+    // Todo: remove
     subsep: RuntimeScalar,
 
-    pub srand_seed: f64,
 }
 
 
@@ -52,6 +59,12 @@ impl VirtualMachine {
     pub fn new(vm_program: VmProgram, files: Vec<String>, stdout: Box<dyn Write>, stderr: Box<dyn Write>) -> Self {
         unsafe { libc::srand(09171998) }
         let vm_program = Box::leak(Box::new(vm_program));
+
+        let num_gscls = vm_program.analysis.global_scalars.len();
+        let mut global_scalars = Vec::with_capacity(num_gscls);
+        for _ in 0..num_gscls {
+            global_scalars.push(RuntimeScalar::Str(RcAwkStr::new_bytes(vec![])));
+        }
 
         let s = Self {
             vm_program,
@@ -61,9 +74,9 @@ impl VirtualMachine {
             str_stack: vec![],
             scopes: vec![],
             columns: Columns::new(files),
-            arrays: Arrays::new(),
+            arrays: Arrays::new(vm_program.analysis.global_arrays.len()),
             converter: Converter::new(),
-            global_scalars: vec![],
+            global_scalars,
             regex_cache: RegexCache::new(),
             stdout,
             stderr,
@@ -74,10 +87,6 @@ impl VirtualMachine {
         s
     }
     pub fn run(mut self) -> (Box<dyn Write>, Box<dyn Write>) {
-        self.arrays.allocate(self.vm_program.analysis.global_arrays.len()); // TODO u16max
-        for _ in 0..self.vm_program.analysis.global_scalars.len() {
-            self.global_scalars.push(RuntimeScalar::Str(RcAwkStr::new_bytes(vec![])));
-        }
         self.run_function(self.vm_program.main());
         (self.stdout, self.stderr)
     }
