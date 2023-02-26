@@ -1204,6 +1204,7 @@ test!(test_native_gsub_0, r#"BEGIN {a = "aaa"; print gsub("a", "zz", a); print a
 test!(test_native_gsub_1, r#"BEGIN {a = "aaa"; print gsub("a*", "zz", a); print a;}"#, ONE_LINE, "1\nzz\n");
 test!(test_native_gsub_2, r#"BEGIN {a = "aaa"; print gsub("a+", "zz", a); print a;}"#, ONE_LINE, "1\nzz\n");
 test!(test_native_gsub_3, r#"BEGIN {a = "Qa&&&&aQ"; print gsub("a\\&*a", "zz", a); print a;}"#, ONE_LINE, "1\nQzzQ\n");
+test!(test_native_gsub_4, r#"BEGIN {a = "----"; print gsub("-", "--", a); print a;}"#, ONE_LINE, "4\n--------\n");
 
 test!(test_native_sub_var_0, "BEGIN { a = \"aaa\"; print gsub(\"a\", \"b\", a); print a; }", ONE_LINE, "3\nbbb\n");
 test!(test_native_sub_var_1, "BEGIN { a = \"aaa\"; print sub(\"a\", \"b\", a); print a; }", ONE_LINE, "1\nbaa\n");

@@ -9,7 +9,6 @@ use hashbrown::{HashMap};
 use std::rc::Rc;
 use crate::awk_str::RcAwkStr;
 use crate::typing::ids::GlobalArrayId;
-use crate::vm::NUM_GSCALAR_SPECIALS;
 
 pub struct FunctionAnalysis {
     global_scalars: MapT,
@@ -46,7 +45,7 @@ impl FunctionAnalysis {
             self.analyze_stmt(&mut parser_func.body, &func)?;
         }
 
-        let mut global_scalars = SymbolMapping::new(NUM_GSCALAR_SPECIALS);
+        let mut global_scalars = SymbolMapping::new(0);
         for (scalar, _) in self.global_scalars.into_iter() {
             global_scalars.insert(scalar)
         }

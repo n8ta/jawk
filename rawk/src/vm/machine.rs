@@ -11,7 +11,6 @@ use crate::util::{clamp_to_max_len, clamp_to_slice_index, index_of, unwrap};
 use crate::vm::rc_manager::RcManager;
 use crate::vm::regex_cache::RegexCache;
 use crate::vm::runtime_scalar::{RuntimeScalar, StringScalar};
-use crate::vm::vm_special_vars::{NUM_GSCALAR_SPECIALS, GlobalScalarSpecials};
 
 
 pub struct FunctionScope {
@@ -43,6 +42,8 @@ pub struct VirtualMachine {
     pub stdout: Box<dyn Write>,
     stderr: Box<dyn Write>,
 
+    subsep: RuntimeScalar,
+
     pub srand_seed: f64,
 }
 
@@ -51,6 +52,7 @@ impl VirtualMachine {
     pub fn new(vm_program: VmProgram, files: Vec<String>, stdout: Box<dyn Write>, stderr: Box<dyn Write>) -> Self {
         unsafe { libc::srand(09171998) }
         let vm_program = Box::leak(Box::new(vm_program));
+
         let s = Self {
             vm_program,
             arr_stack: vec![],
@@ -61,14 +63,14 @@ impl VirtualMachine {
             columns: Columns::new(files),
             arrays: Arrays::new(),
             converter: Converter::new(),
-            global_scalars: GlobalScalarSpecials::initialize(),
+            global_scalars: vec![],
             regex_cache: RegexCache::new(),
             stdout,
             stderr,
             srand_seed: 09171998.0,
             shitty_malloc: RcManager::new(),
+            subsep: RuntimeScalar::Str(RcAwkStr::new_str("-"))
         };
-        debug_assert!(s.global_scalars.len() == NUM_GSCALAR_SPECIALS);
         s
     }
     pub fn run(mut self) -> (Box<dyn Write>, Box<dyn Write>) {
@@ -185,7 +187,7 @@ impl VirtualMachine {
     }
 
     pub fn concat_array_indices(&mut self, count: usize) -> AwkStr {
-        let subsep = self.global_scalars[GlobalScalarSpecials::SUBSEP as usize].clone();
+        let subsep = self.subsep.clone();
         let subsep = self.val_to_string(subsep);
         let mut string = self.pop_string().downgrade_or_clone();
         for _ in 0..count - 1 {

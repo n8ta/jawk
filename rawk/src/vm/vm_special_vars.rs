@@ -1,10 +1,33 @@
-// TODO: ENVIRON ARGC ARGV
+/*
+Special vars are separated based on what part of the vm owns them.
 
-// Special variables are separated based on what part of the vm owns them.
-// Columns are owned by the column runtime (we don't want to constantly pass them in)
-// StringConverterSpecials are owend by the string converter. They have to be Converted from AwkStr to CString so
-//    I store them separately from the StackScalars
-// StackScalarSpecials are stored at the top of the scalar stack
+Columns related
+    r+w   FS
+    r+w   RS
+    r     FILENAME
+    r     FNR
+    r     NF
+    r     NR
+
+String Converter
+    r+w   CONVFMT
+    r+w   OFMT
+    r+w   OFS
+    r+w   ORS
+
+Regex Cache
+    r     RLENGTH
+    r     RSTART
+
+Arrays
+    r+w   SUBSEP
+
+TODO:
+    ARGC
+    ARGV
+    ENVIRON
+
+*/
 
 use crate::awk_str::RcAwkStr;
 use crate::vm::RuntimeScalar;

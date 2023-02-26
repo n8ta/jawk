@@ -6,7 +6,6 @@ use immutable_chunkmap::map::Map;
 use std::fmt::Debug;
 use crate::awk_str::{RcAwkStr};
 use crate::typing::ids::{GlobalArrayId, GlobalScalarId};
-use crate::vm::NUM_GSCALAR_SPECIALS;
 
 pub type MapT = Map<Symbol, ScalarType, 1000>;
 
@@ -20,7 +19,7 @@ pub struct AnalysisResults {
 impl AnalysisResults {
     pub fn new() -> Self {
         Self {
-            global_scalars: SymbolMapping::new(NUM_GSCALAR_SPECIALS),
+            global_scalars: SymbolMapping::new(0),
             global_arrays: SymbolMapping::new(0),
             str_consts: Default::default(),
         }

@@ -152,6 +152,7 @@ pub fn gscl_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
 }
 
 pub fn gscl_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+    // TODO: avoid the match in val_to_string_scalar
     let scl = vm.global_scalars[unsafe { imm.global_scl_id }.id].clone();
     let str = vm.val_to_string_scalar(scl);
     vm.push_str(str);
