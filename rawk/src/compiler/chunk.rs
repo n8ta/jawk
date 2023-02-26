@@ -75,7 +75,7 @@ impl Chunk {
         // This allows RcAwkStr's to be downgraded for efficient extension
         let mut new_code = vec![];
         for pair in self.bytecode.windows(2) {
-            if let Code::Concat { count } = pair[0] {
+            if let Code::Concat { .. } = pair[0] {
                 if let Code::AssignGsclStr(id) = pair[1] {
                     new_code.push(Code::ClearGscl(id));
                 }
@@ -90,7 +90,7 @@ impl Chunk {
     }
 
     #[cfg(test)]
-    pub fn pretty_print(&self, func: &VmFunc, prog: &VmProgram, output: &mut Vec<u8>) {
+    pub fn pretty_print(&self, _func: &VmFunc, prog: &VmProgram, output: &mut Vec<u8>) {
         output.extend_from_slice("Bytecode:\n".as_bytes());
         for (idx, byte) in self.bytecode.iter().enumerate() {
             let ip = format!("\t{:2} ", idx);

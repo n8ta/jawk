@@ -18,6 +18,13 @@ impl RcManager {
         };
         self.drop(str);
     }
+    pub fn drop_str(&mut self, scalar: StringScalar) {
+        let s= match scalar {
+            StringScalar::Str(s) => s,
+            StringScalar::StrNum(s) => s,
+        };
+        self.drop(s);
+    }
     pub fn drop(&mut self, str: RcAwkStr) {
         if let Some(mut owned) = AwkStr::new(str) {
             owned.clear();

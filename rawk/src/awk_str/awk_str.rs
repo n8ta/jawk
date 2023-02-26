@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use crate::awk_str::awk_byte_str::AwkByteStr;
 use crate::awk_str::RcAwkStr;
-use crate::util::unwrap;
+use crate::util::{unwrap, unwrap_err};
 
 pub struct AwkStr {
     // Invariant: RcAwkStrs here have 1 strong reference and thus can
@@ -52,13 +52,18 @@ impl AwkStr {
     }
 
     // Avoid allocating an Rc by overwriting the Vec inside an existing Rc
-    pub fn overwrite_with(&mut self, mut str: Vec<u8>) {
+    pub fn overwrite_with(&mut self, str: Vec<u8>) {
         let mut byte_str = AwkByteStr::new(str);
         std::mem::swap(self.get_mut_awkstr(), &mut byte_str);
     }
 
     pub fn clone(&self) -> Self {
         Self{ backing: Rc::new(AwkByteStr::new(self.backing.bytes().to_vec())) }
+    }
+
+    pub fn done(self) -> Vec<u8> {
+        let res = unwrap_err(Rc::try_unwrap(self.backing));
+        res.done()
     }
 }
 

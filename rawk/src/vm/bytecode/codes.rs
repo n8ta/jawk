@@ -11,7 +11,7 @@ use crate::vm::bytecode::{Immed, Meta};
 use crate::vm::{StringScalar, VmProgram};
 
 
-use crate::vm::bytecode::subroutines::{num_to_var, builtin_atan2, builtin_cos, builtin_exp, builtin_substr2, builtin_substr3, builtin_index, builtin_int, builtin_length0, builtin_length1, builtin_log, builtin_rand, builtin_sin, builtin_split2, builtin_split3, builtin_sqrt, builtin_srand0, builtin_srand1, builtin_tolower, builtin_toupper, num_to_str, str_to_var, str_to_num, var_to_num, var_to_str, pop, pop_str, pop_num, column, assign_gscl_var, assign_gscl_num, assign_gscl_str, assign_gscl_ret_str, assign_gscl_ret_var, assign_gscl_ret_num, global_arr, gscl_var, gscl_num, gscl_str, assign_arg_var, assign_arg_str, assign_arg_num, assign_arg_ret_var, assign_arg_ret_str, assign_arg_ret_num, arg_var, arg_str, arg_num, arg_arr, exp, mult, div, modulo, add, minus, lt, gt, lteq, gteq, eqeq, neq, matches, nmatches, assign_array_var, assign_array_str, assign_array_num, assign_array_ret_var, assign_array_ret_str, assign_array_ret_num, array_index, array_member, concat, sub3, rel_jump_if_false_var, rel_jump_if_false_str, rel_jump_if_false_num, rel_jump_if_true_var, rel_jump_if_true_str, rel_jump_if_true_num, rel_jump, print, printf, noop, ret, const_num, const_str, const_str_num, call, neq_num, gteq_num, eqeq_num, lteq_num, lt_num, gt_num, clear_gscl, clear_argscl, rel_jump_if_true_next_line, rel_jump_if_false_next_line};
+use crate::vm::bytecode::subroutines::{num_to_var, builtin_atan2, builtin_cos, builtin_exp, builtin_substr2, builtin_substr3, builtin_index, builtin_int, builtin_length0, builtin_length1, builtin_log, builtin_rand, builtin_sin, builtin_split2, builtin_split3, builtin_sqrt, builtin_srand0, builtin_srand1, builtin_tolower, builtin_toupper, num_to_str, str_to_var, str_to_num, var_to_num, var_to_str, pop, pop_str, pop_num, column, assign_gscl_var, assign_gscl_num, assign_gscl_str, assign_gscl_ret_str, assign_gscl_ret_var, assign_gscl_ret_num, global_arr, gscl_var, gscl_num, gscl_str, assign_arg_var, assign_arg_str, assign_arg_num, assign_arg_ret_var, assign_arg_ret_str, assign_arg_ret_num, arg_var, arg_str, arg_num, arg_arr, exp, mult, div, modulo, add, minus, lt, gt, lteq, gteq, eqeq, neq, matches, nmatches, assign_array_var, assign_array_str, assign_array_num, assign_array_ret_var, assign_array_ret_str, assign_array_ret_num, array_index, array_member, concat, gsub3, sub3, rel_jump_if_false_var, rel_jump_if_false_str, rel_jump_if_false_num, rel_jump_if_true_var, rel_jump_if_true_str, rel_jump_if_true_num, rel_jump, print, printf, noop, ret, const_num, const_str, const_str_num, call, neq_num, gteq_num, eqeq_num, lteq_num, lt_num, gt_num, clear_gscl, clear_argscl, rel_jump_if_true_next_line, rel_jump_if_false_next_line};
 
 pub type LabelId = usize;
 
@@ -185,7 +185,7 @@ impl Code {
             Code::JumpIfTrueNumLbl(_) => { Self::RelJumpIfTrueNum { offset } }
             Code::JumpIfTrueVarLbl(_) => { Self::RelJumpIfTrueVar { offset } }
             Code::JumpIfFalseNextLineLbl(_) => { Self::RelJumpIfFalseNextLine { offset } }
-            Code::JumpIfTrueNextLineLbl(_) => { Self::RelJumpIfTrueNextLine  { offset } }
+            Code::JumpIfTrueNextLineLbl(_) => { Self::RelJumpIfTrueNextLine { offset } }
             _ => return,
         };
         // Replace a jump to a label with a rel jump with an offset
@@ -218,7 +218,7 @@ impl Code {
         }
     }
 
-    pub fn arg_scl(typ: ScalarType, arg_idx: usize) -> Self {
+    pub fn arg_scl(_typ: ScalarType, arg_idx: usize) -> Self {
         return Code::ArgVar { arg_idx };
         // match typ {
         //     ScalarType::Variable => Code::ArgScl { arg_idx },
@@ -304,7 +304,7 @@ impl Code {
 
     #[cfg(test)]
     pub fn pretty_print(&self, output: &mut Vec<u8>) {
-        let mut byte_padded = pad(format!("{:?}", self), 40);
+        let byte_padded = pad(format!("{:?}", self), 40);
         output.extend_from_slice(&byte_padded.as_bytes());
     }
 
@@ -391,7 +391,7 @@ impl Code {
             Code::NMatches => Meta::new(vec![Str, Str], SC::num(1)),
 
             Code::Concat { count } => {
-                let mut args: Vec<StackT> = (0..*count).map(|_| Str).collect();
+                let args: Vec<StackT> = (0..*count).map(|_| Str).collect();
                 Meta::new(args, SC::str(1))
             }
             Code::ClearGscl { .. } => Meta::new(vec![], SC::new()),
@@ -412,7 +412,7 @@ impl Code {
             Code::Call { target } => {
                 let func = functions.get_by_id(*target as usize).unwrap();
                 let args = func.args();
-                let mut arg_stacks: Vec<StackT> = args.iter().map(|a| match a.typ {
+                let arg_stacks: Vec<StackT> = args.iter().map(|a| match a.typ {
                     ArgT::Array => Some(Array),
                     ArgT::Scalar => Some(Var),
                     ArgT::Unknown => None,
@@ -427,7 +427,7 @@ impl Code {
             Code::ConstStrNum { .. } => Meta::new(vec![], SC::str(1)),
             Code::ConstNum { .. } => Meta::new(vec![], SC::num(1)),
             // Sub op doesn't do the assignment that'd be too complex
-            Code::Sub3 { global } => Meta::new(vec![Str, Str, Str], SC::str(1).set(Num, 1)),
+            Code::Sub3 { .. } => Meta::new(vec![Str, Str, Str], SC::str(1).set(Num, 1)),
             Code::RelJumpIfFalseNum { offset } => Meta::new(vec![Num], SC::new()).jump(vec![*offset, 1]),
             Code::RelJumpIfTrueNum { offset } => Meta::new(vec![Num], SC::new()).jump(vec![*offset, 1]),
             Code::RelJumpIfTrueStr { offset } => Meta::new(vec![Str], SC::new()).jump(vec![*offset, 1]),
@@ -532,8 +532,7 @@ impl Code {
             Code::BuiltinSrand1 => CI::new(builtin_srand1),
             Code::BuiltinTolower => CI::new(builtin_tolower),
             Code::BuiltinToupper => CI::new(builtin_toupper),
-            Code::Sub3 { global } => CI::imm(sub3, Immed { sub3_isglobal: *global }),
-
+            Code::Sub3 { global } => CI::new(if *global { gsub3 } else { sub3 }),
             Code::Print => CI::new(print),
             Code::Printf { num_args } => CI::imm(printf, Immed { printf_args: *num_args }),
             Code::NoOp => CI::new(noop),

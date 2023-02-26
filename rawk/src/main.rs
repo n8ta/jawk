@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 extern crate core;
 
 use std::io::{BufWriter, stderr, stdout, Write};
@@ -28,9 +30,9 @@ mod columns;
 mod util;
 mod stackt;
 mod stack_counter;
+mod awk_str;
 #[cfg(test)]
 mod test;
-mod awk_str;
 
 pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let args = AwkArgs::new(args)?;
@@ -45,9 +47,9 @@ pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     }
     let prog = compile(ast)?;
     let mut out = Box::new(BufWriter::new(stdout().lock()));
-    let mut err = Box::new(stderr().lock());
-    let mut vm = VirtualMachine::new(prog, args.files,  out, err);
-    let (mut out, err) = vm.run();
+    let err = Box::new(stderr().lock());
+    let vm = VirtualMachine::new(prog, args.files,  out, err);
+    let (mut out, _err) = vm.run();
     out.flush().unwrap();
     Ok(())
 }

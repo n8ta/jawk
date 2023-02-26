@@ -3,68 +3,81 @@ use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::{binop, binop_num_only, mathop};
 use crate::arrays::{split_on_regex, split_on_string};
-use crate::awk_str::{RcAwkStr};
+use crate::awk_str::{AwkStr, RcAwkStr, SubReplStr};
+use crate::printable_error::PrintableError;
 use crate::util::{clamp_to_max_len, clamp_to_slice_index, index_of, unwrap};
 use crate::vm::bytecode::code_and_immed::Immed;
 use crate::vm::{RuntimeScalar, StringScalar, VirtualMachine};
 use crate::vm::machine::FunctionScope;
 
-pub fn num_to_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+macro_rules! handle_err {
+    ($result:expr) => {
+        match $result {
+            Ok(val) => val,
+            Err(printable_err) => {
+                eprintln!("{}", printable_err);
+                return usize::MAX;
+            }
+        }
+    }
+}
+
+pub fn num_to_var(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let num = vm.pop_num();
     vm.push_unknown(RuntimeScalar::Num(num));
     ip + 1
 }
 
-pub fn num_to_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn num_to_str(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let num = vm.pop_num();
     let string = vm.val_to_string(RuntimeScalar::Num(num));
     vm.push_str(StringScalar::Str(string)); // TODO: strnum?
     ip + 1
 }
 
-pub fn str_to_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn str_to_var(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let str = vm.pop_string();
     vm.push_unknown(str.into());
     ip + 1
 }
 
-pub fn str_to_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn str_to_num(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let str = vm.pop_string();
     let num = vm.str_to_num(&*str);
     vm.push_num(num);
     ip + 1
 }
 
-pub fn var_to_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn var_to_num(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let var = vm.pop_unknown();
     let num = vm.val_to_num(var);
     vm.push_num(num);
     ip + 1
 }
 
-pub fn var_to_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn var_to_str(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let var = vm.pop_unknown();
     let str = vm.val_to_string_scalar(var);
     vm.push_str(str);
     ip + 1
 }
 
-pub fn pop(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn pop(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     vm.pop_unknown();
     ip + 1
 }
 
-pub fn pop_str(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn pop_str(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     vm.pop_string();
     ip + 1
 }
 
-pub fn pop_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn pop_num(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     vm.pop_num();
     ip + 1
 }
 
-pub fn column(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn column(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let index = vm.pop_num();
     let idx = index.round() as usize;
     let mut owned_str = vm.shitty_malloc.get();
@@ -230,29 +243,29 @@ pub fn arg_arr(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     ip + 1
 }
 
-mathop!(exp, crate::vm::bytecode::subroutine_helpers::exp);
-mathop!(mult, crate::vm::bytecode::subroutine_helpers::mult);
-mathop!(div, crate::vm::bytecode::subroutine_helpers::div);
-mathop!(modulo, crate::vm::bytecode::subroutine_helpers::modulo);
-mathop!(add, crate::vm::bytecode::subroutine_helpers::add);
-mathop!(minus, crate::vm::bytecode::subroutine_helpers::minus);
+mathop!(exp, crate::vm::bytecode::op_helpers::exp);
+mathop!(mult, crate::vm::bytecode::op_helpers::mult);
+mathop!(div, crate::vm::bytecode::op_helpers::div);
+mathop!(modulo, crate::vm::bytecode::op_helpers::modulo);
+mathop!(add, crate::vm::bytecode::op_helpers::add);
+mathop!(minus, crate::vm::bytecode::op_helpers::minus);
 
-binop!(lt, crate::vm::bytecode::subroutine_helpers::lt);
-binop!(gt, crate::vm::bytecode::subroutine_helpers::gt);
-binop!(lteq, crate::vm::bytecode::subroutine_helpers::lteq);
-binop!(gteq, crate::vm::bytecode::subroutine_helpers::gteq);
-binop!(eqeq, crate::vm::bytecode::subroutine_helpers::eq);
-binop!(neq, crate::vm::bytecode::subroutine_helpers::neq);
+binop!(lt, crate::vm::bytecode::op_helpers::lt);
+binop!(gt, crate::vm::bytecode::op_helpers::gt);
+binop!(lteq, crate::vm::bytecode::op_helpers::lteq);
+binop!(gteq, crate::vm::bytecode::op_helpers::gteq);
+binop!(eqeq, crate::vm::bytecode::op_helpers::eq);
+binop!(neq, crate::vm::bytecode::op_helpers::neq);
 
-binop_num_only!(lt_num, crate::vm::bytecode::subroutine_helpers::lt);
-binop_num_only!(gt_num, crate::vm::bytecode::subroutine_helpers::gt);
-binop_num_only!(lteq_num, crate::vm::bytecode::subroutine_helpers::lteq);
-binop_num_only!(gteq_num, crate::vm::bytecode::subroutine_helpers::gteq);
-binop_num_only!(eqeq_num, crate::vm::bytecode::subroutine_helpers::eq);
-binop_num_only!(neq_num, crate::vm::bytecode::subroutine_helpers::neq);
+binop_num_only!(lt_num, crate::vm::bytecode::op_helpers::lt);
+binop_num_only!(gt_num, crate::vm::bytecode::op_helpers::gt);
+binop_num_only!(lteq_num, crate::vm::bytecode::op_helpers::lteq);
+binop_num_only!(gteq_num, crate::vm::bytecode::op_helpers::gteq);
+binop_num_only!(eqeq_num, crate::vm::bytecode::op_helpers::eq);
+binop_num_only!(neq_num, crate::vm::bytecode::op_helpers::neq);
 
 
-pub fn matches(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn matches(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let regex_str = vm.pop_string(); // the regex
     let str = vm.pop_string(); // the string
     let regex = vm.regex_cache.get(&*regex_str);
@@ -261,7 +274,7 @@ pub fn matches(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     ip + 1
 }
 
-pub fn nmatches(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn nmatches(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let regex_str = vm.pop_string(); // the regex
     let str = vm.pop_string(); // the string
     let regex = vm.regex_cache.get(&*regex_str);
@@ -363,26 +376,26 @@ pub fn concat(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     ip + 1
 }
 
-pub fn builtin_atan2(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_atan2(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let arg2 = vm.pop_num();
     let arg1 = vm.pop_num();
     vm.push_num(arg1.atan2(arg2));
     ip + 1
 }
 
-pub fn builtin_cos(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_cos(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let arg1 = vm.pop_num();
     vm.push_num(arg1.cos());
     ip + 1
 }
 
-pub fn builtin_exp(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_exp(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let arg1 = vm.pop_num();
     vm.push_num(arg1.exp());
     ip + 1
 }
 
-pub fn builtin_substr2(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_substr2(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let start_idx = vm.pop_num();
     let string = vm.pop_string();
     let start_idx = clamp_to_slice_index(start_idx - 1.0, string.bytes().len());
@@ -391,7 +404,7 @@ pub fn builtin_substr2(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize 
     ip + 1
 }
 
-pub fn builtin_substr3(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_substr3(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let max_chars = vm.pop_num();
     let start_idx = vm.pop_num();
     let string = vm.pop_string();
@@ -403,7 +416,7 @@ pub fn builtin_substr3(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize 
     ip + 1
 }
 
-pub fn builtin_index(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_index(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let needle = vm.pop_string();
     let haystack = vm.pop_string();
     let number = if let Some(idx) = index_of(needle.bytes(), haystack.bytes()) {
@@ -415,46 +428,46 @@ pub fn builtin_index(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     ip + 1
 }
 
-pub fn builtin_int(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_int(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let flt = vm.pop_num();
     vm.push_num(flt.trunc());
     ip + 1
 }
 
-pub fn builtin_length0(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_length0(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let num_fields = vm.columns.get(0);
     // TODO: UTF 8
     vm.push_num(num_fields.len() as f64);
     ip + 1
 }
 
-pub fn builtin_length1(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_length1(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let s = vm.pop_string();
     // TODO: UTF 8
     vm.push_num(s.len() as f64);
     ip + 1
 }
 
-pub fn builtin_log(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_log(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let num = vm.pop_num();
     vm.push_num(num.ln());
     ip + 1
 }
 
-pub fn builtin_rand(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_rand(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let rand = unsafe { libc::rand() } as f64;
     let num = rand / libc::RAND_MAX as f64;
     vm.push_num(num);
     ip + 1
 }
 
-pub fn builtin_sin(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_sin(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let num = vm.pop_num();
     vm.push_num(num.sin());
     ip + 1
 }
 
-pub fn builtin_split2(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_split2(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let array = vm.pop_array();
     let string = vm.pop_string();
     let mut count: f64 = 0.0;
@@ -471,7 +484,7 @@ pub fn builtin_split2(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     ip + 1
 }
 
-pub fn builtin_split3(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_split3(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let reg_str = vm.pop_string();
     let array = vm.pop_array();
     let _ = vm.arrays.clear(array.id);
@@ -490,13 +503,13 @@ pub fn builtin_split3(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     ip + 1
 }
 
-pub fn builtin_sqrt(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_sqrt(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let num = vm.pop_num();
     vm.push_num(num.sqrt());
     ip + 1
 }
 
-pub fn builtin_srand0(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_srand0(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let prior = vm.srand_seed;
     let start = SystemTime::now();
     let since_the_epoch = start.duration_since(UNIX_EPOCH).unwrap(); // TODO: Handle no time?
@@ -508,7 +521,7 @@ pub fn builtin_srand0(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     ip + 1
 }
 
-pub fn builtin_srand1(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_srand1(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let seed = vm.pop_num();
     let prior = vm.srand_seed;
     let seed_int = (seed % (std::os::raw::c_uint::MAX as f64)) as std::os::raw::c_uint;
@@ -518,7 +531,7 @@ pub fn builtin_srand1(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     ip + 1
 }
 
-pub fn builtin_tolower(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_tolower(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let mut str = vm.pop_string().downgrade_or_clone();
     // TODO lowercase non-ascii
     let bytes = str.as_bytes_mut();
@@ -527,7 +540,7 @@ pub fn builtin_tolower(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize 
     ip + 1
 }
 
-pub fn builtin_toupper(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn builtin_toupper(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let mut str = vm.pop_string().downgrade_or_clone();
     // TODO lowercase non-ascii
     let bytes = str.as_bytes_mut();
@@ -536,28 +549,55 @@ pub fn builtin_toupper(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize 
     ip + 1
 }
 
-pub fn sub3(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
-    // TODO: GLOBAL?
-    // TODO: Sub2
-
-    let is_global = unsafe { imm.sub3_isglobal };
+pub fn sub3(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let input_str = vm.pop_string();
     let replacement = vm.pop_string();
-    let regex = vm.pop_string();
-    let regex = vm.regex_cache.get(&regex);
+    let regex_str = vm.pop_string();
+    let regex = vm.regex_cache.get(&regex_str);
 
     let matched = regex.match_idx(&*input_str);
     if let Some(mtc) = matched {
-        let input_bytes = input_str.bytes();
-        let mut new_string = vm.shitty_malloc.copy_from_slice(&input_bytes[0..mtc.start]);
-        new_string.push_str(replacement.bytes());
-        new_string.push_str(&input_bytes[mtc.start + mtc.len..]);
+        let mut new_string = vm.shitty_malloc.copy_from_slice(&input_str[0..mtc.start]);
+        let matched_bytes = &input_str[0..mtc.start + mtc.len];
+        let repl = SubReplStr::new(replacement.downgrade_or_clone().done());
+        repl.push_replacement(&mut new_string, matched_bytes);
+        new_string.push_str(&input_str[mtc.start + mtc.len..]);
         vm.push_num(1.0);
         vm.push_str(StringScalar::Str(new_string.rc()));
+        vm.shitty_malloc.drop_str(input_str);
     } else {
         vm.push_num(0.0);
         vm.push_str(input_str);
     }
+    vm.shitty_malloc.drop_str(regex_str);
+
+    ip + 1
+}
+
+pub fn gsub3(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
+    let input_str = vm.pop_string();
+    let replacement = vm.pop_string();
+    let regex_str = vm.pop_string();
+    let regex = vm.regex_cache.get(&regex_str);
+    let mut start_idx = 0;
+    let mut matches = 0.0;
+    let mut new_string = vm.shitty_malloc.get();
+    let repl = SubReplStr::new(replacement.downgrade_or_clone().done());
+    while let Some(mtc) = regex.match_idx(&input_str[start_idx..]) {
+        new_string.push_str(&input_str[start_idx..mtc.start + start_idx]);
+        let matched_bytes = &input_str[start_idx + mtc.start..start_idx + mtc.start + mtc.len];
+        matches += 1.0;
+        repl.push_replacement(&mut new_string, matched_bytes);
+        start_idx += mtc.start + mtc.len;
+        if input_str[start_idx..].len() == 0 {
+            break;
+        }
+    }
+    new_string.push_str(&input_str[start_idx..]);
+    vm.push_num(matches);
+    vm.push_str(StringScalar::Str(new_string.rc()));
+    vm.shitty_malloc.drop_str(regex_str);
+    vm.shitty_malloc.drop_str(input_str);
     ip + 1
 }
 
@@ -623,7 +663,7 @@ pub fn rel_jump_if_true_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> u
 
 pub fn rel_jump_if_true_next_line(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
-    let more_lines = vm.columns.next_line().unwrap();
+    let more_lines = handle_err!(vm.columns.next_line());
     if more_lines {
         offset_ip(ip, offset)
     } else {
@@ -633,7 +673,7 @@ pub fn rel_jump_if_true_next_line(vm: &mut VirtualMachine, ip: usize, imm: Immed
 
 pub fn rel_jump_if_false_next_line(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
-    let more_lines = vm.columns.next_line().unwrap();
+    let more_lines = handle_err!(vm.columns.next_line());
     if more_lines {
         ip + 1
     } else {
@@ -641,12 +681,12 @@ pub fn rel_jump_if_false_next_line(vm: &mut VirtualMachine, ip: usize, imm: Imme
     }
 }
 
-pub fn rel_jump(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn rel_jump(_vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
     offset_ip(ip, offset)
 }
 
-pub fn print(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn print(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let value = vm.pop_string();
     vm.stdout.write_all(&value).unwrap();
     if !value.bytes().ends_with(&[10]) {
@@ -668,12 +708,12 @@ pub fn printf(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     ip + 1
 }
 
-pub fn noop(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn noop(_vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     // TODO: remove no-op entirely
     ip + 1
 }
 
-pub fn ret(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+pub fn ret(_vm: &mut VirtualMachine, _ip: usize, _imm: Immed) -> usize {
     usize::MAX
 }
 

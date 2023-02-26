@@ -80,8 +80,8 @@ impl VirtualMachine {
         (self.stdout, self.stderr)
     }
 
-    pub fn assign_gscl(&mut self, idx: GlobalScalarId, mut scalar: RuntimeScalar) {
-        let mut existing = unwrap(self.global_scalars.get_mut(idx.id));
+    pub fn assign_gscl(&mut self, idx: GlobalScalarId, scalar: RuntimeScalar) {
+        let existing = unwrap(self.global_scalars.get_mut(idx.id));
         let prior_value = std::mem::replace(existing,  scalar);
         self.shitty_malloc.drop_scalar(prior_value)
     }

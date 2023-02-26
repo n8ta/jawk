@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::fmt::Debug;
 use std::os::raw::c_void;
 use quick_drop_deque::QuickDropDeque;
 
@@ -116,6 +117,17 @@ pub fn pad(mut str: String, len: usize) -> String {
     }
     str
 }
+
+#[cfg(debug_assertions)]
+pub fn unwrap_err<T,S: Debug>(value: Result<T,S>) -> T {
+    value.unwrap()
+}
+#[cfg(not(debug_assertions))]
+#[inline(always)]
+pub fn unwrap_err<T,S: Debug>(value: Result<T,S>) -> T {
+    unsafe { value.unwrap_unchecked() }
+}
+
 
 #[cfg(debug_assertions)]
 pub fn unwrap<T>(value: Option<T>) -> T {

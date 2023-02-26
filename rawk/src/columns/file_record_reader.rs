@@ -62,7 +62,10 @@ impl FileReader {
                 return Ok(true);
             }
             // Nope, then read some bytes into buf then copy to slop
-            let bytes_read = self.slop.read(&mut file.file).unwrap(); // TODO: no-unwrap
+            let bytes_read = match self.slop.read(&mut file.file) {
+                Ok(b) => b,
+                Err(err) => return Err(PrintableError::new(format!("Something went wrong reading from file `{}`. Error: {}", &file.path, err))),
+            };
 
             if bytes_read == 0 {
                 // No new data!

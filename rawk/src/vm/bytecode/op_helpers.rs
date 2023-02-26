@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! mathop {
         ($name:ident, $operator:expr) => {
-            pub fn $name(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+            pub fn $name(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
                 let rhs = vm.pop_num();
                 let lhs = vm.pop_num();
                 vm.push_num($operator(lhs,rhs));
@@ -13,7 +13,7 @@ macro_rules! mathop {
 #[macro_export]
 macro_rules! binop {
     ($name:ident, $operator:expr) => {
-        pub fn $name(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+        pub fn $name(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
 
             let right = vm.pop_unknown();
             let left = vm.pop_unknown();
@@ -37,7 +37,7 @@ macro_rules! binop {
 #[macro_export]
 macro_rules! binop_num_only {
     ($name:ident, $operator:expr) => {
-        pub fn $name(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
+        pub fn $name(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
             let right = vm.pop_num();
             let left = vm.pop_num();
             let res = $operator(left, right);

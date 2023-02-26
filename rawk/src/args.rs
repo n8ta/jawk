@@ -8,7 +8,6 @@ pub struct AwkArgs {
     pub debug: bool,
     pub program: String,
     pub files: Vec<String>,
-    pub save_executable: Option<PathBuf>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -23,10 +22,7 @@ impl ProgramType {
             ProgramType::CLI(s) => Ok(s),
             ProgramType::File(s) => match std::fs::read_to_string(&s) {
                 Ok(s) => Ok(s),
-                Err(e) => Err(PrintableError::new(format!(
-                    "Unable to load source program '{}'\nGot error: {}",
-                    s, e
-                ))),
+                Err(e) => Err(PrintableError::new(format!("Unable to load source program '{}'\nGot error: {}", s, e))),
             },
         }
     }
@@ -35,10 +31,10 @@ impl ProgramType {
 fn print_help() {
     eprintln!(
         "\
-Usage: llawk [--debug] [--save path] -f progfile file ...
-Usage: llawk [--debug] [--save path] 'program' file ...
+Usage: rawk [--debug] -f progfile file ...
+Usage: rawk [--debug] 'program' file ...
 --dump: Dump the AST after parsing
---save file_path: Save the executable to the given path"
+"
     );
 }
 
@@ -47,7 +43,6 @@ impl AwkArgs {
         let mut debug = false;
         let mut program: Option<ProgramType> = None;
         let mut files: Vec<String> = vec![];
-        let mut save_executable: Option<PathBuf> = None;
 
         let mut i = 1;
         while i < args.len() {
@@ -55,14 +50,6 @@ impl AwkArgs {
                 "--debug" => {
                     debug = true;
                     i += 1;
-                }
-                "--save" => {
-                    if let Some(next) = args.get(i + 1) {
-                        save_executable = Some(PathBuf::from(next));
-                    } else {
-                        return Err(PrintableError::new("Expected path after --save"));
-                    }
-                    i += 2;
                 }
                 "-f" => {
                     if program != None {
@@ -101,7 +88,6 @@ impl AwkArgs {
             debug,
             program,
             files,
-            save_executable,
         })
     }
 }

@@ -1,6 +1,7 @@
 use std::iter::Peekable;
 use std::str::Chars;
 use crate::printable_error::PrintableError;
+use crate::util::unwrap;
 
 
 const ZERO: char = 0x30 as char;
@@ -112,16 +113,12 @@ fn saturating_octal_parse(char1: u8, char2: u8, char3: u8) -> u8 {
 }
 
 fn next_is_octal(characters: &mut Peekable<Chars>) -> Option<u8> {
-    let is_octal = if let Some(peeked) = characters.peek() {
+    if let Some(peeked) = characters.peek() {
         if (ZERO..=SEVEN).contains(&peeked) {
-            true
-        } else {
-            false
+            return Some(unwrap(characters.next()) as u8 - ZERO as u8)
         }
-    } else {
-        false
-    };
-    if is_octal { Some(characters.next().unwrap() as u8 - ZERO as u8) } else { None }
+    }
+    None
 }
 
 fn octal_escape(char1: u8, characters: &mut Peekable<Chars>) -> u8 {
@@ -135,6 +132,7 @@ fn octal_escape(char1: u8, characters: &mut Peekable<Chars>) -> u8 {
         saturating_octal_parse(0, 0, char1)
     }
 }
+
 
 #[cfg(test)]
 mod string_read_tests {
@@ -221,6 +219,7 @@ mod string_read_tests {
     test!(test_quoted_str, r#"\"abc\"""#, "\"abc\"", "");
     test!(test_backslash, r#"\\""#, r"\", "");
     test!(test_fwd_slash, r#"\/""#, "", "\\/ is an unknown awk escape sequence");
+    test!(test_back_amp, r#"\&""#, "", "\\& is an unknown awk escape sequence");
 
     // Octal escapes
     test!(test_octal_escape_0, r#"\1""#, "\x01", "");

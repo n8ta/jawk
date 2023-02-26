@@ -40,9 +40,6 @@ impl AwkByteStr {
     fn new_rc(bytes: Vec<u8>) -> RcAwkStr {
         RcAwkStr::new(AwkByteStr::new(bytes))
     }
-    fn new_rc_str(s: &str) -> RcAwkStr {
-        Self::new_rc(s.to_string().into_bytes())
-    }
     fn with_capacity(cap: usize) -> AwkByteStr {
         Self { bytes: Vec::with_capacity(cap) }
     }
@@ -82,5 +79,8 @@ impl AwkByteStr {
     }
     pub fn truthy(&self) -> bool {
         self.bytes.len() != 0
+    }
+    pub fn done(self) -> Vec<u8> {
+        self.bytes
     }
 }

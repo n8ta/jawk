@@ -138,7 +138,6 @@ fn test_setting_0() {
     assert_eq!(cols.get(0), "A B C".as_bytes());
 }
 
-
 #[test]
 fn test_setting_fs_0() {
     use tempfile::tempdir;

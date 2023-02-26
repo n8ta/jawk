@@ -10,7 +10,7 @@ hashbrown = "0.13.2"
 immutable-chunkmap = "1.0.4"
 lru-cache = "0.1.2"
 lexical-core = { version = "^0.8.0", features = ["format", "write-floats"] }
-libc = "0.2.127"
+libc = "^0.2.139"
 mawk-regex = { path = "../mawk-regex", features = ["thread_safe"] }
 quick-drop-deque = { path = "../quick-drop-deque" }
 

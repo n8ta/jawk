@@ -80,7 +80,7 @@ impl Arrays {
     }
 
     pub fn in_array(&mut self, array_id: usize, indices: RcAwkStr) -> bool {
-        let array = unwrap(self.arrays.get_mut(array_id));;
+        let array = unwrap(self.arrays.get_mut(array_id));
         array.in_array(&MapKey::new(indices))
     }
 }

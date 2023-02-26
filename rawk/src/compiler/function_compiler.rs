@@ -168,7 +168,6 @@ impl<'a> FunctionCompiler<'a> {
                     let done_lbl = self.create_lbl();
 
                     let test_typ = test.typ;
-                    ;
                     self.expr(test, test_typ.into())?;
                     self.add(Code::jump_if_false(test_typ, &done_lbl));
                     self.break_labels.push(done_lbl);
@@ -485,7 +484,7 @@ impl<'a> FunctionCompiler<'a> {
                 let desired = if let Ok(desired) = desired_stack.try_into() { desired } else { panic!("cannot convert array to scalar") };
                 self.add(Code::move_stack_to_stack(stack, desired));
             }
-            (None, Some(desired_stack)) => {
+            (None, Some(_desired_stack)) => {
                 panic!("compiler bug")
             }
             (Some(stack), None) => {
@@ -583,7 +582,7 @@ impl<'a> FunctionCompiler<'a> {
 
     fn push_array(&mut self, name: &Symbol) {
         if let Some(arg_idx) = self.parser_func.array_arg_idx(name) {
-            self.add(Code::ArgArray { arg_idx: arg_idx }); // TODO: u16max
+            self.add(Code::ArgArray { arg_idx }); // TODO: u16max
         } else {
             let id = self.typed_program.global_analysis.global_arrays.get(name).expect("compiler bug in typing pass global array not found");
             self.add(Code::GlobalArr(*id));

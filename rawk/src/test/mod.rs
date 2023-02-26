@@ -16,6 +16,8 @@ use crate::compiler::{compile, validate_program};
 use crate::test::io_capture::IoCapture;
 use crate::vm::VirtualMachine;
 
+const SUB_ESCAPING: &'static str = r#"BEGIN { a = "a"; sub("a", "\\\\", a); print a }"#;
+const SUB_RULES: &'static str = r##"BEGIN { a = "a"; sub("a", "-\\\\a-", a); print a; }"##;
 const ONE_LINE: &'static str = "1 2 3\n";
 const REDIRECT: &'static str = "2 3 4 5\n";
 const NUMBERS: &'static str = "1 2 3\n4 5 6\n7 8 9\n";
@@ -34,8 +36,13 @@ const TTX1: &'static str = "BEGIN {    width = 3; height = 3 ;    min_x = -2.1; 
 fn test_once(interpreter: &str, prog: &str, file: &PathBuf) -> (Vec<u8>, Duration) {
     // Run a single awk once and capture the output
     let start = Instant::now();
+    let mut args = vec![prog];
+    if interpreter == "gawk" {
+        args = vec!["--posix", args[0]]
+    }
+    args.push(file.to_str().unwrap());
     let output = std::process::Command::new(interpreter)
-        .args(vec![prog, file.to_str().unwrap()])
+        .args(args)
         .output()
         .unwrap();
     let dir = start.elapsed();
@@ -64,10 +71,10 @@ pub fn test_runner<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog:
     std::fs::write(file_path.clone(), file.as_ref()).unwrap();
     let file_path_string = file_path.to_str().unwrap().to_string();
 
-    let mut fake_stdout = Box::new(IoCapture::new());
-    let mut fake_stderr = Box::new(IoCapture::new());
+    let fake_stdout = Box::new(IoCapture::new());
+    let fake_stderr = Box::new(IoCapture::new());
 
-    let mut vm = VirtualMachine::new(
+    let vm = VirtualMachine::new(
         vm_prog,
         vec![file_path_string],
         fake_stdout.clone(),
@@ -90,23 +97,18 @@ pub fn test_runner<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog:
 
     for interpreter in ["gawk", "goawk", "mawk", "onetrueawk"] {
         if (prog == PERF_ARRAY_PROGRAM && interpreter == "mawk")
-            || (prog == EMPTY_INDEX_PROGRAM && interpreter == "onetrueawk") {
+            || (prog == EMPTY_INDEX_PROGRAM || prog == SUB_ESCAPING || prog == SUB_RULES) && interpreter == "onetrueawk" {
             continue;
         }
         if run_perf_tests {
             test_perf(test_name, interpreter, prog, &oracle_output, &file_path);
         } else {
-            test_against(interpreter, prog,  &oracle_output, &file_path);
+            test_against(interpreter, prog, &oracle_output, &file_path);
         }
     }
 }
 
 fn test_against(interpreter: &str, prog: &str, oracle_output: &[u8], file: &PathBuf) {
-    match std::process::Command::new(interpreter).output() {
-        Ok(_) => {}
-        Err(_err) => eprintln!("unable to test against {}", prog), // this interpreter doesn't exist
-    }
-
     let output = test_once(interpreter, prog, file);
 
     assert_eq!(
@@ -130,7 +132,7 @@ fn test_perf(
     let mut our_total = 0;
     let mut other_total = 0;
 
-    for idx in 0..PERF_RUNS {
+    for _ in 0..PERF_RUNS {
         let our_result = test_once("./target/release/rawk", prog, file);
         other_total += test_once(interpreter, prog, file).1.as_micros();
         our_total += our_result.1.as_micros();

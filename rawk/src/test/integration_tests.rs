@@ -1,4 +1,4 @@
-use crate::test::{test_runner, long_number_file, ONE_LINE, REDIRECT, NUMBERS, NUMBERS2, FLOAT_NUMBERS, NUMERIC_STRING, ABC, PERF_ARRAY_PROGRAM, EMPTY_INDEX_PROGRAM, TTX1,
+use crate::test::{test_runner, long_number_file, ONE_LINE, SUB_RULES, SUB_ESCAPING, REDIRECT, NUMBERS, NUMBERS2, FLOAT_NUMBERS, NUMERIC_STRING, ABC, PERF_ARRAY_PROGRAM, EMPTY_INDEX_PROGRAM, TTX1,
 };
 #[macro_export]
 macro_rules! test {
@@ -10,14 +10,17 @@ macro_rules! test {
         };
     }
 
-#[test]
-fn prog_awk_test() {
-    let str = std::fs::read_to_string("/Users/n8ta/code/jawk/rawk/prog.awk").unwrap();
-    test_runner("run prog.awk", &str, "1 2 3\n4 5 6\n", "");
-}
+// #[test]
+// fn prog_awk_test() {
+//     let str = std::fs::read_to_string("/Users/n8ta/code/jawk/rawk/prog.awk").unwrap();
+//     test_runner("run prog.awk", &str, "1 2 3\n4 5 6\n", "");
+// }
 
 
-// test!(test_perf_concat_loop, "BEGIN { a = \"\"; b = \"\"; x = 0; while (x < 50000) {     a = a \"a\";     b = b \"a\";     x = x + 1;     if (a > b) {         print \"a is not eq to b\";    } } print x; print \"done\"; }", "", "50000\ndone\n");
+test!(test_str_escape, r##"BEGIN { a = "\a\n\r\t\1"; print a }  "##, "", vec![7,10, 0xd, 9, 0x1, 10]);
+test!(test_sub_rules, SUB_RULES, ONE_LINE, "-\\a-\n");
+
+test!(test_perf_concat_loop, "BEGIN { a = \"\"; b = \"\"; x = 0; while (x < 5000) {     a = a \"a\";     b = b \"a\";     x = x + 1;     if (a > b) {         print \"a is not eq to b\";    } } print x; print \"done\"; }", "", "5000\ndone\n");
 test!(test_print_begin_int, "BEGIN {print 1;}", ONE_LINE, "1\n");
 test!(test_print_int, "{print 1;}", ONE_LINE, "1\n");
 test!(test_print_str, "BEGIN {print \"abc\";}", ONE_LINE, "abc\n");
@@ -1197,13 +1200,19 @@ test!(test_native_index_7, EMPTY_INDEX_PROGRAM, ONE_LINE, "1\n");
 
 test!(test_native_sub_assign, "BEGIN { c = \"a\"; print sub(\"a\", \"b\", c); }", ONE_LINE, "1\n");
 
-test!(test_native_sub_var_0, "BEGIN { a = \"aaa\"; print sub(\"a\", \"b\", a); print a; }", ONE_LINE, "1\nbaa\n");
-test!(test_native_sub_var_1, "BEGIN { a = \"aaa\"; print sub(\"a\", \"bbb\", a); print a; }", ONE_LINE, "1\nbbbaa\n");
-test!(test_native_sub_var_2, "BEGIN { a = \"caa\"; print sub(\"a\", \"bbb\", a); print a; }", ONE_LINE, "1\ncbbba\n");
-test!(test_native_sub_var_3, "BEGIN { a = \"aab\"; print sub(\"b\", \"ZZZZ\", a); print a; }", ONE_LINE, "1\naaZZZZ\n");
-test!(test_native_sub_var_4, "BEGIN { a = \"aaa\"; print sub(\"a\", \"\", a); print a; }", ONE_LINE, "1\naa\n");
-test!(test_native_sub_var_5, "BEGIN { a = \"aaa\"; print sub(\"aaa\", \"\", a); print a; }", ONE_LINE, "1\n\n");
-test!(test_native_sub_var_6, "BEGIN { a = \"aaa\"; print sub(\"aaaa\", \"\", a); print a; }", ONE_LINE, "0\naaa\n");
+test!(test_native_gsub_0, r#"BEGIN {a = "aaa"; print gsub("a", "zz", a); print a;}"#, ONE_LINE, "3\nzzzzzz\n");
+test!(test_native_gsub_1, r#"BEGIN {a = "aaa"; print gsub("a*", "zz", a); print a;}"#, ONE_LINE, "1\nzz\n");
+test!(test_native_gsub_2, r#"BEGIN {a = "aaa"; print gsub("a+", "zz", a); print a;}"#, ONE_LINE, "1\nzz\n");
+test!(test_native_gsub_3, r#"BEGIN {a = "Qa&&&&aQ"; print gsub("a\\&*a", "zz", a); print a;}"#, ONE_LINE, "1\nQzzQ\n");
+
+test!(test_native_sub_var_0, "BEGIN { a = \"aaa\"; print gsub(\"a\", \"b\", a); print a; }", ONE_LINE, "3\nbbb\n");
+test!(test_native_sub_var_1, "BEGIN { a = \"aaa\"; print sub(\"a\", \"b\", a); print a; }", ONE_LINE, "1\nbaa\n");
+test!(test_native_sub_var_2, "BEGIN { a = \"aaa\"; print sub(\"a\", \"bbb\", a); print a; }", ONE_LINE, "1\nbbbaa\n");
+test!(test_native_sub_var_3, "BEGIN { a = \"caa\"; print sub(\"a\", \"bbb\", a); print a; }", ONE_LINE, "1\ncbbba\n");
+test!(test_native_sub_var_4, "BEGIN { a = \"aab\"; print sub(\"b\", \"ZZZZ\", a); print a; }", ONE_LINE, "1\naaZZZZ\n");
+test!(test_native_sub_var_5, "BEGIN { a = \"aaa\"; print sub(\"a\", \"\", a); print a; }", ONE_LINE, "1\naa\n");
+test!(test_native_sub_var_6, "BEGIN { a = \"aaa\"; print sub(\"aaa\", \"\", a); print a; }", ONE_LINE, "1\n\n");
+test!(test_native_sub_var_7, "BEGIN { a = \"aaa\"; print sub(\"aaaa\", \"\", a); print a; }", ONE_LINE, "0\naaa\n");
 
 test!(test_native_sub_array_0, "BEGIN { a[1] = \"aaa\"; print sub(\"a\", \"b\", a[1]); print a[1]; }", ONE_LINE, "1\nbaa\n");
 test!(test_native_sub_array_1, "BEGIN { a[1] = \"aaa\"; print sub(\"a\", \"bbb\", a[1]); print a[1]; }", ONE_LINE, "1\nbbbaa\n");
@@ -1224,8 +1233,6 @@ test!(test_no_ret_3, "function f() { } BEGIN { print (f()==1) }", ONE_LINE, "0\n
 test!(test_no_ret_4, "function f() { } { print (f()==$1) }", "1\n", "0\n");
 test!(test_no_ret_5, "function f() { } { print (f()==$1) }", "0\n", "1\n");
 
-// test!(test_tt_x1_bytecode, TTX1, "", "a");
-
 test!(test_logical_or_0, "\
     function f() { print 333; return 1; } \
     function g() { print 555; return 0; } \
@@ -1236,7 +1243,16 @@ test!(test_logical_or_2, "function f() { print 333; return 0; } function g() { p
 test!(test_ez1, "BEGIN { a = \"2\"; }", "", "");
 test!(test_ez2, "BEGIN { a = 2; print a; }", "", "2\n");
 
+test!(test_native_sub_amp_0, "BEGIN { a = \"a\"; sub(\"a\", \"-&-\", a); print a; }", ONE_LINE, "-a-\n");
+test!(test_native_sub_amp_amp, "BEGIN { a = \"a\"; sub(\"a\", \"-&-&-\", a); print a; }", ONE_LINE, "-a-a-\n");
+test!(test_native_sub_amp_esc_1, "BEGIN { a = \"a\"; sub(\"a\", \"-\\\\&-\", a); print a; }", ONE_LINE, "-&-\n");
+test!(test_native_sub_amp_esc_2, "BEGIN { a = \"a\"; sub(\"a\", \"-\\\\&&-\", a); print a; }", ONE_LINE, "-&a-\n");
+test!(test_native_sub_amp_4, "BEGIN { a = \"aaabc\"; sub(\"a+\", \"-&.&REPL-\", a); print a; }", ONE_LINE, "-aaa.aaaREPL-bc\n");
+test!(test_native_sub_escaping, SUB_ESCAPING, ONE_LINE, "\\\n");
+
+
 // TODO: Things I have yet to impl
+
 // test!(test_nf_0, "{ print NF }", ONE_LINE, "3\n");
 // test!(test_nf_1, "{ print NF }", "1 2 3\n1 2 3 4\n", "3\n4\n");
 // test!(test_nf_2, "{ print NF; $4 = \"a\"; print NF; print $0 }", ONE_LINE, "3\n4\n1 2 3 4\n");
@@ -1244,13 +1260,13 @@ test!(test_ez2, "BEGIN { a = 2; print a; }", "", "2\n");
 
 // test!(test_ofs_print_sep, "BEGIN { print 1, 2, 3; OFS = \"--\"; print 1,2,3 }", ONE_LINE, "1 2 3\n1--2--3\n");
 
-//test!(test_native_col_0_sub_0, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
-//test!(test_native_col_0_sub_1, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
-//test!(test_native_col_0_sub_2, "{ sub(\"a\", \"b\"); print $0; }", "caa", "baa\n");
-//test!(test_native_col_0_sub_3, "{ sub(\"a\", \"b\"); print $0; }", "aab", "baa\n");
-//test!(test_native_col_0_sub_4, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
-//test!(test_native_col_0_sub_5, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
-//test!(test_native_col_0_sub_6, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+test!(test_native_col_0_sub_0, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+test!(test_native_col_0_sub_1, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+test!(test_native_col_0_sub_2, "{ sub(\"a\", \"b\"); print $0; }", "caa", "baa\n");
+test!(test_native_col_0_sub_3, "{ sub(\"a\", \"b\"); print $0; }", "aab", "baa\n");
+test!(test_native_col_0_sub_4, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+test!(test_native_col_0_sub_5, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+test!(test_native_col_0_sub_6, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
 
 const PI: &'static str = "    +3.14";
 // test!(space_rule_simple, "{ print length($1); }", "    abc", "abc");
@@ -1258,11 +1274,6 @@ const PI: &'static str = "    +3.14";
 // test!(gawk_strnum_space_rule_1, "{ print($1 == 3.14) }", PI, "1\n");
 // test!(test_fs_0, "{ print $2; FS = \"b\"; }", ABC, "\nc\n");
 // test!(test_fs_1, "{ print $2; FS = \"a\"; }", ABC, "\nbc\n");
-
-// test!(test_native_sub_amp_0, "BEGIN { a = \"a\"; sub(\"a\", \"-&-\", a); print a; }", ONE_LINE, "-a-");
-// test!(test_native_sub_amp_esc_1, "BEGIN { a = \"a\"; sub(\"a\", \"-\\&-\", a); print a; }", ONE_LINE, "-&-");
-// test!(test_native_sub_amp_esc_2, "BEGIN { a = \"a\"; sub(\"a\", \"-\\&&-\", a); print a; }", ONE_LINE, "-&a-");
-// test!(test_native_sub_amp_esc_4, "BEGIN { a = \"a\"; sub(\"a\", \"-\\\\\\&-\", a); print a; }", ONE_LINE, "-\\a-");
-// test!(test_native_sub_amp_4, "BEGIN { a = \"aaabc\"; sub(\"a+\", \"-&.&REPL-\", a); print a; }", ONE_LINE, "-aaa.aaaREPL-bc");
-
 // test!(test_mixed_array,"BEGIN {SUBSEP = \"-\"; a[0,1] = 3 ; print a[\"0-1\"]; }",ONE_LINE,"3\n");
+
+test!(test_col_asgn_0, "{ $1 = \"zz\"; print $0 }", "1  2   3\n  4  5     6    ","zz 2 3\nzz 5 6\n");

@@ -4,6 +4,8 @@ mod test;
 use quick_drop_deque::QuickDropDeque;
 use crate::util::{index_in_dq, subslices};
 
+const SPACE: u8 = 32;
+
 pub struct LazilySplitLine {
     fs: Vec<u8>,
     next_fs: Option<Vec<u8>>,
@@ -13,9 +15,7 @@ pub struct LazilySplitLine {
 impl LazilySplitLine {
     pub fn new() -> Self {
         Self {
-            fs: vec![32], // space
-            // fs: vec![44], // ,
-            // splits: vec![],
+            fs: vec![SPACE],
             next_fs: None,
         }
     }
@@ -47,12 +47,17 @@ impl LazilySplitLine {
         debug_assert!(field_idx != 0);
         let mut start_of_field = 0;
         let mut fields_found = 0;
+        let fs_is_space = self.fs == &[SPACE];
         while let Some(found_at) = index_in_dq(&self.fs, dq, start_of_field, end_of_record_idx) {
             fields_found += 1;
             if fields_found == field_idx {
                 return LazilySplitLine::move_into_buf(dq, result, start_of_field, found_at);
             }
-            start_of_field = found_at + self.fs.len();
+            let mut spaces_after_record = 0;
+            while fs_is_space && dq.get(found_at+spaces_after_record+1) == Some(&SPACE) {
+                spaces_after_record += 1;
+            }
+            start_of_field = found_at + self.fs.len() + spaces_after_record;
         }
         if fields_found + 1 == field_idx {
             // Trailing record
