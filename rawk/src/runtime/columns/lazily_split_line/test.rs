@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test {
     use quick_drop_deque::QuickDropDeque;
-    use crate::columns::lazily_split_line::LazilySplitLine;
+    use crate::runtime::columns::lazily_split_line::LazilySplitLine;
 
     const A: u8 = 64;
     const B: u8 = 65;

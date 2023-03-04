@@ -1,13 +1,12 @@
 use std::rc::Rc;
 use crate::awk_str::RcAwkStr;
 use crate::lexer::{BinOp, LogicalOp, MathOp};
-use crate::parser::{ArgT, Expr, LValue, ScalarType, Stmt, TypedExpr};
+use crate::parser::{ArgT, Expr, LValue, ScalarType, Stmt, TypedExpr, Variable};
 use crate::printable_error::PrintableError;
 use crate::symbolizer::Symbol;
 use crate::typing::{AnalysisResults, BuiltinFunc, FunctionMap, ITypedFunction, TypedProgram, TypedUserFunction};
 use crate::vm::{Code, Label, VmFunc};
 use crate::compiler::chunk::Chunk;
-use crate::specials::SCL_SPECIAL_NAMES;
 use crate::stackt::StackT;
 
 
@@ -341,20 +340,28 @@ impl<'a> FunctionCompiler<'a> {
                 }
             }
             Expr::Variable(scalar) => {
-                if let Some(arg_idx) = self.parser_func.scalar_arg_idx(scalar) {
-                    // TODO: function args should be on non-unknown stacks
-                    self.add(Code::arg_scl(ScalarType::Var, arg_idx));
-                    Some(StackT::Var)
-                } else if let Some(id) = self.typed_program.global_analysis.global_scalars.get(scalar) {
-                    self.add(Code::gscl(*id, expr.typ));
-                    Some(expr.typ.into())
-                } else if let Some(arg_idx) = self.parser_func.array_arg_idx(scalar) {
-                    self.add(Code::ArgArray { arg_idx }); // TODO: u16max
-                    Some(StackT::Array)
-                } else {
-                    let id = self.typed_program.global_analysis.global_arrays.get(scalar).expect("compiler bug in typing pass can't find global array");
-                    self.add(Code::GlobalArr(*id));
-                    Some(StackT::Array)
+                match scalar {
+                    Variable::User(scalar) => {
+                        if let Some(arg_idx) = self.parser_func.scalar_arg_idx(scalar) {
+                            // TODO: function args should be on non-unknown stacks
+                            self.add(Code::arg_scl(ScalarType::Var, arg_idx));
+                            Some(StackT::Var)
+                        } else if let Some(id) = self.typed_program.global_analysis.global_scalars.get(scalar) {
+                            self.add(Code::gscl(*id, expr.typ));
+                            Some(expr.typ.into())
+                        } else if let Some(arg_idx) = self.parser_func.array_arg_idx(scalar) {
+                            self.add(Code::ArgArray { arg_idx }); // TODO: u16max
+                            Some(StackT::Array)
+                        } else {
+                            let id = self.typed_program.global_analysis.global_arrays.get(scalar).expect("compiler bug in typing pass can't find global array");
+                            self.add(Code::GlobalArr(*id));
+                            Some(StackT::Array)
+                        }
+                    }
+                    Variable::Special(special) => {
+                        self.add(Code::SclSpecialVar(*special));
+                        Some(StackT::Var)
+                    }
                 }
             }
             Expr::Column(col) => {
@@ -425,8 +432,15 @@ impl<'a> FunctionCompiler<'a> {
                                 self.expr(call_arg, StackT::Var)?;
                             }
                             ArgT::Array => {
-                                if let Expr::Variable(sym) = &call_arg.expr {
-                                    self.push_array(sym);
+                                if let Expr::Variable(var) = &call_arg.expr {
+                                    match var {
+                                        Variable::User(var) => {
+                                            self.push_array(var);
+                                        }
+                                        Variable::Special(special) => {
+                                            panic!("Compiler bug in typing pass: scalar special variable {} was determined to be an array.", special)
+                                        }
+                                    }
                                 } else {
                                     return Err(PrintableError::new(format!("Tried to use scalar as arg #{} to function {} which accepts an array", idx + 1, &target_name)));
                                 }
@@ -500,13 +514,21 @@ impl<'a> FunctionCompiler<'a> {
     }
 
     // Value to assign should be top of the stack unless side_effect_only==true
-    fn assign_to_scalar(&mut self, scalar_name: &Symbol, typ: ScalarType, side_effect_only: bool) {
-        if let Some(arg_idx) = self.parser_func.scalar_arg_idx(scalar_name) {
-            self.add(Code::arg_scl_assign(side_effect_only, typ, arg_idx))
-        } else {
-            let id = self.typed_program.global_analysis.global_scalars.get(scalar_name).expect("compiler bug in typing pass global scalar not found");
-            self.add(Code::gscl_assign(side_effect_only, typ, *id));
+    fn assign_to_scalar(&mut self, scalar_name: &Variable, typ: ScalarType, side_effect_only: bool) {
+        let code = match scalar_name {
+            Variable::User(scalar_name) => {
+                if let Some(arg_idx) = self.parser_func.scalar_arg_idx(scalar_name) {
+                    Code::arg_scl_assign(side_effect_only, typ, arg_idx)
+                } else {
+                    let id = self.typed_program.global_analysis.global_scalars.get(scalar_name).expect("compiler bug in typing pass global scalar not found");
+                    Code::gscl_assign(side_effect_only, typ, *id)
+                }
+            }
+            Variable::Special(special) => {
+                Code::special_assign(side_effect_only, *special)
+            }
         };
+        self.add(code);
     }
 
     // Value to assign should be top of the stack

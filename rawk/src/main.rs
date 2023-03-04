@@ -25,8 +25,6 @@ mod args;
 mod global_scalars;
 mod vm;
 mod compiler;
-mod arrays;
-mod columns;
 mod util;
 mod stackt;
 mod stack_counter;
@@ -34,6 +32,7 @@ mod awk_str;
 #[cfg(test)]
 mod test;
 mod specials;
+mod runtime;
 
 pub fn runner(args: Vec<String>) -> Result<(), PrintableError> {
     let args = AwkArgs::new(args)?;

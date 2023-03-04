@@ -1,6 +1,6 @@
 use std::io::Write;
 use crate::awk_str::{AwkByteStr, RcAwkStr};
-use crate::specials::SclSpecial;
+use crate::parser::SclSpecial;
 use crate::typing::{GlobalArrayId, GlobalScalarId};
 use crate::vm::VirtualMachine;
 

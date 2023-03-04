@@ -1,4 +1,4 @@
-use crate::parser::{Arg, ArgT, Function, ScalarType};
+use crate::parser::{Arg, ArgT, Function, ScalarType, Variable};
 use crate::symbolizer::Symbol;
 use crate::typing::ityped_function::{ITypedFunction};
 use crate::typing::reconcile::reconcile;
@@ -187,15 +187,14 @@ impl TypedUserFunction {
         name: &Symbol,
     ) -> ArgT {
         if let Some((_idx, typ)) = func.get_arg_idx_and_type(name) {
-            return typ;
+            typ
+        } else if global_analysis.global_scalars.contains_key(name) {
+            ArgT::Scalar
+        } else if global_analysis.global_arrays.contains_key(name) {
+            ArgT::Array
+        } else {
+            ArgT::Unknown
         }
-        if global_analysis.global_scalars.contains_key(name) {
-            return ArgT::Scalar;
-        }
-        if global_analysis.global_arrays.contains_key(name) {
-            return ArgT::Array;
-        }
-        ArgT::Unknown
     }
 
     pub fn get_arg_idx_and_type(&self, name: &Symbol) -> Option<(usize, ArgT)> {

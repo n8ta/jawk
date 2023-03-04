@@ -80,7 +80,7 @@ impl<'a> Iterator for StringSplit<'a> {
 #[cfg(test)]
 mod tests {
     use mawk_regex::Regex;
-    use crate::arrays::{split_on_regex, split_on_string};
+    use crate::runtime::arrays::{split_on_regex, split_on_string};
 
     #[test]
     fn test_split_on_regex() {

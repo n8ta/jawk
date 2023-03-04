@@ -204,7 +204,7 @@ mod tests {
     }
 
     use mawk_regex::{Match, Regex};
-    use crate::vm::converter::{Converter, FLOAT_REGEX};
+    use crate::runtime::converter::{Converter, FLOAT_REGEX};
 
     #[test]
     fn test_float_reg() {

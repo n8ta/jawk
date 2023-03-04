@@ -2,7 +2,7 @@ use std::arch::x86_64::_mm_storel_pd;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::{binop, binop_num_only, mathop};
-use crate::arrays::{split_on_regex, split_on_string};
+use crate::runtime::arrays::{split_on_regex, split_on_string};
 use crate::awk_str::{AwkStr, RcAwkStr, SubReplStr};
 use crate::printable_error::PrintableError;
 use crate::typing::GlobalScalarId;
@@ -94,19 +94,19 @@ pub fn clear_gscl(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
 
 pub fn assign_scl_special(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let value = vm.pop_unknown();
-    vm.assign_gscl_special(unsafe { imm.global_scl_id },  value);
+    vm.assign_special(unsafe { imm.special }, value);
     ip + 1
 }
 
 pub fn assign_ret_scl_special(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let value = vm.pop_unknown();
-    vm.assign_gscl_special(unsafe { imm.global_scl_id },  value.clone());
+    vm.assign_special(unsafe { imm.special }, value.clone());
     vm.push_unknown(value);
     ip + 1
 }
 
 pub fn scl_special(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
-    let gscl_special = vm.gscl(unsafe { imm.global_scl_id }).clone();
+    let gscl_special = vm.special(unsafe { imm.special }).clone();
     vm.push_unknown(gscl_special);
     ip + 1
 }

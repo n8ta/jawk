@@ -3,7 +3,7 @@ mod parser_tests {
     use crate::awk_str::{RcAwkStr};
     use crate::lexer::Token;
     use crate::lexer::{BinOp, LogicalOp, MathOp};
-    use crate::parser::{parse, Expr, Function, PatternAction, Program, Stmt, TypedExpr};
+    use crate::parser::{SclSpecial, parse, Expr, Function, PatternAction, Program, Stmt, TypedExpr};
 
     use crate::lexer::lex;
     use crate::symbolizer::Symbolizer;
@@ -128,14 +128,14 @@ mod parser_tests {
     #[test]
     fn test_ast_assign() {
         let mut symbolizer = Symbolizer::new();
-        let stmt = Stmt::Expr(texpr!(Expr::ScalarAssign(
+        let stmt = Stmt::Expr(texpr!(Expr::assign(
             symbolizer.get("abc"),
             bnum!(2.0)
         )));
         assert_eq!(
             parse_unwrap(
                 lex("{abc = 2.0; }", &mut symbolizer).unwrap(),
-                &mut symbolizer
+                &mut symbolizer,
             ),
             Program::new_action_only(symbolizer.get("main function"), stmt, symbolizer.clone())
         );
@@ -175,7 +175,7 @@ mod parser_tests {
         assert_eq!(
             parse_unwrap(
                 lex("{2 ^ 2 * 3;}", &mut symbolizer).unwrap(),
-                &mut symbolizer
+                &mut symbolizer,
             ),
             Program::new_action_only(symbolizer.get("main function"), expo, symbolizer.clone())
         );
@@ -257,9 +257,9 @@ mod parser_tests {
                 Stmt::If(
                     num!(1.0),
                     Box::new(Stmt::Print(num!(2.0))),
-                    Some(Box::new(Stmt::Print(num!(3.0))))
+                    Some(Box::new(Stmt::Print(num!(3.0)))),
                 ),
-                symbolizer.clone()
+                symbolizer.clone(),
             )
         );
     }
@@ -273,7 +273,7 @@ mod parser_tests {
             Program::new_action_only(
                 symbolizer.get("main function"),
                 Stmt::If(num!(1.0), Box::new(Stmt::Print(num!(2.0))), None),
-                symbolizer.clone()
+                symbolizer.clone(),
             )
         );
     }
@@ -287,7 +287,7 @@ mod parser_tests {
             Program::new_action_only(
                 symbolizer.get("main function"),
                 Stmt::Print(num!(1.0)),
-                symbolizer.clone()
+                symbolizer.clone(),
             )
         );
     }
@@ -300,8 +300,8 @@ mod parser_tests {
             parse_unwrap(lex(str, &mut symbolizer).unwrap(), &mut symbolizer),
             Program::new_action_only(
                 symbolizer.get("main function"),
-                Stmt::Group(vec![Stmt::Print(num!(1.0)), Stmt::Print(num!(2.0)),]),
-                symbolizer.clone()
+                Stmt::Group(vec![Stmt::Print(num!(1.0)), Stmt::Print(num!(2.0))]),
+                symbolizer.clone(),
             )
         );
     }
@@ -323,7 +323,7 @@ mod parser_tests {
                     ),
                     Stmt::Expr(num!(4.0)),
                 ]),
-                symbolizer.clone()
+                symbolizer.clone(),
             )
         );
     }
@@ -337,7 +337,7 @@ mod parser_tests {
         let actual = parse_unwrap(lex(str, &mut symbolizer).unwrap(), &mut symbolizer);
         let begins = vec![Stmt::Print(num!(1.0)), Stmt::Print(num!(2.0))];
         let ends = vec![Stmt::Print(num!(3.0)), Stmt::Print(num!(4.0))];
-        let generic = PatternAction::new(Some(texpr!(Expr::Variable(a))), Stmt::Print(num!(5.0)));
+        let generic = PatternAction::new(Some(texpr!(Expr::var_expr(a))), Stmt::Print(num!(5.0)));
         assert_eq!(
             actual,
             Program::new(
@@ -345,7 +345,7 @@ mod parser_tests {
                 ends,
                 vec![generic],
                 vec![],
-                symbolizer.clone()
+                symbolizer.clone(),
             )
         );
     }
@@ -360,7 +360,7 @@ mod parser_tests {
             Program::new(
                 vec![],
                 vec![],
-                vec![PatternAction::new_pattern_only(texpr!(Expr::Variable(
+                vec![PatternAction::new_pattern_only(texpr!(Expr::var_expr(
                     symbolizer.get("test")
                 )))],
                 vec![],
@@ -381,7 +381,7 @@ mod parser_tests {
                 vec![],
                 vec![PatternAction::new_action_only(Stmt::Print(num!(1.0)))],
                 vec![],
-                symbolizer.clone()
+                symbolizer.clone(),
             )
         );
     }
@@ -391,7 +391,7 @@ mod parser_tests {
         let mut symbolizer = Symbolizer::new();
         let str = "$0+2 { print a; }";
         let actual = parse_unwrap(lex(str, &mut symbolizer).unwrap(), &mut symbolizer);
-        let body = Stmt::Print(texpr!(Expr::Variable(symbolizer.get("a"))));
+        let body = Stmt::Print(texpr!(Expr::var_expr(symbolizer.get("a"))));
 
         let col = Expr::Column(bnum!(0.0));
         let binop = texpr!(Expr::MathOp(btexpr!(col), MathOp::Plus, bnum!(2.0)));
@@ -404,7 +404,7 @@ mod parser_tests {
                 vec![],
                 vec![pa],
                 vec![],
-                symbolizer.clone()
+                symbolizer.clone(),
             )
         );
     }
@@ -414,7 +414,7 @@ mod parser_tests {
         let mut symbolizer = Symbolizer::new();
         let str = "$$0 { print a; }";
         let actual = parse_unwrap(lex(str, &mut symbolizer).unwrap(), &mut symbolizer);
-        let body = Stmt::Print(texpr!(Expr::Variable(symbolizer.get("a"))));
+        let body = Stmt::Print(texpr!(Expr::var_expr(symbolizer.get("a"))));
 
         let col = Expr::Column(bnum!(0.0));
         let col = Expr::Column(btexpr!(col));
@@ -427,7 +427,7 @@ mod parser_tests {
                 vec![],
                 vec![pa],
                 vec![],
-                symbolizer.clone()
+                symbolizer.clone(),
             )
         );
     }
@@ -445,7 +445,7 @@ mod parser_tests {
                 vec![],
                 vec![PatternAction::new_action_only(body)],
                 vec![],
-                symbolizer.clone()
+                symbolizer.clone(),
             )
         );
     }
@@ -522,7 +522,7 @@ mod parser_tests {
 
         let left = texpr!(Expr::MathOp(bnum!(1.0), MathOp::Star, bnum!(3.0)));
         let body = btexpr!(Expr::BinOp(Box::new(left), BinOp::EqEq, bnum!(4.0)));
-        let stmt = Stmt::Expr(texpr!(Expr::ScalarAssign(symbolizer.get("a"), body)));
+        let stmt = Stmt::Expr(texpr!(Expr::assign(symbolizer.get("a"), body)));
         assert_eq!(actual, sprogram!(stmt, symbolizer));
     }
 
@@ -534,21 +534,21 @@ mod parser_tests {
             symbolizer
         );
         let a = symbolizer.get("a");
-        let init = texpr!(Expr::ScalarAssign(a.clone(), btexpr!(Expr::NumberF64(0.0))));
+        let init = texpr!(Expr::assign(a.clone(), btexpr!(Expr::NumberF64(0.0))));
         let test = texpr!(Expr::BinOp(
-            btexpr!(Expr::Variable(a.clone())),
+            btexpr!(Expr::var_expr(a.clone())),
             BinOp::Less,
             bnum!(1000.0)
         ));
-        let incr = texpr!(Expr::ScalarAssign(
+        let incr = texpr!(Expr::assign(
             a.clone(),
             btexpr!(Expr::MathOp(
-                btexpr!(Expr::Variable(a.clone())),
+                btexpr!(Expr::var_expr(a.clone())),
                 MathOp::Plus,
                 btexpr!(Expr::NumberF64(1.0))
             ))
         ));
-        let body = Stmt::Print(texpr!(Expr::Variable(a.clone())));
+        let body = Stmt::Print(texpr!(Expr::var_expr(a.clone())));
         let expected = Stmt::Group(vec![
             Stmt::Expr(init),
             Stmt::While(test, Box::new(Stmt::Group(vec![body, Stmt::Expr(incr)]))),
@@ -559,9 +559,9 @@ mod parser_tests {
     #[test]
     fn test_logical_and() {
         actual!(actual, "{ a && b && c }", symbolizer);
-        let a = btexpr!(Expr::Variable(symbolizer.get("a")));
-        let b = btexpr!(Expr::Variable(symbolizer.get("b")));
-        let c = btexpr!(Expr::Variable(symbolizer.get("c")));
+        let a = btexpr!(Expr::var_expr(symbolizer.get("a")));
+        let b = btexpr!(Expr::var_expr(symbolizer.get("b")));
+        let c = btexpr!(Expr::var_expr(symbolizer.get("c")));
         let a_and_b = btexpr!(Expr::LogicalOp(a, LogicalOp::And, b));
         let expected = Stmt::Expr(texpr!(Expr::LogicalOp(a_and_b, LogicalOp::And, c)));
         assert_eq!(actual, sprogram!(expected, &mut symbolizer))
@@ -570,9 +570,9 @@ mod parser_tests {
     #[test]
     fn test_logical_or() {
         actual!(actual, "{ a || b || c }", symbolizer);
-        let a = btexpr!(Expr::Variable(symbolizer.get("a")));
-        let b = btexpr!(Expr::Variable(symbolizer.get("b")));
-        let c = btexpr!(Expr::Variable(symbolizer.get("c")));
+        let a = btexpr!(Expr::var_expr(symbolizer.get("a")));
+        let b = btexpr!(Expr::var_expr(symbolizer.get("b")));
+        let c = btexpr!(Expr::var_expr(symbolizer.get("c")));
         let a_and_b = btexpr!(Expr::LogicalOp(a, LogicalOp::Or, b));
         let expected = Stmt::Expr(texpr!(Expr::LogicalOp(a_and_b, LogicalOp::Or, c)));
         assert_eq!(actual, sprogram!(expected, &mut symbolizer))
@@ -581,8 +581,8 @@ mod parser_tests {
     #[test]
     fn string_concat() {
         actual!(actual, "{ print (a b) } ", symbolizer);
-        let a = texpr!(Expr::Variable(symbolizer.get("a")));
-        let b = texpr!(Expr::Variable(symbolizer.get("b")));
+        let a = texpr!(Expr::var_expr(symbolizer.get("a")));
+        let b = texpr!(Expr::var_expr(symbolizer.get("b")));
         let print = Stmt::Print(texpr!(Expr::Concatenation(vec![a, b])));
         assert_eq!(actual, sprogram!(print, &mut symbolizer));
     }
@@ -599,9 +599,9 @@ mod parser_tests {
     #[test]
     fn string_concat_ooo() {
         actual!(actual, "{ print (a b - c) } ", symbolizer);
-        let a = texpr!(Expr::Variable(symbolizer.get("a")));
-        let b = btexpr!(Expr::Variable(symbolizer.get("b")));
-        let c = btexpr!(Expr::Variable(symbolizer.get("c")));
+        let a = texpr!(Expr::var_expr(symbolizer.get("a")));
+        let b = btexpr!(Expr::var_expr(symbolizer.get("b")));
+        let c = btexpr!(Expr::var_expr(symbolizer.get("c")));
         let b_minus_c = texpr!(Expr::MathOp(b, MathOp::Minus, c));
         let expected = Stmt::Print(texpr!(Expr::Concatenation(vec![a, b_minus_c])));
         assert_eq!(actual, sprogram!(expected, &mut symbolizer));
@@ -610,9 +610,9 @@ mod parser_tests {
     #[test]
     fn string_concat_ooo_2() {
         actual!(actual, "{ print (a - c b ) } ", symbolizer);
-        let a = btexpr!(Expr::Variable(symbolizer.get("a")));
-        let b = texpr!(Expr::Variable(symbolizer.get("b")));
-        let c = btexpr!(Expr::Variable(symbolizer.get("c")));
+        let a = btexpr!(Expr::var_expr(symbolizer.get("a")));
+        let b = texpr!(Expr::var_expr(symbolizer.get("b")));
+        let c = btexpr!(Expr::var_expr(symbolizer.get("c")));
         let a_minus_c = texpr!(Expr::MathOp(a, MathOp::Minus, c));
         let expected = Stmt::Print(texpr!(Expr::Concatenation(vec![a_minus_c, b])));
         assert_eq!(actual, sprogram!(expected, &mut symbolizer));
@@ -621,9 +621,9 @@ mod parser_tests {
     #[test]
     fn string_concat_ooo_3() {
         actual!(actual, "{ print (a < b c ) } ", symbolizer);
-        let a = btexpr!(Expr::Variable(symbolizer.get("a")));
-        let b = texpr!(Expr::Variable(symbolizer.get("b")));
-        let c = texpr!(Expr::Variable(symbolizer.get("c")));
+        let a = btexpr!(Expr::var_expr(symbolizer.get("a")));
+        let b = texpr!(Expr::var_expr(symbolizer.get("b")));
+        let c = texpr!(Expr::var_expr(symbolizer.get("c")));
         let b_concat_c = btexpr!(Expr::Concatenation(vec![b, c]));
         let expected = Stmt::Print(texpr!(Expr::BinOp(a, BinOp::Less, b_concat_c)));
         assert_eq!(actual, sprogram!(expected, &mut symbolizer));
@@ -632,9 +632,9 @@ mod parser_tests {
     #[test]
     fn string_concat_ooo_4() {
         actual!(actual, "{ print (a b < c ) } ", symbolizer);
-        let a = texpr!(Expr::Variable(symbolizer.get("a")));
-        let b = texpr!(Expr::Variable(symbolizer.get("b")));
-        let c = btexpr!(Expr::Variable(symbolizer.get("c")));
+        let a = texpr!(Expr::var_expr(symbolizer.get("a")));
+        let b = texpr!(Expr::var_expr(symbolizer.get("b")));
+        let c = btexpr!(Expr::var_expr(symbolizer.get("c")));
         let a_concat_b = btexpr!(Expr::Concatenation(vec![a, b]));
         let expected = Stmt::Print(texpr!(Expr::BinOp(a_concat_b, BinOp::Less, c)));
         assert_eq!(actual, sprogram!(expected, &mut symbolizer));
@@ -653,10 +653,7 @@ mod parser_tests {
     #[test]
     fn array_membership() {
         actual!(actual, "{ 1 in a } ", symbolizer);
-        let expr = texpr!(Expr::InArray {
-            name: symbolizer.get("a"),
-            indices: vec![num!(1.0)]
-        });
+        let expr = texpr!(Expr::in_array(symbolizer.get("a"),vec![num!(1.0)]));
         let print = Stmt::Expr(expr);
         assert_eq!(actual, sprogram!(print, &mut symbolizer));
     }
@@ -664,10 +661,7 @@ mod parser_tests {
     #[test]
     fn multi_dim_array_membership() {
         actual!(actual, "{ (1,2,3) in a } ", symbolizer);
-        let expr = texpr!(Expr::InArray {
-            name: symbolizer.get("a"),
-            indices: vec![num!(1.0), num!(2.0), num!(3.0)]
-        });
+        let expr = texpr!(Expr::in_array(symbolizer.get("a"), vec![num!(1.0), num!(2.0), num!(3.0)]));
         let print = Stmt::Expr(expr);
         assert_eq!(actual, sprogram!(print, &mut symbolizer));
     }
@@ -675,14 +669,9 @@ mod parser_tests {
     #[test]
     fn multi_multi_dim_array_membership() {
         actual!(actual, "{ (1,2,3) in a in b} ", symbolizer);
-        let expr = texpr!(Expr::InArray {
-            name: symbolizer.get("b"),
-            indices: vec![Expr::InArray {
-                name: symbolizer.get("a"),
-                indices: vec![num!(1.0), num!(2.0), num!(3.0)]
-            }
-            .into()]
-        });
+        let expr = texpr!(Expr::in_array(
+            symbolizer.get("b"),
+            vec![Expr::in_array(symbolizer.get("a"),vec![num!(1.0), num!(2.0), num!(3.0)]).into()]));
         let print = Stmt::Expr(expr);
         assert_eq!(actual, sprogram!(print, &mut symbolizer));
     }
@@ -690,10 +679,9 @@ mod parser_tests {
     #[test]
     fn array_access() {
         actual!(actual, "{ a[0] }", symbolizer);
-        let expr = texpr!(Expr::ArrayIndex {
-            name: symbolizer.get("a"),
-            indices: vec![Expr::NumberF64(0.0).into()]
-        });
+        let expr = texpr!(Expr::array_index(symbolizer.get("a"),
+            vec![Expr::NumberF64(0.0).into()]
+        ));
         let stmt = Stmt::Expr(expr);
         assert_eq!(actual, sprogram!(stmt, &mut symbolizer));
     }
@@ -701,10 +689,8 @@ mod parser_tests {
     #[test]
     fn array_access_multi() {
         actual!(actual, "{ a[0,1,2,3] }", symbolizer);
-        let expr = texpr!(Expr::ArrayIndex {
-            name: symbolizer.get("a"),
-            indices: vec![num!(0.0), num!(1.0), num!(2.0), num!(3.0)]
-        });
+        let expr = texpr!(Expr::array_index(symbolizer.get("a"),
+            vec![num!(0.0), num!(1.0), num!(2.0), num!(3.0)]));
         let stmt = Stmt::Expr(expr);
         assert_eq!(actual, sprogram!(stmt, &mut symbolizer));
     }
@@ -715,10 +701,7 @@ mod parser_tests {
         let zero = bnum!(0.0);
         let one = bnum!(1.0);
         let op = Expr::MathOp(zero, MathOp::Plus, one).into();
-        let expr = texpr!(Expr::ArrayIndex {
-            name: symbolizer.get("a"),
-            indices: vec![op]
-        });
+        let expr = texpr!(Expr::array_index(symbolizer.get("a"),vec![op]));
         let stmt = Stmt::Expr(expr);
         assert_eq!(actual, sprogram!(stmt, &mut symbolizer));
     }
@@ -726,25 +709,16 @@ mod parser_tests {
     #[test]
     fn array_access_nested() {
         actual!(actual, "{ a[a[0]] }", symbolizer);
-        let expr = texpr!(Expr::ArrayIndex {
-            name: symbolizer.get("a"),
-            indices: vec![Expr::NumberF64(0.0).into()]
-        });
-        let outer = texpr!(Expr::ArrayIndex {
-            name: symbolizer.get("a"),
-            indices: vec![expr]
-        });
+        let expr = texpr!(Expr::array_index(symbolizer.get("a"),vec![Expr::NumberF64(0.0).into()]));
+        let outer = texpr!(Expr::array_index(
+    symbolizer.get("a"),vec![expr]));
         assert_eq!(actual, sprogram!(Stmt::Expr(outer), &mut symbolizer));
     }
 
     #[test]
     fn array_access_assign() {
         actual!(actual, "{ a[0] = 1 }", symbolizer);
-        let expr = texpr!(Expr::ArrayAssign {
-            name: symbolizer.get("a"),
-            indices: vec![Expr::NumberF64(0.0).into()],
-            value: bnum!(1.0)
-        });
+        let expr = texpr!(Expr::array_assign(symbolizer.get("a"),vec![Expr::NumberF64(0.0).into()],bnum!(1.0)));
         assert_eq!(actual, sprogram!(Stmt::Expr(expr), &mut symbolizer));
     }
 
@@ -752,12 +726,7 @@ mod parser_tests {
     fn array_access_assign_multi_dim() {
         actual!(actual, "{ a[0,2] = 1 }", symbolizer);
         let a = symbolizer.get("a");
-        let expr = Expr::ArrayAssign {
-            name: a,
-            indices: vec![num!(0.0), num!(2.0)],
-            value: Box::new(num!(1.0)),
-        }
-            .into();
+        let expr = Expr::array_assign(a,vec![num!(0.0), num!(2.0)],Box::new(num!(1.0))).into();
         assert_eq!(actual, sprogram!(Stmt::Expr(expr), &mut symbolizer));
     }
 
@@ -802,15 +771,8 @@ mod parser_tests {
         let zero = bnum!(0.0);
         let one = bnum!(1.0);
         let op = Expr::MathOp(zero, MathOp::Plus, one).into();
-        let a_zero = Expr::ArrayIndex {
-            name: a,
-            indices: vec![num!(0.0)],
-        }
-            .into();
-        let expr = texpr!(Expr::ArrayIndex {
-            name: symbolizer.get("a"),
-            indices: vec![op, a_zero]
-        });
+        let a_zero = Expr::array_index(a, vec![num!(0.0)]).into();
+        let expr = Expr::array_index(symbolizer.get("a"),vec![op, a_zero]).into();
         let stmt = Stmt::Expr(expr);
         assert_eq!(actual, sprogram!(stmt, &mut symbolizer));
     }
@@ -857,7 +819,7 @@ mod parser_tests {
                 vec![],
                 vec![],
                 vec![function],
-                symbolizer.clone()
+                symbolizer.clone(),
             )
         )
     }
@@ -883,7 +845,7 @@ mod parser_tests {
                 vec![],
                 vec![],
                 vec![function],
-                symbolizer.clone()
+                symbolizer.clone(),
             )
         )
     }
@@ -904,7 +866,58 @@ mod parser_tests {
                 vec![],
                 vec![],
                 vec![],
-                symbolizer.clone()
+                symbolizer.clone(),
+            )
+        )
+    }
+
+
+    #[test]
+    fn test_fs_special_assign() {
+        actual!(actual, "BEGIN { FS = \"Z\"; }", symbolizer);
+        let assign = Stmt::Expr(Expr::assign(symbolizer.get("FS"),
+                                             Box::new(Expr::String(RcAwkStr::new_str("Z").into()).into())).into());
+        assert_eq!(
+            actual,
+            Program::new(
+                vec![assign],
+                vec![],
+                vec![],
+                vec![],
+                symbolizer.clone(),
+            )
+        )
+    }
+
+    #[test]
+    fn test_ARGC_special_assign() {
+        actual!(actual, "BEGIN { ARGC = \"Z\"; }", symbolizer);
+        let assign = Stmt::Expr(Expr::assign(SclSpecial::ARGC,
+                                                    Box::new(Expr::String(RcAwkStr::new_str("Z").into()).into())).into());
+        assert_eq!(
+            actual,
+            Program::new(
+                vec![assign],
+                vec![],
+                vec![],
+                vec![],
+                symbolizer.clone(),
+            )
+        )
+    }
+
+    #[test]
+    fn test_argc_special_read() {
+        actual!(actual, "BEGIN { print ARGC; }", symbolizer);
+        let print_argc = Stmt::Print(Expr::var_expr(SclSpecial::ARGC).into());
+        assert_eq!(
+            actual,
+            Program::new(
+                vec![print_argc],
+                vec![],
+                vec![],
+                vec![],
+                symbolizer.clone(),
             )
         )
     }

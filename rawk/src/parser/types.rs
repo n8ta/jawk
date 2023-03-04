@@ -2,8 +2,8 @@ use crate::lexer::{BinOp, LogicalOp, MathOp};
 use crate::symbolizer::Symbol;
 use std::fmt::{Display, Formatter};
 use crate::awk_str::{RcAwkStr};
+use crate::parser::{Variable, SclSpecial};
 use crate::printable_error::PrintableError;
-use crate::specials::{ARR_SPECIAL_NAMES, SCL_SPECIAL_NAMES};
 use crate::Symbolizer;
 use crate::typing::BuiltinFunc;
 
@@ -131,7 +131,7 @@ impl Into<TypedExpr> for Expr {
 
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum Expr {
-    ScalarAssign(Symbol, Box<TypedExpr>),
+    ScalarAssign(Variable, Box<TypedExpr>),
     ArrayAssign {
         name: Symbol,
         indices: Vec<TypedExpr>,
@@ -144,7 +144,7 @@ pub enum Expr {
     BinOp(Box<TypedExpr>, BinOp, Box<TypedExpr>),
     MathOp(Box<TypedExpr>, MathOp, Box<TypedExpr>),
     LogicalOp(Box<TypedExpr>, LogicalOp, Box<TypedExpr>),
-    Variable(Symbol),
+    Variable(Variable),
     Column(Box<TypedExpr>),
     NextLine,
     Ternary(Box<TypedExpr>, Box<TypedExpr>, Box<TypedExpr>),
@@ -169,9 +169,44 @@ pub enum Expr {
     },
 }
 
+impl Expr {
+    // Constructors used to simply conversion from Symbol into Variable so caller doesn't need to
+    // worry about it since nearly all callers are just using Symbol.
+    pub fn var_expr<T: Into<Variable>>(name: T) -> Expr {
+        Expr::Variable(name.into())
+    }
+    pub fn assign<T: Into<Variable>>(name: T, value: Box<TypedExpr>) -> Expr {
+        Expr::ScalarAssign(name.into(), value)
+    }
+    pub fn in_array(name: Symbol, indices: Vec<TypedExpr>) -> Expr {
+        Expr::InArray {
+            name,
+            indices,
+        }
+    }
+    pub fn array_index(name: Symbol, indices: Vec<TypedExpr>) -> Expr {
+        Expr::ArrayIndex {
+            name,
+            indices,
+        }
+    }
+    pub fn array_assign(name: Symbol, indices: Vec<TypedExpr>, value: Box<TypedExpr>) -> Expr {
+        Expr::ArrayAssign {
+            name,
+            indices,
+            value,
+        }
+    }
+}
+impl Into<Expr> for Variable {
+    fn into(self) -> Expr {
+        Expr::Variable(self)
+    }
+}
+
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum LValue {
-    Variable(Symbol),
+    Variable(Variable),
     ArrayIndex {
         name: Symbol,
         indices: Vec<TypedExpr>,
@@ -362,7 +397,7 @@ fn assert_safe_name(name: &Symbol, used_as: &str) -> Result<(), PrintableError> 
             used_as,
         )));
     }
-    if SCL_SPECIAL_NAMES.contains(&name.to_str()) || ARR_SPECIAL_NAMES.contains(&name.to_str()) {
+    if let Ok(_) = SclSpecial::try_from(name.to_str()) {
         return Err(PrintableError::new(format!("Cannot use `{}` as a {} since it is a special awk variable", name, used_as)));
     }
     Ok(())

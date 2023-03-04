@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use std::ops::Deref;
 use crate::global_scalars::SymbolMappingValue;
-use crate::specials::{ARR_SPECIAL_NAMES, ArrSpecial, SCL_SPECIAL_NAMES, SclSpecial};
+use crate::parser::{SclSpecial};
 use crate::symbolizer::Symbol;
 
 // These wrappers help prevent mixing of ids between arrays and scalars

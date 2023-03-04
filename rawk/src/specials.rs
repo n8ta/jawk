@@ -1,9 +1,10 @@
 // Awk special variables are stored the at the front of the global scalar
 // and global array storage in the vm
 
+use std::fmt::{Display, Formatter};
 use crate::parser::ScalarType;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(usize)]
 pub enum SclSpecial {
     // Col specials
@@ -29,46 +30,57 @@ pub enum SclSpecial {
     ARGC = 13,
 }
 
-pub const ARR_SPECIAL_NAMES: &[&'static str] = &[
-    "ARGC",
-    "ENVIRON",
+impl Display for SclSpecial {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", SCL_SPECIAL_MAP[*self as usize].0)
+    }
+}
+
+impl TryFrom<&str> for SclSpecial {
+    type Error = ();
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if let Some((_, (_, special))) = SCL_SPECIAL_MAP
+            .iter()
+            .enumerate()
+            .find(|(_idx, (name, special))| name == &value) {
+            Ok(*special)
+        } else {
+            Err(())
+        }
+    }
+}
+
+
+
+type SclSpecialMapT = &'static [(&'static str, SclSpecial)];
+type ArrSpecialMapT = &'static [(&'static str, ArrSpecial)];
+
+const ARR_SPECIAL_MAP: ArrSpecialMapT = &[
+    ("ARGV", ArrSpecial::ARGV),
+    ("ENVIRON", ArrSpecial::ENVIRON),
 ];
-pub const SCL_SPECIAL_NAMES: &[&'static str] = &[
-    "FS",
-    "RS",
-    "FILENAME",
-    "FNR",
-    "NF",
-    "NR",
-    "CONVFMT",
-    "OFMT",
-    "OFS",
-    "ORS",
-    "RLENGTH",
-    "RSTART",
-    "SUBSEP",
-    "ARGC",
+const SCL_SPECIAL_MAP: SclSpecialMapT = &[
+    ("FS", SclSpecial::FS),
+    ("RS", SclSpecial::RS),
+    ("FILENAME", SclSpecial::FILENAME),
+    ("FNR", SclSpecial::FNR),
+    ("NF", SclSpecial::NF),
+    ("NR", SclSpecial::NR),
+    ("CONVFMT", SclSpecial::CONVFMT),
+    ("OFMT", SclSpecial::OFMT),
+    ("OFS", SclSpecial::OFS),
+    ("ORS", SclSpecial::ORS),
+    ("RLENGTH", SclSpecial::RLENGTH),
+    ("RSTART", SclSpecial::RSTART),
+    ("SUBSEP", SclSpecial::SUBSEP),
+    ("ARGC", SclSpecial::ARGC),
 ];
 
 
 impl SclSpecial {
-    pub const fn variants() -> &'static [(SclSpecial, &'static str, ScalarType)] {
-        return &[
-            (SclSpecial::FS, "FS", ScalarType::Str),
-            (SclSpecial::RS, "RS", ScalarType::Str),
-            (SclSpecial::FILENAME, "FILENAME", ScalarType::Str),
-            (SclSpecial::FNR, "FNR", ScalarType::Num),
-            (SclSpecial::NF, "NF", ScalarType::Num),
-            (SclSpecial::NR, "NR", ScalarType::Num),
-            (SclSpecial::CONVFMT, "CONVFMT", ScalarType::Str),
-            (SclSpecial::OFMT, "OFMT", ScalarType::Str),
-            (SclSpecial::OFS, "OFS", ScalarType::Str),
-            (SclSpecial::ORS, "ORS", ScalarType::Str),
-            (SclSpecial::RLENGTH, "RLENGTH", ScalarType::Num),
-            (SclSpecial::RSTART, "RSTART", ScalarType::Num),
-            (SclSpecial::SUBSEP, "SUBSEP", ScalarType::Str),
-            (SclSpecial::ARGC, "ARGC", ScalarType::Num),
-        ];
+    pub const fn variants() -> SclSpecialMapT {
+        &SCL_SPECIAL_MAP
     }
 }
 
@@ -78,10 +90,7 @@ pub enum ArrSpecial {
 }
 
 impl ArrSpecial {
-    pub fn variants() -> &'static [(ArrSpecial, &'static str)] {
-        return &[
-            (ArrSpecial::ARGV, "ARGV"),
-            (ArrSpecial::ENVIRON, "ENVIRON"),
-        ];
+    pub fn variants() -> ArrSpecialMapT {
+        &ARR_SPECIAL_MAP
     }
 }

@@ -1,15 +1,14 @@
 use std::collections::HashSet;
 use crate::global_scalars::SymbolMapping;
-use crate::parser::ScalarType;
+use crate::parser::{ScalarType};
 use crate::symbolizer::Symbol;
 use immutable_chunkmap::map::Map;
 use std::fmt::Debug;
 use crate::awk_str::{RcAwkStr};
-use crate::specials::{ARR_SPECIAL_NAMES};
 use crate::Symbolizer;
 use crate::typing::{GlobalArrayId, GlobalScalarId};
 
-pub type MapT = Map<Symbol, ScalarType, 1000>;
+pub type MapT = Map<Symbol, ScalarType, 256>;
 
 #[derive(Debug, PartialEq)]
 pub struct AnalysisResults {

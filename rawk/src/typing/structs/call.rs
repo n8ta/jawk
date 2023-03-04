@@ -3,12 +3,14 @@ use crate::typing::ITypedFunction;
 use hashbrown::HashSet;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
+use crate::parser::Variable;
 
 pub struct Call {
     pub target: Rc<dyn ITypedFunction>,
     pub args: Vec<CallArg>,
     pub src: Rc<dyn ITypedFunction>,
 }
+
 impl PartialEq for Call {
     fn eq(&self, other: &Self) -> bool {
         self.target.name() == other.target.name()
@@ -16,6 +18,7 @@ impl PartialEq for Call {
             && self.src.name() == other.src.name()
     }
 }
+
 impl Clone for Call {
     fn clone(&self) -> Self {
         Self {

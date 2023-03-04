@@ -1,17 +1,21 @@
 mod test;
 mod transformer;
 mod types;
+mod variable;
 
 use crate::lexer::{BinOp, LogicalOp, MathOp, Token, TokenType};
 use crate::parser::transformer::transform;
-pub use crate::parser::types::PatternAction;
 use crate::printable_error::PrintableError;
 use crate::symbolizer::Symbol;
 use crate::typing::BuiltinFunc;
 use crate::{AnalysisResults, Symbolizer};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+
+pub use crate::parser::types::PatternAction;
 pub use types::{Arg, ArgT, Expr, LValue, Function, ScalarType, Stmt, TypedExpr};
+pub use variable::Variable;
+pub use crate::specials::{SclSpecial, ArrSpecial};
 
 // Pattern Action Type
 // Normal eg: $1 == "a" { doSomething() }
@@ -381,7 +385,7 @@ impl<'a> Parser<'a> {
                 return Err(PrintableError::new("Expected an identifier before an `=`"));
             };
             self.consume(TokenType::Eq, "Expected `=` after identifier")?;
-            Stmt::Expr(TypedExpr::new(Expr::ScalarAssign(
+            Stmt::Expr(TypedExpr::new(Expr::assign(
                 str,
                 Box::new(self.expression()?),
             )))
@@ -474,7 +478,7 @@ impl<'a> Parser<'a> {
                     unreachable!()
                 };
                 let expr = Expr::MathOp(
-                    Box::new(Expr::Variable(var.clone()).into()),
+                    Box::new(Expr::var_expr(var.clone()).into()),
                     math_op,
                     Box::new(self.assignment()?),
                 );
@@ -556,11 +560,7 @@ impl<'a> Parser<'a> {
             } else {
                 unreachable!()
             };
-            expr = Expr::InArray {
-                name,
-                indices: vec![expr],
-            }
-                .into()
+            expr = Expr::in_array(name, vec![expr]).into();
         }
         Ok(expr)
     }
@@ -592,10 +592,7 @@ impl<'a> Parser<'a> {
             unreachable!("compiler bug consumed ident but got something else")
         };
 
-        let mut expr = TypedExpr::new(Expr::InArray {
-            name: ident,
-            indices: exprs,
-        });
+        let mut expr = TypedExpr::new(Expr::in_array(ident, exprs));
         while self.matches(flags!(TokenType::In)) {
             let ident = self.consume(TokenType::Ident, "Multidimensional array access must be followed by an array name. Eg: (1,2,3) in ARRAY_NAME")?;
             let ident = if let Token::Ident(ident) = ident {
@@ -603,11 +600,7 @@ impl<'a> Parser<'a> {
             } else {
                 unreachable!("compiler bug consumed ident but got something else")
             };
-            expr = Expr::InArray {
-                name: ident,
-                indices: vec![expr.into()],
-            }
-                .into();
+            expr = Expr::in_array(ident, vec![expr.into()]).into();
         }
         Ok(expr)
     }
@@ -749,7 +742,7 @@ impl<'a> Parser<'a> {
         if self.matches_series(&[TokenType::Plus, TokenType::Plus, TokenType::Ident])
         {
             let name = self.prior_indent_name_infallible();
-            let var_expr = Expr::Variable(name.clone()).into();
+            let var_expr = Expr::var_expr(name.clone()).into();
             let increment = Expr::MathOp(
                 Box::new(var_expr),
                 MathOp::Plus,
@@ -757,10 +750,10 @@ impl<'a> Parser<'a> {
             )
                 .into();
 
-            return Ok(Expr::ScalarAssign(name, Box::new(increment)).into());
+            return Ok(Expr::assign(name, Box::new(increment)).into());
         } else if self.matches_series(&[TokenType::Minus, TokenType::Minus, TokenType::Ident]) {
             let name = self.prior_indent_name_infallible();
-            let var = Expr::Variable(name.clone()).into();
+            let var = Expr::var_expr(name.clone()).into();
             let decrement = Expr::MathOp(
                 Box::new(var),
                 MathOp::Minus,
@@ -768,7 +761,7 @@ impl<'a> Parser<'a> {
             )
                 .into();
 
-            return Ok(Expr::ScalarAssign(name, Box::new(decrement)).into());
+            return Ok(Expr::assign(name, Box::new(decrement)).into());
         }
 
         self.post_op()
@@ -848,7 +841,7 @@ impl<'a> Parser<'a> {
                 } else if self.matches(flags!(TokenType::LeftParen)) {
                     self.call(name)?
                 } else {
-                    Expr::Variable(name).into()
+                    Expr::var_expr(name).into()
                 }
             }
             Token::String(string) => {
@@ -918,6 +911,6 @@ impl<'a> Parser<'a> {
             TokenType::RightBracket,
             "Array indexing must end with a right bracket.",
         )?;
-        Ok(Expr::ArrayIndex { name, indices }.into())
+        Ok(Expr::array_index(name, indices).into())
     }
 }

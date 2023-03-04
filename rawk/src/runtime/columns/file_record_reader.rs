@@ -3,7 +3,7 @@ use std::fs::File;
 use crate::printable_error::PrintableError;
 
 use quick_drop_deque::QuickDropDeque;
-use crate::columns::lazily_split_line::LazilySplitLine;
+use crate::runtime::columns::lazily_split_line::LazilySplitLine;
 use crate::util::index_in_full_dq;
 
 #[allow(dead_code)]

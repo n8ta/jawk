@@ -2,8 +2,7 @@ use crate::typing::{FunctionMap, GlobalArrayId, GlobalScalarId, ITypedFunction};
 use std::fmt::{Debug, Write};
 use std::rc::Rc;
 use crate::awk_str::RcAwkStr;
-use crate::parser::{ArgT, ScalarType};
-use crate::specials::SclSpecial;
+use crate::parser::{ArgT, ScalarType, SclSpecial};
 use crate::stack_counter::{StackCounter as SC};
 use crate::stackt::StackT;
 use crate::util::pad;
@@ -69,9 +68,9 @@ pub enum Code {
     ArgStr { arg_idx: usize },
     ArgArray { arg_idx: usize },
 
-    AssignSclSpecialVar(GlobalScalarId),
-    AssignRetSclSpecialVar(GlobalScalarId),
-    SclSpecialVar(GlobalScalarId),
+    AssignSclSpecialVar(SclSpecial),
+    AssignRetSclSpecialVar(SclSpecial),
+    SclSpecialVar(SclSpecial),
 
     Exp,
 
@@ -289,6 +288,15 @@ impl Code {
             }
         }
     }
+
+    pub fn special_assign(side_effect_only: bool, special: SclSpecial) -> Self {
+        if !side_effect_only {
+            Code::AssignRetSclSpecialVar(special)
+        } else {
+            Code::AssignSclSpecialVar(special)
+        }
+    }
+
     pub fn array_assign(indices: usize, typ: ScalarType, side_effect_only: bool) -> Self {
         if side_effect_only {
             match typ {
@@ -572,9 +580,9 @@ impl Code {
             Code::ClearGscl(id) => CI::imm(clear_gscl, Immed { global_scl_id: *id }),
             Code::ClearArgScl(arg_idx) => CI::imm(clear_argscl, Immed { arg_idx: *arg_idx }),
 
-            Code::AssignSclSpecialVar(special) => CI::imm(assign_scl_special, Immed { global_scl_id: *special }),
-            Code::AssignRetSclSpecialVar(special) => CI::imm(assign_ret_scl_special, Immed { global_scl_id: *special }),
-            Code::SclSpecialVar(special) => CI::imm(scl_special, Immed { global_scl_id: *special }),
+            Code::AssignSclSpecialVar(special) => CI::imm(assign_scl_special, Immed { special: *special }),
+            Code::AssignRetSclSpecialVar(special) => CI::imm(assign_ret_scl_special, Immed { special: *special }),
+            Code::SclSpecialVar(special) => CI::imm(scl_special, Immed { special: *special }),
 
             Code::Label(_) | Code::JumpIfTrueNextLineLbl(_) | Code::JumpIfFalseNextLineLbl(_) | Code::JumpIfFalseVarLbl(_) | Code::JumpIfFalseNumLbl(_) | Code::JumpIfFalseStrLbl(_) | Code::JumpLbl(_) | Code::JumpIfTrueVarLbl(_) | Code::JumpIfTrueNumLbl(_) | Code::JumpIfTrueStrLbl(_) => {
                 panic!("labels should be removed before direct threading {:?}", self);

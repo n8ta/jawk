@@ -40,7 +40,7 @@ pub fn borrowing_split<T: PartialEq>(content: &[T], split: &[T], output: &mut Ve
 
 #[cfg(test)]
 mod index_splitter_tests {
-    use crate::columns::borrowing_split::{borrowing_split, Split};
+    use crate::runtime::columns::borrowing_split::{borrowing_split, Split};
 
     fn borrowing_split_test<T: PartialEq>(content: &[T], split: &[T]) -> Vec<Split> {
         let mut splits = vec![];

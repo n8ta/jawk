@@ -6,6 +6,7 @@ pub trait SymbolMappingValue {
     fn create(symbol: &Symbol, idx: usize) -> Self;
 }
 
+// Maps Symbols into a generic type. In this impl it's structs wrapping a usize identifier.
 #[derive(Debug, PartialEq, Clone)]
 pub struct SymbolMapping<T: SymbolMappingValue> {
     mapping: HashMap<Symbol, T>,
@@ -39,9 +40,5 @@ impl<T: SymbolMappingValue> SymbolMapping<T> {
 
     pub fn len(&self) -> usize {
         self.mapping.len()
-    }
-
-    pub fn all_symbols(&self) -> Vec<Symbol> {
-        self.mapping.keys().cloned().collect()
     }
 }

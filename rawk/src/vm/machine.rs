@@ -1,16 +1,16 @@
 use std::io::{Write};
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::arrays::{Arrays, split_on_regex, split_on_string};
 use crate::awk_str::{AwkStr, RcAwkStr};
-use crate::columns::Columns;
+use crate::runtime::arrays::{Arrays, split_on_regex, split_on_string};
+use crate::runtime::columns::Columns;
+use crate::runtime::rc_manager::RcManager;
+use crate::runtime::regex_cache::RegexCache;
+use crate::runtime::converter::Converter;
 use crate::{binop, mathop};
-use crate::specials::{SclSpecial};
+use crate::parser::{SclSpecial};
 use crate::typing::{GlobalArrayId, GlobalScalarId};
 use crate::vm::{Code, VmFunc, VmProgram};
-use crate::vm::converter::Converter;
 use crate::util::{clamp_to_max_len, clamp_to_slice_index, index_of, unwrap};
-use crate::vm::rc_manager::RcManager;
-use crate::vm::regex_cache::RegexCache;
 use crate::vm::runtime_scalar::{RuntimeScalar, StringScalar};
 
 
@@ -26,6 +26,7 @@ pub struct VirtualMachine {
     pub vm_program: &'static VmProgram, // Just leak it so we don't need to litter the program with runtimes.
 
     pub global_scalars: Vec<RuntimeScalar>,
+    pub special_scalars: Vec<SclSpecial>,
 
     // Distributes and recycles awk strings, saves lots of malloc'ing by reusing Rc's.
     pub shitty_malloc: RcManager,
@@ -49,10 +50,6 @@ pub struct VirtualMachine {
     // IO
     pub stdout: Box<dyn Write>,
     stderr: Box<dyn Write>,
-
-    // Todo: remove
-    subsep: RuntimeScalar,
-
 }
 
 
@@ -67,23 +64,25 @@ impl VirtualMachine {
             global_scalars.push(RuntimeScalar::Str(RcAwkStr::new_bytes(vec![])));
         }
 
+        let mut special_scalars = vec![];
+
         let s = Self {
             vm_program,
-            arr_stack: vec![],
+            global_scalars,
+            special_scalars,
+            shitty_malloc: RcManager::new(),
             unknown_stack: vec![],
             num_stack: vec![],
             str_stack: vec![],
+            arr_stack: vec![],
             scopes: vec![],
-            columns: Columns::new(files),
             arrays: Arrays::new(vm_program.analysis.global_arrays.len()),
+            columns: Columns::new(files),
             converter: Converter::new(),
-            global_scalars,
             regex_cache: RegexCache::new(),
+            srand_seed: 09171998.0,
             stdout,
             stderr,
-            srand_seed: 09171998.0,
-            shitty_malloc: RcManager::new(),
-            subsep: RuntimeScalar::Str(RcAwkStr::new_str("-"))
         };
         s
     }
@@ -96,22 +95,25 @@ impl VirtualMachine {
         unwrap(self.global_scalars.get(idx.id))
     }
 
-    pub fn assign_gscl(&mut self, idx: GlobalScalarId, scalar: RuntimeScalar) {
+    pub fn assign_gscl(&mut self, idx: GlobalScalarId, value: RuntimeScalar) {
         let existing = unwrap(self.global_scalars.get_mut(idx.id));
-        let prior_value = std::mem::replace(existing,  scalar);
+        let prior_value = std::mem::replace(existing, value);
         self.shitty_malloc.drop_scalar(prior_value)
     }
 
-    pub fn assign_gscl_special(&mut self, idx: GlobalScalarId, scalar: RuntimeScalar) {
+
+    pub fn special(&mut self, special: SclSpecial) -> RuntimeScalar {
+        todo!("read special")
+    }
+
+    pub fn assign_special(&mut self, special: SclSpecial, value: RuntimeScalar) {
         todo!("assign special");
         // let existing = unwrap(self.global_scalars.get_mut(idx as usize));
         // let prior_value = std::mem::replace(existing,  scalar);
         // self.shitty_malloc.drop_scalar(prior_value)
     }
 
-    pub fn push_unknown(&mut self, scalar: RuntimeScalar) {
-        self.unknown_stack.push(scalar)
-    }
+    pub fn push_unknown(&mut self, scalar: RuntimeScalar) { self.unknown_stack.push(scalar) }
     pub fn push_num(&mut self, num: f64) {
         self.num_stack.push(num)
     }
@@ -208,7 +210,8 @@ impl VirtualMachine {
     }
 
     pub fn concat_array_indices(&mut self, count: usize) -> AwkStr {
-        let subsep = self.subsep.clone();
+        todo!("concat hook up subsep");
+        let subsep = RuntimeScalar::Str(RcAwkStr::new_bytes("-".as_bytes().to_vec()));
         let subsep = self.val_to_string(subsep);
         let mut string = self.pop_string().downgrade_or_clone();
         for _ in 0..count - 1 {
