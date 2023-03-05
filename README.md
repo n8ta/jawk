@@ -44,7 +44,7 @@ rawk uses a ring buffer to read from files without copying unless the data is ne
 awks I am aware of. I have not yet optimized output so I have no idea how it compares. Here's a comparison of various awks
 reading every line in a file storing it, and then printing the final value.
 
-![../assets/io.png](../assets/io.png)
+![./assets/io.png](./assets/io.png)
 
 (onetrueawk is far to the right of this chart so I've omitted it)
 
