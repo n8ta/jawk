@@ -1,90 +1,68 @@
 ## What is it?
-An (INCOMPLETE) jit compiled awk (jawk) implementation leveraging GNU libjit. The goal is the to be the fastest awk for all programs.
+A (WIP) bytecode multi-stack awk interpreter. The goal of rawk is the to be the fastest awk for all programs.
 
-## Performance
+## What makes it unique?
 
-### Best case scenario for jawk
-A long running mostly numeric program with little io. Not very representation of most awk programs since awk program usually do a lot of IO. 
-JIT provides the most benefit here since JIT'ed math is vastly faster than interpreted. For this we use generating mandelbrot set as ascii art (see tt.x1 in the repo). This is highly numeric followed by a few quick prints.
+### Typing (yes even in awk!)
+rawk uses type inference to determine the types of variables: string, string numeric, number, array at compile time. 
+This allows rawk to emit bytecode that is non-dynamic in many scenarios. For code like
 
-![A histogram showing jawk is the vastly the fastest for this program](./assets/tt.x1.png)
-![Mandelbrot set in ascii art style. Output of jawk](./assets/mandel.png)
-
-That chart is not a mistake. A normal run of this program for jawk (on my 2015 laptop) is 170ms vs >2s for all other awks. 
-
-### Worse case scenario for jawk (short program, JIT provides no benefit)
-![A histogram showing onetrueawk as the fastest followed by jawk](./assets/begin.png)
-
-Here we see jawk is doing okay but the interpreters are much closer and onetrueawk, the lightest of the interpreters, is generally slightly faster.
-
-### (Slightly more) practical example
-
-Reading a 300MB CSV file, storing every line in a variable, and then printing the final line.
-
-The right chart omits onetrueawk to make distinctions clearer.
-![Left is a histogram of mawk, gawk, goawk, jawk, and onetrue awk. Right omits onetrueawk since it s 10x slower than the others. Mean runtimes are mawk: 554ms gawk: 2042ms goawk: 747ms jawk: 448ms](./assets/practical.png)
-
-## Limitations
-
-jawk doesn't support all of awk yet. Lots of builtins are missing, statements must be terminated with a `;` not a new line, and numeric strings 
-have not yet been implemented. 
-
-If gnu-lightjib the backing jit compiler doesn't have a backend for your system jawk will fallback to an interpreter
-and lose most performance gains.
-
-## Character encodings
-The awk spec states that 
-
->The index, length, match, and substr functions should not be confused with similar functions in the ISO C standard; the awk versions deal with characters, while the ISO C standard deals with bytes.
-
-To this end jawk uses utf8 codepoints as characters for these functions. If invalid utf-8 data is parsed from a file jawk will emit a warning and any 
-length calculation will return bytes for a non utf-8 compliant string.
-
-jawk does not support any other locale eg. `LC_ALL=C` yet.
-
-## How to use
-
-### Ubuntu:
 ```
-sudo apt-get install autoconf pkg-config libtool flex bison automake make g++
-cargo build --release
-``` 
+{ a = 1; b = 2; print a + b; }
+```
+rawk emits this code for `print a + b` (Gscl means Global scalar)
+```
+   6 GsclNum(0)                              args: [[]]                 push: [[Num]]
+   7 GsclNum(1)                              args: [[]]                 push: [[Num]]
+   8 Add                                     args: [[Num, Num]]         push: [[Num]]
+```
+The add instruction knows its operands are numbers and will not need to check types at runtime.
+```
+pub fn add(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
+    let rhs: f64 = vm.pop_num(); // pop from the numeric stack
+    let lhs: f64 = vm.pop_num(); // again
+    vm.push_num(lhs+rhs);        // add them and push
+    ip + 1                       // advance
+}
+```
+If the types of `a` and `b` are variable (like below)
+```
+   { if ($1) { a = 1; b = 2; } else { a = "1"; b = "2" } print (a + b); }
+```
+rawk has no significant advantage and will add two more bytecode ops to convert string -> number. For `print (a + b)` rawk emits
+```
+   16 GsclVar(0)                              args: [[]]                 push: [[Var]]
+   17 VarToNum                                args: [[Var]]              push: [[Num]]
+   18 GsclVar(1)                              args: [[]]                 push: [[Var]]
+   19 VarToNum                                args: [[Var]]              push: [[Num]]
+   20 Add                                     args: [[Num, Num]]         push: [[Num]]
+```
+Var means variable which is the stack of values whose type could be string/strnum/number and whose types need to be checked at runtime.
 
-### Mac:
-```
-brew install autoconf automake libtool gcc
-```
+### Very fast IO
+rawk uses a ring buffer to read from files without copying unless the data is needed. rawk's file reading is faster than all other
+awks I am aware of. I have not yet optimized output so I have no idea how it compares. Here's a comparison of various awks
+reading every line in a file storing it, and then printing the final value.
 
-### Windows
-For now you need to use WSL and follow the ubuntu instructions
+![io.png](assets%2Fio.png)
 
-### General:
-```
-cargo build
-./target/debug/jawk '{ print "Some awk program!}" }' 
-./target/debug/jawk -f run.awk some_file.txt
-cargo run -- --debug 'BEGIN { print "this will print debug info including the AST and runtime calls" }'
-```
+(onetrueawk is far to the right of this chart so I've omitted it)
 
 ## Todo:
 
 1. Reading from stdin
 2. Native string functions 
-   1. gsub
-   2. index
-   3. match
-   4. split
-   5. sprintf
-   6. sub
+   1. index
+   2. match
+   3. split
+   4. sprintf
 3. Redirect output to file
    - close() function
 4. Pattern Ranges 
-5. Parser need to be able to print the where it was when shit went wrong and what happened
-6. The columns runtime should not duplicate work when the same field is looked up multiple times
-7. The columns runtime should support assignment
-8. Make this compile on Windows!
-9. Divide by 0 needs to print an error
-10. All the builtin variables that are read only:
+5. The columns runtime should not duplicate work when the same field is looked up multiple times
+6. The columns runtime should support assignment
+7. Divide by 0 needs to print an error
+8. All the builtin variables that are read only:
    1. ARGC (float)
    1. FILENAME (str)
    1. FNR (float)
@@ -92,7 +70,7 @@ cargo run -- --debug 'BEGIN { print "this will print debug info including the AS
    1. NR (float)
    1. RLENGTH (float)
    1. RSTART (float)
-11. Builtins that are read/write
+9. Builtins that are read/write
     1. CONVFMT (str)
     1. FS (str)
     1. OFMT (str)
@@ -100,17 +78,13 @@ cargo run -- --debug 'BEGIN { print "this will print debug info including the AS
     1. ORS (str)
     1. RS (str)
     1. SUBSEP (str)
-12. Builtins that are arrays (in this impl read only)
+10. Builtins that are arrays (in this impl read only)
     1. ARGV
     1. ENVIRON
 
 ## License
-GNU Libjit is GPLv2. (./gnu-libjit-sys/LICENSE)
-
 Mawk is GPLv2 (./mawk-regex-sys/LICENSE)
-
 Quick Drop Deque is MIT (./quick-drop-deque/LICENSE)
-
 The combined project is GPLv2 
 
 ## Running the tests
