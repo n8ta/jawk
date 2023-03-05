@@ -6,12 +6,14 @@ use crate::runtime::columns::Columns;
 use crate::runtime::rc_manager::RcManager;
 use crate::runtime::regex_cache::RegexCache;
 use crate::runtime::converter::Converter;
+use crate::vm::{RuntimeScalar, StringScalar};
 use crate::{binop, mathop};
 use crate::parser::{SclSpecial};
+use crate::runtime::special_manager::SpecialManager;
+use crate::runtime::VmRuntime;
 use crate::typing::{GlobalArrayId, GlobalScalarId};
 use crate::vm::{Code, VmFunc, VmProgram};
 use crate::util::{clamp_to_max_len, clamp_to_slice_index, index_of, unwrap};
-use crate::vm::runtime_scalar::{RuntimeScalar, StringScalar};
 
 
 pub struct FunctionScope {
@@ -23,10 +25,12 @@ pub struct FunctionScope {
 
 
 pub struct VirtualMachine {
-    pub vm_program: &'static VmProgram, // Just leak it so we don't need to litter the program with runtimes.
+    // Just leak VmProgram it so we don't need to litter the program with lifetimes on the
+    // VirtualMachine type.
+    pub vm_program: &'static VmProgram,
 
     pub global_scalars: Vec<RuntimeScalar>,
-    pub special_scalars: Vec<SclSpecial>,
+    pub special_scalars: SpecialManager,
 
     // Distributes and recycles awk strings, saves lots of malloc'ing by reusing Rc's.
     pub shitty_malloc: RcManager,
@@ -41,11 +45,7 @@ pub struct VirtualMachine {
     pub scopes: Vec<FunctionScope>,
 
     // Runtime modules managing various piece of state
-    pub arrays: Arrays,
-    pub columns: Columns,
-    pub converter: Converter,
-    pub regex_cache: RegexCache,
-    pub srand_seed: f64,
+    pub rt: VmRuntime,
 
     // IO
     pub stdout: Box<dyn Write>,
@@ -63,8 +63,7 @@ impl VirtualMachine {
         for _ in 0..num_gscls {
             global_scalars.push(RuntimeScalar::Str(RcAwkStr::new_bytes(vec![])));
         }
-
-        let mut special_scalars = vec![];
+        let mut special_scalars = SpecialManager::new(1+files.len());
 
         let s = Self {
             vm_program,
@@ -76,11 +75,7 @@ impl VirtualMachine {
             str_stack: vec![],
             arr_stack: vec![],
             scopes: vec![],
-            arrays: Arrays::new(vm_program.analysis.global_arrays.len()),
-            columns: Columns::new(files),
-            converter: Converter::new(),
-            regex_cache: RegexCache::new(),
-            srand_seed: 09171998.0,
+            rt: VmRuntime::new(files, vm_program.analysis.global_arrays.len()),
             stdout,
             stderr,
         };
@@ -94,23 +89,18 @@ impl VirtualMachine {
     pub fn gscl(&mut self, idx: GlobalScalarId) -> &RuntimeScalar {
         unwrap(self.global_scalars.get(idx.id))
     }
-
     pub fn assign_gscl(&mut self, idx: GlobalScalarId, value: RuntimeScalar) {
         let existing = unwrap(self.global_scalars.get_mut(idx.id));
         let prior_value = std::mem::replace(existing, value);
         self.shitty_malloc.drop_scalar(prior_value)
     }
 
-
     pub fn special(&mut self, special: SclSpecial) -> RuntimeScalar {
-        todo!("read special")
+        self.special_scalars.get(special)
     }
-
     pub fn assign_special(&mut self, special: SclSpecial, value: RuntimeScalar) {
-        todo!("assign special");
-        // let existing = unwrap(self.global_scalars.get_mut(idx as usize));
-        // let prior_value = std::mem::replace(existing,  scalar);
-        // self.shitty_malloc.drop_scalar(prior_value)
+        let prior_value = self.special_scalars.assign(special, value, &mut self.rt);
+        self.shitty_malloc.drop_scalar(prior_value);
     }
 
     pub fn push_unknown(&mut self, scalar: RuntimeScalar) { self.unknown_stack.push(scalar) }
@@ -167,21 +157,21 @@ impl VirtualMachine {
 
     pub fn val_to_num(&mut self, value: RuntimeScalar) -> f64 {
         match value {
-            RuntimeScalar::Str(s) => self.converter.str_to_num(&*s).unwrap_or(0.0),
-            RuntimeScalar::StrNum(s) => self.converter.str_to_num(&*s).unwrap_or(0.0),
+            RuntimeScalar::Str(s) => self.rt.converter.str_to_num(&*s).unwrap_or(0.0),
+            RuntimeScalar::StrNum(s) => self.rt.converter.str_to_num(&*s).unwrap_or(0.0),
             RuntimeScalar::Num(n) => n,
         }
     }
 
     pub fn str_to_num(&mut self, s: &RcAwkStr) -> f64 {
-        self.converter.str_to_num(&*s).unwrap_or(0.0)
+        self.rt.converter.str_to_num(&*s).unwrap_or(0.0)
     }
 
     pub fn val_to_string(&mut self, value: RuntimeScalar) -> RcAwkStr {
         match value {
             RuntimeScalar::Str(s) => s,
             RuntimeScalar::StrNum(s) => s,
-            RuntimeScalar::Num(n) => self.shitty_malloc.copy_from_slice(self.converter.num_to_str_internal(n)).rc(),
+            RuntimeScalar::Num(n) => self.shitty_malloc.copy_from_slice(self.rt.converter.num_to_str_internal(n)).rc(),
         }
     }
 
@@ -189,10 +179,9 @@ impl VirtualMachine {
         match value {
             RuntimeScalar::Str(s) => StringScalar::Str(s),
             RuntimeScalar::StrNum(s) => StringScalar::StrNum(s),
-            RuntimeScalar::Num(n) => StringScalar::Str(self.shitty_malloc.copy_from_slice(self.converter.num_to_str_internal(n)).rc())
+            RuntimeScalar::Num(n) => StringScalar::Str(self.shitty_malloc.copy_from_slice(self.rt.converter.num_to_str_internal(n)).rc())
         }
     }
-
 
     pub fn val_is_numeric(&mut self, value: &RuntimeScalar) -> bool {
         match value {
@@ -203,15 +192,14 @@ impl VirtualMachine {
                 if ptr.len() == 0 {
                     true
                 } else {
-                    self.converter.str_to_num(ptr).is_some()
+                    self.rt.converter.str_to_num(ptr).is_some()
                 }
             }
         }
     }
 
     pub fn concat_array_indices(&mut self, count: usize) -> AwkStr {
-        todo!("concat hook up subsep");
-        let subsep = RuntimeScalar::Str(RcAwkStr::new_bytes("-".as_bytes().to_vec()));
+        let subsep = self.special_scalars.get(SclSpecial::SUBSEP);
         let subsep = self.val_to_string(subsep);
         let mut string = self.pop_string().downgrade_or_clone();
         for _ in 0..count - 1 {

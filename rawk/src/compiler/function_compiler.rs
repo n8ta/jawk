@@ -214,10 +214,15 @@ impl<'a> FunctionCompiler<'a> {
     fn expr_opt(&mut self, expr: &TypedExpr, desired_stack: Option<StackT>) -> Result<Option<StackT>, PrintableError> {
         let stack: Option<StackT> = match &expr.expr {
             Expr::ScalarAssign(scalar_name, value) => {
+
+                // If we are assigning to an awk special forced to use the Var stack for now
+                let rhs_typ = match scalar_name {
+                    Variable::User(_) => value.typ,
+                    Variable::Special(_) => ScalarType::Var,
+                };
+                self.expr(value, rhs_typ.into())?;
                 let side_effect_only = desired_stack == None;
-                self.expr(value, value.typ.into())?;
-                self.assign_to_scalar(scalar_name, value.typ, side_effect_only);
-                if side_effect_only { None } else { Some(value.typ.into()) }
+                self.assign_to_scalar(scalar_name, rhs_typ, side_effect_only)
             }
             Expr::NumberF64(num) => {
                 self.add(Code::ConstNum { num: *num });
@@ -461,7 +466,7 @@ impl<'a> FunctionCompiler<'a> {
                 ere,
                 replacement,
                 string,
-                global
+                global,
             } => {
                 self.expr(ere, StackT::Str)?;
                 self.expr(replacement, StackT::Str)?;
@@ -513,15 +518,15 @@ impl<'a> FunctionCompiler<'a> {
         Ok(desired_stack)
     }
 
-    // Value to assign should be top of the stack unless side_effect_only==true
-    fn assign_to_scalar(&mut self, scalar_name: &Variable, typ: ScalarType, side_effect_only: bool) {
-        let code = match scalar_name {
+    // Value to assign should be top of the stack rhs_typ stack
+    fn assign_to_scalar(&mut self, scalar_name: &Variable, rhs_typ: ScalarType, side_effect_only: bool) -> Option<StackT> {
+        let (code, stack) = match scalar_name {
             Variable::User(scalar_name) => {
                 if let Some(arg_idx) = self.parser_func.scalar_arg_idx(scalar_name) {
-                    Code::arg_scl_assign(side_effect_only, typ, arg_idx)
+                    Code::arg_scl_assign(side_effect_only, rhs_typ, arg_idx)
                 } else {
                     let id = self.typed_program.global_analysis.global_scalars.get(scalar_name).expect("compiler bug in typing pass global scalar not found");
-                    Code::gscl_assign(side_effect_only, typ, *id)
+                    Code::gscl_assign(side_effect_only, rhs_typ, *id)
                 }
             }
             Variable::Special(special) => {
@@ -529,6 +534,7 @@ impl<'a> FunctionCompiler<'a> {
             }
         };
         self.add(code);
+        stack
     }
 
     // Value to assign should be top of the stack

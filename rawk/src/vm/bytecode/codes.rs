@@ -8,7 +8,7 @@ use crate::stackt::StackT;
 use crate::util::pad;
 use crate::vm::bytecode::code_and_immed::{CodeAndImmed as CI};
 use crate::vm::bytecode::{Immed, Meta};
-use crate::vm::{StringScalar, VmProgram};
+use crate::vm::{VmProgram, StringScalar};
 use crate::vm::bytecode::subroutines::{num_to_var, builtin_atan2, builtin_cos, builtin_exp, builtin_substr2, builtin_substr3, builtin_index, builtin_int, builtin_length0, builtin_length1, builtin_log, builtin_rand, builtin_sin, builtin_split2, builtin_split3, builtin_sqrt, builtin_srand0, builtin_srand1, builtin_tolower, builtin_toupper, num_to_str, str_to_var, str_to_num, var_to_num, var_to_str, pop, pop_str, pop_num, column, assign_gscl_var, assign_gscl_num, assign_gscl_str, assign_gscl_ret_str, assign_gscl_ret_var, assign_gscl_ret_num, global_arr, gscl_var, gscl_num, gscl_str, assign_arg_var, assign_arg_str, assign_arg_num, assign_arg_ret_var, assign_arg_ret_str, assign_arg_ret_num, arg_var, arg_str, arg_num, arg_arr, exp, mult, div, modulo, add, minus, lt, gt, lteq, gteq, eqeq, neq, matches, nmatches, assign_array_var, assign_array_str, assign_array_num, assign_array_ret_var, assign_array_ret_str, assign_array_ret_num, array_index, array_member, concat, gsub3, sub3, rel_jump_if_false_var, rel_jump_if_false_str, rel_jump_if_false_num, rel_jump_if_true_var, rel_jump_if_true_str, rel_jump_if_true_num, rel_jump, print, printf, noop, ret, const_num, const_str, const_str_num, call, neq_num, gteq_num, eqeq_num, lteq_num, lt_num, gt_num, clear_gscl, clear_argscl, rel_jump_if_true_next_line, rel_jump_if_false_next_line, scl_special, assign_scl_special, assign_ret_scl_special};
 
 pub type LabelId = usize;
@@ -253,47 +253,49 @@ impl Code {
 
     pub fn gscl(id: GlobalScalarId, typ: ScalarType) -> Self {
         match typ {
-            ScalarType::Var => Code::GsclVar(id),
             ScalarType::Str => Code::GsclStr(id),
             ScalarType::Num => Code::GsclNum(id),
+            ScalarType::Var => Code::GsclVar(id),
         }
     }
-    pub fn arg_scl_assign(side_effect_only: bool, typ: ScalarType, arg_idx: usize) -> Self {
+    pub fn arg_scl_assign(side_effect_only: bool, typ: ScalarType, arg_idx: usize) -> (Self, Option<StackT>) {
         if !side_effect_only {
-            match typ {
+            let stack = Some(typ.into());
+            (match typ {
                 ScalarType::Str => Code::AssignRetArgStr { arg_idx },
                 ScalarType::Num => Code::AssignRetArgNum { arg_idx },
                 ScalarType::Var => Code::AssignRetArgVar { arg_idx },
-            }
+            }, stack)
         } else {
-            match typ {
+            (match typ {
                 ScalarType::Str => Code::AssignArgStr { arg_idx },
                 ScalarType::Num => Code::AssignArgNum { arg_idx },
                 ScalarType::Var => Code::AssignArgVar { arg_idx },
-            }
+            }, None)
         }
     }
-    pub fn gscl_assign(side_effect_only: bool, typ: ScalarType, idx: GlobalScalarId) -> Self {
+    pub fn gscl_assign(side_effect_only: bool, typ: ScalarType, idx: GlobalScalarId) -> (Self, Option<StackT>) {
         if !side_effect_only {
-            match typ {
-                ScalarType::Str => Code::AssignRetGsclVar(idx),
+            let stack = Some(typ.into());
+            (match typ {
+                ScalarType::Str => Code::AssignRetGsclStr(idx),
                 ScalarType::Num => Code::AssignRetGsclNum(idx),
-                ScalarType::Var => Code::AssignRetGsclStr(idx),
-            }
+                ScalarType::Var => Code::AssignRetGsclVar(idx),
+            }, stack)
         } else {
-            match typ {
+            (match typ {
                 ScalarType::Str => Code::AssignGsclStr(idx),
                 ScalarType::Num => Code::AssignGsclNum(idx),
                 ScalarType::Var => Code::AssignGsclVar(idx),
-            }
+            }, None)
         }
     }
 
-    pub fn special_assign(side_effect_only: bool, special: SclSpecial) -> Self {
+    pub fn special_assign(side_effect_only: bool, special: SclSpecial) -> (Self, Option<StackT>) {
         if !side_effect_only {
-            Code::AssignRetSclSpecialVar(special)
+            (Code::AssignRetSclSpecialVar(special), Some(StackT::Var))
         } else {
-            Code::AssignSclSpecialVar(special)
+            (Code::AssignSclSpecialVar(special), None)
         }
     }
 

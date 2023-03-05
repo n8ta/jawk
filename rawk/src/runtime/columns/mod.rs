@@ -24,8 +24,8 @@ impl Columns {
         }
     }
 
+    #[cfg(test)]
     pub fn get(&mut self, column: usize) -> Vec<u8> {
-        // TODO: check utf8
         self.reader.get(column)
     }
 
@@ -34,6 +34,7 @@ impl Columns {
     }
 
     pub fn get_into_buf(&mut self, column: usize, buf: &mut Vec<u8>) {
+        // TODO: UTF8 ?
         buf.clear();
         self.reader.get_into_buf(column, buf);
     }
@@ -64,19 +65,19 @@ impl Columns {
         }
     }
 
-    pub fn set_record_sep(&mut self, value: String) {
-        self.reader.set_record_sep(value.as_bytes().to_vec())
+    pub fn set_rs(&mut self, value: Vec<u8>) {
+        self.reader.set_rs(value)
     }
 
-    pub fn get_record_sep(&mut self, _value: String) -> &[u8]{
-        self.reader.get_record_sep()
+    pub fn get_rs(&mut self) -> &[u8]{
+        self.reader.get_rs()
     }
 
-    pub fn set_field_sep(&mut self, value: &[u8]) {
-        self.reader.set_field_sep(value);
+    pub fn set_fs(&mut self, value: Vec<u8>) {
+        self.reader.set_fs(value);
     }
 
-    pub fn get_field_sep(&mut self) -> &[u8] {
-        self.reader.get_field_sep()
+    pub fn get_fs(&mut self) -> &[u8] {
+        self.reader.get_fs()
     }
 }

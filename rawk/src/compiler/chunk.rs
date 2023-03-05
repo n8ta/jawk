@@ -3,7 +3,8 @@ use hashbrown::HashMap;
 use crate::awk_str::RcAwkStr;
 #[cfg(test)]
 use crate::vm::{VmProgram, VmFunc};
-use crate::vm::{Code, StringScalar};
+use crate::vm::{Code};
+use crate::vm::StringScalar;
 
 pub struct Chunk {
     bytecode: Vec<Code>,

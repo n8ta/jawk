@@ -6,12 +6,11 @@ use crate::awk_str::RcAwkStr;
 use crate::util::{unwrap, unwrap_err};
 
 pub struct AwkStr {
-    // Invariant: RcAwkStrs here have 1 strong reference and thus can
-    // be safelty mutated via get_mut_vec function
+    // Invariant: the Rc<AwkByteStr> here has 1 strong reference and 0 week and thus can be safely
+    // mutated via get_mut_vec function or dropped into a Vec<u8>
 
-    // It's helpful to keep a collection of OwnedRcAwkStr's around
-    // as it's faster than mallocing new Rc's every time we want a
-    // new empty string.
+    // It's helpful to keep a collection of AwkStr's around as it's faster than malloc'ing new
+    // Rcs every time we want a new empty string. Even it's a little sketchy to be mutating RCs.
     backing: Rc<AwkByteStr>,
 }
 
@@ -28,6 +27,7 @@ impl AwkStr {
             None
         }
     }
+
     pub fn new_or_clone(str: RcAwkStr) -> Self {
         if str.strong_count() == 1 && str.weak_count() == 0 {
             AwkStr { backing: str.done() }
@@ -35,6 +35,7 @@ impl AwkStr {
             AwkStr { backing: Rc::new(AwkByteStr::new(str.bytes().to_vec())) }
         }
     }
+
     pub fn new_string(string: String) -> Self {
         Self::new_from_vec(string.into_bytes())
     }
@@ -47,6 +48,7 @@ impl AwkStr {
         let mutable_str = unwrap(Rc::get_mut(&mut self.backing));
         mutable_str
     }
+
     pub fn rc(self) -> RcAwkStr {
         RcAwkStr::rc(self.backing)
     }
@@ -58,10 +60,11 @@ impl AwkStr {
     }
 
     pub fn clone(&self) -> Self {
-        Self{ backing: Rc::new(AwkByteStr::new(self.backing.bytes().to_vec())) }
+        Self { backing: Rc::new(AwkByteStr::new(self.backing.bytes().to_vec())) }
     }
 
     pub fn done(self) -> Vec<u8> {
+        // Relies on invariant that backing has strong count 1 weak count 0
         let res = unwrap_err(Rc::try_unwrap(self.backing));
         res.done()
     }

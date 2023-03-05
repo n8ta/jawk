@@ -890,7 +890,7 @@ mod parser_tests {
     }
 
     #[test]
-    fn test_ARGC_special_assign() {
+    fn test_argc_special_assign() {
         actual!(actual, "BEGIN { ARGC = \"Z\"; }", symbolizer);
         let assign = Stmt::Expr(Expr::assign(SclSpecial::ARGC,
                                                     Box::new(Expr::String(RcAwkStr::new_str("Z").into()).into())).into());

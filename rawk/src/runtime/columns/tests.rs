@@ -63,7 +63,7 @@ fn test_files_set_rs() {
 
     assert!(cols.next_line().unwrap());
     assert_eq!(cols.get(0), "a b c".as_bytes());
-    cols.set_record_sep("-".to_string());
+    cols.set_rs("-".as_bytes().to_vec());
     assert!(cols.next_line().unwrap());
     assert_eq!(cols.get(0), "\n".as_bytes());
     assert!(cols.next_line().unwrap());
@@ -152,7 +152,7 @@ fn test_setting_fs_0() {
 
     assert!(cols.next_line().unwrap());
     assert_eq!(cols.get(2), "B".as_bytes());
-    cols.set_field_sep("B".as_bytes());
+    cols.set_fs("B".as_bytes().to_vec());
     cols.set(0, "A B C".as_bytes());
     assert_eq!(cols.get(2), " C".as_bytes());
     assert_eq!(cols.get(1), "A ".as_bytes());

@@ -3,6 +3,7 @@ use lexical_core::write_float_options::Options;
 use libc::{c_char};
 use mawk_regex::Regex;
 use crate::util::{memchr_libc_ptr};
+use crate::vm::RuntimeScalar;
 
 
 pub struct FloatWriter {

@@ -20,8 +20,8 @@ impl LazilySplitLine {
         }
     }
 
-    pub fn set_field_sep(&mut self, fs: &[u8]) {
-        self.next_fs = Some(fs.to_vec());
+    pub fn set_field_sep(&mut self, fs: Vec<u8>) {
+        self.next_fs = Some(fs);
     }
 
     pub fn next_record(&mut self) {

@@ -4,6 +4,9 @@
 use std::fmt::{Display, Formatter};
 use crate::parser::ScalarType;
 
+
+pub const NUM_SCL_SPECIALS: usize = 14;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(usize)]
 pub enum SclSpecial {

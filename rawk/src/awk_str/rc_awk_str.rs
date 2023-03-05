@@ -43,9 +43,17 @@ impl RcAwkStr {
         Self { str: Rc::new(AwkByteStr::new(bytes.as_bytes().to_vec())) }
     }
 
+    // Builds an owned awk str by downgrading the Rc or by cloning the underlying data
     pub fn downgrade_or_clone(self) -> AwkStr {
         AwkStr::new_or_clone(self)
     }
+    pub fn downgrade_or_clone_to_vec(self) -> Vec<u8> {
+        match Rc::try_unwrap(self.str) {
+            Ok(awk_byte_str) => awk_byte_str.done(), // use the vec we already have
+            Err(rc) => rc.to_vec(), // make a copy
+        }
+    }
+
     pub fn strong_count(&self) -> usize {
         Rc::strong_count(&self.str)
     }
