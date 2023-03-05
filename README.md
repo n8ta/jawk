@@ -29,7 +29,7 @@ If the types of `a` and `b` are variable (like below)
 ```
    { if ($1) { a = 1; b = 2; } else { a = "1"; b = "2" } print (a + b); }
 ```
-rawk has no significant advantage and will add two more bytecode ops to convert string -> number. For `print (a + b)` rawk emits
+rawk has no significant advantage here and will add two more bytecode ops to convert string -> number. For `print (a + b)` rawk emits
 ```
    16 GsclVar(0)                              args: [[]]                 push: [[Var]]
    17 VarToNum                                args: [[Var]]              push: [[Num]]
@@ -44,14 +44,14 @@ rawk uses a ring buffer to read from files without copying unless the data is ne
 awks I am aware of. I have not yet optimized output so I have no idea how it compares. Here's a comparison of various awks
 reading every line in a file storing it, and then printing the final value.
 
-![io.png](assets%2Fio.png)
+![../assets/io.png](../assets/io.png)
 
 (onetrueawk is far to the right of this chart so I've omitted it)
 
 ## Todo:
 
 1. Reading from stdin
-2. Native string functions 
+2. Native string functions
    1. index
    2. match
    3. split
