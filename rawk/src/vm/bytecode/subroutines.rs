@@ -686,7 +686,7 @@ pub fn rel_jump_if_true_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> u
 
 pub fn rel_jump_if_true_next_line(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
-    let more_lines = handle_err!(vm.rt.columns.next_line());
+    let more_lines = handle_err!(vm.rt.columns.next_record());
     if more_lines {
         offset_ip(ip, offset)
     } else {
@@ -696,7 +696,7 @@ pub fn rel_jump_if_true_next_line(vm: &mut VirtualMachine, ip: usize, imm: Immed
 
 pub fn rel_jump_if_false_next_line(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
-    let more_lines = handle_err!(vm.rt.columns.next_line());
+    let more_lines = handle_err!(vm.rt.columns.next_record());
     if more_lines {
         ip + 1
     } else {

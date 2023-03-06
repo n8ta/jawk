@@ -36,7 +36,7 @@ impl FileReader {
     }
 
     pub fn try_next_record(&mut self) -> Result<bool, PrintableError> {
-
+        self.line.next_record();
         let file = if let Some(file) = &mut self.file {
             file
         } else {

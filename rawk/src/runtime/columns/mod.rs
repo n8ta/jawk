@@ -52,7 +52,7 @@ impl Columns {
         }
     }
 
-    pub fn next_line(&mut self) -> Result<bool, PrintableError> {
+    pub fn next_record(&mut self) -> Result<bool, PrintableError> {
         loop {
             if self.reader.try_next_record()? {
                 return Ok(true);

@@ -10,11 +10,11 @@ macro_rules! test {
         };
     }
 
-// #[test]
-// fn prog_awk_test() {
-//     let str = std::fs::read_to_string("/Users/n8ta/code/jawk/rawk/prog.awk").unwrap();
-//     test_runner("run prog.awk", &str, "1 2 3\n4 5 6\n", "");
-// }
+#[test]
+fn prog_awk_test() {
+    let str = std::fs::read_to_string("/Users/n8ta/code/jawk/rawk/prog.awk").unwrap();
+    test_runner("run prog.awk", &str, "1 2 3\n4 5 6\n", "");
+}
 
 
 test!(test_str_escape, r##"BEGIN { a = "\a\n\r\t\1"; print a }  "##, "", vec![7,10, 0xd, 9, 0x1, 10]);
@@ -1273,8 +1273,8 @@ const PI: &'static str = "    +3.14";
 // test!(space_rule_simple, "{ print length($1); }", "    abc", "abc");
 // test!(gawk_strnum_space_rule_0, "{ print($1 == \"+3.14\") }", PI, "1\n");
 // test!(gawk_strnum_space_rule_1, "{ print($1 == 3.14) }", PI, "1\n");
-test!(test_fs_0, "{ print $2; FS = \"b\"; }", ABC, "\nc\n");
-test!(test_fs_1, "{ print $2; FS = \"a\"; }", ABC, "\nbc\n");
+test!(test_fs_0, "{ print $2; FS = \"b\"; }", "abc\nabc\nabc", "\nc\nc\n");
+test!(test_fs_1, "{ print $2; FS = \"a\"; }", "abc\nabc\nabc", "\nbc\nbc\n");
 // test!(test_mixed_array,"BEGIN {SUBSEP = \"-\"; a[0,1] = 3 ; print a[\"0-1\"]; }",ONE_LINE,"3\n");
 
 test!(test_col_asgn_0, "{ $1 = \"zz\"; print $0 }", "1  2   3\n  4  5     6    ","zz 2 3\nzz 5 6\n");
