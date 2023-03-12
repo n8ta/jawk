@@ -5,7 +5,17 @@ macro_rules! test {
         ($name:ident,$prog:expr,$file:expr,$stdout:expr) => {
             #[test]
             fn $name() {
-                test_runner(stringify!($name), $prog, $file, $stdout);
+                test_runner(stringify!($name), $prog, $file, $stdout, 0);
+            }
+        };
+    }
+
+#[macro_export]
+macro_rules! test_except {
+        ($name:ident,$prog:expr,$file:expr,$stdout:expr,$except:expr) => {
+            #[test]
+            fn $name() {
+                test_runner_except(stringify!($name), $prog, $file, $stdout, $except);
             }
         };
     }
@@ -13,7 +23,7 @@ macro_rules! test {
 #[test]
 fn prog_awk_test() {
     let str = std::fs::read_to_string("/Users/n8ta/code/jawk/rawk/prog.awk").unwrap();
-    test_runner("run prog.awk", &str, "1 2 3\n4 5 6\n", "");
+    test_runner("run prog.awk", &str, "1 2 3\n4 5 6\n", "", 0);
 }
 
 
@@ -1251,6 +1261,15 @@ test!(test_native_sub_amp_esc_2, "BEGIN { a = \"a\"; sub(\"a\", \"-\\\\&&-\", a)
 test!(test_native_sub_amp_4, "BEGIN { a = \"aaabc\"; sub(\"a+\", \"-&.&REPL-\", a); print a; }", ONE_LINE, "-aaa.aaaREPL-bc\n");
 test!(test_native_sub_escaping, SUB_ESCAPING, ONE_LINE, "\\\n");
 
+test!(test_fs_1, "{ print $2; FS = \"b\"; }", "abc\nabc\nabc", "\nc\nc\n");
+test!(test_fs_2, "{ print $2; FS = \"a\"; }", "abc\nabc\nabc", "\nbc\nbc\n");
+
+test!(test_rs_0, "BEGIN { RS = 1; } { print $0; }", "1234123412341234", "\n234\n234\n234\n234\n");
+test!(test_rs_1, "BEGIN { RS = 1; } { print $2; }", "1234123412341234", "\n\n\n\n\n");
+test!(test_rs_2, "BEGIN { RS = 1; } { print $1; }", "1234123412341234", "\n234\n234\n234\n234\n");
+test!(test_rs_3, "BEGIN { RS = 1 } { print $0; RS = 2;  }", "123123", "\n\n31\n3\n");
+
+
 
 // TODO: Things I have yet to impl
 
@@ -1273,8 +1292,6 @@ const PI: &'static str = "    +3.14";
 // test!(space_rule_simple, "{ print length($1); }", "    abc", "abc");
 // test!(gawk_strnum_space_rule_0, "{ print($1 == \"+3.14\") }", PI, "1\n");
 // test!(gawk_strnum_space_rule_1, "{ print($1 == 3.14) }", PI, "1\n");
-test!(test_fs_0, "{ print $2; FS = \"b\"; }", "abc\nabc\nabc", "\nc\nc\n");
-test!(test_fs_1, "{ print $2; FS = \"a\"; }", "abc\nabc\nabc", "\nbc\nbc\n");
 // test!(test_mixed_array,"BEGIN {SUBSEP = \"-\"; a[0,1] = 3 ; print a[\"0-1\"]; }",ONE_LINE,"3\n");
 
 test!(test_col_asgn_0, "{ $1 = \"zz\"; print $0 }", "1  2   3\n  4  5     6    ","zz 2 3\nzz 5 6\n");

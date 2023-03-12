@@ -1,5 +1,7 @@
 mod integration_tests;
 mod io_capture;
+mod awks;
+
 
 #[cfg(test)]
 #[allow(dead_code)]
@@ -15,6 +17,7 @@ use tempfile::tempdir;
 use crate::compiler::{compile, validate_program};
 use crate::test::io_capture::IoCapture;
 use crate::vm::VirtualMachine;
+use awks::Awk;
 
 const SUB_ESCAPING: &'static str = r#"BEGIN { a = "a"; sub("a", "\\\\", a); print a }"#;
 const SUB_RULES: &'static str = r##"BEGIN { a = "a"; sub("a", "-\\\\a-", a); print a; }"##;
@@ -31,7 +34,6 @@ const TTX1: &'static str = "BEGIN {    width = 3; height = 3 ;    min_x = -2.1; 
         colors[0] = \".\";    colors[1] = \"-\";    colors[2] = \"+\";    colors[3] = \"*\";    colors[4] = \"%%\";    colors[5] = \"#\";    colors[6] = \"$\";    colors[7] = \"@\";    colors[8] = \" \";
     inc_y = (max_y-min_y) / height;    inc_x = (max_x-min_x) / width;    y = min_y;    for (row=0; row<height; row++) {        x = min_x;        for (col=0; col<width; col++) {            zr = zi = 0;            for (i=0; i<iters; i++) {                old_zr = zr;                zr = zr*zr - zi*zi + x;                zi = 2*old_zr*zi + y;                if (zr*zr + zi*zi > 4) { break; }            }
             idx = 0;            zzz = i*8/iters;            if (zzz < 1) {                idx = 0;            };            if (zzz < 2) {                idx = 1;            };            if (zzz < 3) {                idx = 2;            };            if (zzz < 4) {                idx = 3;            };            if (zzz < 5) {                idx = 4;            };            if (zzz < 6) {                idx = 5;            };            if (zzz < 7) {                idx = 6;            };            if (zzz < 8) {                idx = 7;            };            printf colors[idx];            x += inc_x;        }        y += inc_y;        print \"\";    }}";
-
 
 fn test_once(interpreter: &str, prog: &str, file: &PathBuf) -> (Vec<u8>, Duration) {
     // Run a single awk once and capture the output
@@ -51,7 +53,7 @@ fn test_once(interpreter: &str, prog: &str, file: &PathBuf) -> (Vec<u8>, Duratio
 
 const PERF_RUNS: u128 = 5;
 
-pub fn test_runner<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog: &str, file: S, oracle_output: StdoutT) {
+pub fn test_runner<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog: &str, file: S, oracle_output: StdoutT, skip_flags: usize) {
     let oracle_output: Vec<u8> = oracle_output.into();
     println!("Program:\n{}", prog);
     let mut symbolizer = Symbolizer::new();
@@ -68,7 +70,7 @@ pub fn test_runner<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog:
 
     let temp_dir = tempdir().unwrap();
     let file_path = temp_dir.path().join("tmp");
-    std::fs::write(file_path.clone(), file.as_ref()).unwrap();
+    fs::write(file_path.clone(), file.as_ref()).unwrap();
     let file_path_string = file_path.to_str().unwrap().to_string();
 
     let fake_stdout = Box::new(IoCapture::new());
@@ -95,11 +97,8 @@ pub fn test_runner<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog:
 
     let run_perf_tests = std::env::vars().any(|f| f.0 == "jperf" && (f.1 == "true" || f.1 == "true\n"));
 
-    for interpreter in ["gawk", "goawk", "mawk", "onetrueawk"] {
-        if (prog == PERF_ARRAY_PROGRAM && interpreter == "mawk")
-            || (prog == EMPTY_INDEX_PROGRAM || prog == SUB_ESCAPING || prog == SUB_RULES) && interpreter == "onetrueawk" {
-            continue;
-        }
+
+    for (interpreter, _awk) in Awk::without(skip_flags) {
         if run_perf_tests {
             test_perf(test_name, interpreter, prog, &oracle_output, &file_path);
         } else {

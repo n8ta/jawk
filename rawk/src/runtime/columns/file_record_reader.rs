@@ -16,6 +16,7 @@ pub struct FileReader {
     file: Option<FileWithPath>,
     slop: QuickDropDeque,
     rs: Vec<u8>,
+    next_rs: Option<Vec<u8>>,
     end_of_current_record: usize,
     line: LazilySplitLine,
 }
@@ -26,8 +27,9 @@ impl FileReader {
             slop: QuickDropDeque::with_io_size(16*1024, 8*1024),
             file: None,
             rs: vec![10], //space
-            end_of_current_record: 0,
+            next_rs: None,
             line: LazilySplitLine::new(),
+            end_of_current_record: 0,
         }
     }
 
@@ -36,6 +38,8 @@ impl FileReader {
     }
 
     pub fn try_next_record(&mut self) -> Result<bool, PrintableError> {
+
+
         self.line.next_record();
         let file = if let Some(file) = &mut self.file {
             file
@@ -43,15 +47,23 @@ impl FileReader {
             return Ok(false);
         };
 
+
         // Drop last record if any
         self.slop.drop_front(self.end_of_current_record);
 
-        // Drop the record sep from the front if it's there. When the user changes RS read we want
-        // to retain the RS from the prior record.
+
+        // Regardless of whether RS has changed drop the old RS from the
         let mut rs_idx = index_in_full_dq(&self.rs, &self.slop);
-        let starts_with_rs = rs_idx == Some(0);
-        if starts_with_rs {
+        if rs_idx == Some(0) {
+            // If the deque starts with RS drop it. If not keep the value around and we won't
+            // redo the search in the read loop below
             self.slop.drop_front(self.rs.len());
+            rs_idx = None;
+        }
+
+        if let Some(next_rs) = self.next_rs.take() {
+            // If rs changes we need to wipe out rs_idx.
+            self.rs = next_rs;
             rs_idx = None;
         }
 
@@ -61,14 +73,14 @@ impl FileReader {
                 self.end_of_current_record = idx;
                 return Ok(true);
             }
-            // Nope, then read some bytes into buf then copy to slop
+            // If not then read some bytes into buf then copy to slop
             let bytes_read = match self.slop.read(&mut file.file) {
                 Ok(b) => b,
                 Err(err) => return Err(PrintableError::new(format!("Something went wrong reading from file `{}`. Error: {}", &file.path, err))),
             };
 
             if bytes_read == 0 {
-                // No new data!
+                // No more data!
                 self.end_of_current_record = self.slop.len();
 
                 if self.slop.len() != 0 {
@@ -106,7 +118,10 @@ impl FileReader {
     }
 
     pub fn set_rs(&mut self, rs: Vec<u8>) {
-        self.rs = rs;
+        if rs == self.rs {
+            return
+        }
+        self.next_rs = Some(rs);
     }
     pub fn get_rs(&mut self) -> &[u8] {
         &self.rs

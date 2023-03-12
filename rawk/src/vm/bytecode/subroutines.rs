@@ -458,9 +458,9 @@ pub fn builtin_int(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
 }
 
 pub fn builtin_length0(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
-    let num_fields = vm.rt.columns.get(0);
-    // TODO: UTF 8
-    vm.push_num(num_fields.len() as f64);
+    let mut str = vm.shitty_malloc.get();
+    vm.rt.columns.get_into_buf(0, str.as_mut_vec());
+    vm.push_num(str.len() as f64);
     ip + 1
 }
 
