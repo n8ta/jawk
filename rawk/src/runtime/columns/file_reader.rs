@@ -3,7 +3,7 @@ use std::fs::File;
 use crate::printable_error::PrintableError;
 
 use quick_drop_deque::QuickDropDeque;
-use crate::runtime::columns::lazily_split_line::LazilySplitLine;
+use crate::runtime::columns::splitter::get_into;
 use crate::util::index_in_full_dq;
 
 #[allow(dead_code)]
@@ -17,8 +17,9 @@ pub struct FileReader {
     slop: QuickDropDeque,
     rs: Vec<u8>,
     next_rs: Option<Vec<u8>>,
+    fs: Vec<u8>,
+    next_fs: Option<Vec<u8>>,
     end_of_current_record: usize,
-    line: LazilySplitLine,
 }
 
 impl FileReader {
@@ -26,9 +27,10 @@ impl FileReader {
         Self {
             slop: QuickDropDeque::with_io_size(16*1024, 8*1024),
             file: None,
-            rs: vec![10], //space
+            rs: vec![10],  //new line
+            fs: vec![32],  //space
             next_rs: None,
-            line: LazilySplitLine::new(),
+            next_fs: None,
             end_of_current_record: 0,
         }
     }
@@ -38,9 +40,6 @@ impl FileReader {
     }
 
     pub fn try_next_record(&mut self) -> Result<bool, PrintableError> {
-
-
-        self.line.next_record();
         let file = if let Some(file) = &mut self.file {
             file
         } else {
@@ -51,8 +50,6 @@ impl FileReader {
         // Drop last record if any
         self.slop.drop_front(self.end_of_current_record);
 
-
-        // Regardless of whether RS has changed drop the old RS from the
         let mut rs_idx = index_in_full_dq(&self.rs, &self.slop);
         if rs_idx == Some(0) {
             // If the deque starts with RS drop it. If not keep the value around and we won't
@@ -61,10 +58,15 @@ impl FileReader {
             rs_idx = None;
         }
 
+        // Swap to the new rs if any
         if let Some(next_rs) = self.next_rs.take() {
-            // If rs changes we need to wipe out rs_idx.
             self.rs = next_rs;
             rs_idx = None;
+        }
+
+        // Swap to the new fs if any
+        if let Some(next_fs) = self.next_fs.take() {
+            self.fs = next_fs;
         }
 
         loop {
@@ -105,7 +107,7 @@ impl FileReader {
                 result.extend_from_slice(&slices.1[0..remaining]);
             }
         } else {
-            self.line.get_into(&self.slop, idx, self.end_of_current_record, result);
+            get_into(&self.fs, &self.slop, idx, self.end_of_current_record, result);
         }
     }
 
@@ -127,9 +129,12 @@ impl FileReader {
         &self.rs
     }
     pub fn set_fs(&mut self, bytes: Vec<u8>) {
-        self.line.set_field_sep(bytes)
+        if self.fs == bytes {
+            return
+        }
+        self.next_fs = Some(bytes);
     }
     pub fn get_fs(&mut self) -> &[u8] {
-        self.line.get_field_sep()
+        &self.fs
     }
 }

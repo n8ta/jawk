@@ -1,10 +1,11 @@
+#[allow(dead_code)]
+
 mod integration_tests;
 mod io_capture;
 mod awks;
 
 
-#[cfg(test)]
-#[allow(dead_code)]
+
 use std::cell::RefCell;
 use crate::{analyze, lex, parse, Symbolizer};
 use std::fs;
@@ -98,7 +99,8 @@ pub fn test_runner<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog:
     let run_perf_tests = std::env::vars().any(|f| f.0 == "jperf" && (f.1 == "true" || f.1 == "true\n"));
 
 
-    for (interpreter, _awk) in Awk::without(skip_flags) {
+    let awks = Awk::without(skip_flags);
+    for (interpreter, _awk) in awks  {
         if run_perf_tests {
             test_perf(test_name, interpreter, prog, &oracle_output, &file_path);
         } else {

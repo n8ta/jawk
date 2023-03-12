@@ -1,18 +1,16 @@
-mod lazily_split_line;
-mod borrowing_split;
-mod file_record_reader;
+mod splitter;
+mod file_reader;
 #[cfg(test)]
 mod tests;
 
 use std::fs::File;
 use crate::awk_str::AwkStr;
-use crate::runtime::columns::file_record_reader::FileReader;
+use crate::runtime::columns::file_reader::FileReader;
 use crate::printable_error::PrintableError;
 
 pub struct Columns {
     files: Vec<String>,
     reader: FileReader,
-    // overwritten_records: Vec<Vec<u8>>
 }
 
 impl Columns {

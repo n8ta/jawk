@@ -16,7 +16,7 @@ const AWKS: &'static[AwkTuple]  = &[("goawk", Awk::Goawk), ("gawk", Awk::Gawk), 
 
 impl Awk {
     pub fn without<'a>(flags: usize) -> Vec<AwkTuple> {
-        AWKS.iter().filter(|(name, flag)| flags & (*flag as usize) != 0 ).cloned().collect()
+        AWKS.iter().filter(|(name, flag)| flags & (*flag as usize) == 0 ).cloned().collect()
     }
 }
 

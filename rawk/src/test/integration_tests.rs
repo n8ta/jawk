@@ -1,5 +1,6 @@
 use crate::test::{test_runner, long_number_file, ONE_LINE, SUB_RULES, SUB_ESCAPING, REDIRECT, NUMBERS, NUMBERS2, FLOAT_NUMBERS, NUMERIC_STRING, ABC, PERF_ARRAY_PROGRAM, EMPTY_INDEX_PROGRAM, TTX1,
 };
+use crate::test::awks::Awk;
 #[macro_export]
 macro_rules! test {
         ($name:ident,$prog:expr,$file:expr,$stdout:expr) => {
@@ -15,7 +16,7 @@ macro_rules! test_except {
         ($name:ident,$prog:expr,$file:expr,$stdout:expr,$except:expr) => {
             #[test]
             fn $name() {
-                test_runner_except(stringify!($name), $prog, $file, $stdout, $except);
+                test_runner(stringify!($name), $prog, $file, $stdout, $except);
             }
         };
     }
@@ -28,7 +29,7 @@ fn prog_awk_test() {
 
 
 test!(test_str_escape, r##"BEGIN { a = "\a\n\r\t\1"; print a }  "##, "", vec![7,10, 0xd, 9, 0x1, 10]);
-test!(test_sub_rules, SUB_RULES, ONE_LINE, "-\\a-\n");
+test_except!(test_sub_rules, SUB_RULES, ONE_LINE, "-\\a-\n", Awk::Onetrueawk as usize);
 
 test!(test_perf_concat_loop, "BEGIN { a = \"\"; b = \"\"; x = 0; while (x < 5000) {     a = a \"a\";     b = b \"a\";     x = x + 1;     if (a > b) {         print \"a is not eq to b\";    } } print x; print \"done\"; }", "", "5000\ndone\n");
 test!(test_print_begin_int, "BEGIN {print 1;}", ONE_LINE, "1\n");
@@ -1206,7 +1207,7 @@ test!(test_native_index_3, "BEGIN { a = \"abc111ee\"; print index(a, \"e\") }", 
 test!(test_native_index_4, "BEGIN { a = \"abc111ee\"; print index(a, \"ee\") }", ONE_LINE, "7\n");
 test!(test_native_index_5, "BEGIN { a = \"a\"; print index(a, \"aaa\") }", ONE_LINE, "0\n");
 test!(test_native_index_6, "BEGIN { a = \"\"; print index(a, \"aaa\") }", ONE_LINE, "0\n");
-test!(test_native_index_7, EMPTY_INDEX_PROGRAM, ONE_LINE, "1\n");
+test_except!(test_native_index_7, EMPTY_INDEX_PROGRAM, ONE_LINE, "1\n", Awk::Onetrueawk as usize);
 
 test!(test_native_sub_assign, "BEGIN { c = \"a\"; print sub(\"a\", \"b\", c); }", ONE_LINE, "1\n");
 
@@ -1259,7 +1260,7 @@ test!(test_native_sub_amp_amp, "BEGIN { a = \"a\"; sub(\"a\", \"-&-&-\", a); pri
 test!(test_native_sub_amp_esc_1, "BEGIN { a = \"a\"; sub(\"a\", \"-\\\\&-\", a); print a; }", ONE_LINE, "-&-\n");
 test!(test_native_sub_amp_esc_2, "BEGIN { a = \"a\"; sub(\"a\", \"-\\\\&&-\", a); print a; }", ONE_LINE, "-&a-\n");
 test!(test_native_sub_amp_4, "BEGIN { a = \"aaabc\"; sub(\"a+\", \"-&.&REPL-\", a); print a; }", ONE_LINE, "-aaa.aaaREPL-bc\n");
-test!(test_native_sub_escaping, SUB_ESCAPING, ONE_LINE, "\\\n");
+test_except!(test_native_sub_escaping, SUB_ESCAPING, ONE_LINE, "\\\n", Awk::Onetrueawk as usize);
 
 test!(test_fs_1, "{ print $2; FS = \"b\"; }", "abc\nabc\nabc", "\nc\nc\n");
 test!(test_fs_2, "{ print $2; FS = \"a\"; }", "abc\nabc\nabc", "\nbc\nbc\n");
@@ -1267,7 +1268,7 @@ test!(test_fs_2, "{ print $2; FS = \"a\"; }", "abc\nabc\nabc", "\nbc\nbc\n");
 test!(test_rs_0, "BEGIN { RS = 1; } { print $0; }", "1234123412341234", "\n234\n234\n234\n234\n");
 test!(test_rs_1, "BEGIN { RS = 1; } { print $2; }", "1234123412341234", "\n\n\n\n\n");
 test!(test_rs_2, "BEGIN { RS = 1; } { print $1; }", "1234123412341234", "\n234\n234\n234\n234\n");
-test!(test_rs_3, "BEGIN { RS = 1 } { print $0; RS = 2;  }", "123123", "\n\n31\n3\n");
+test_except!(test_rs_3, "BEGIN { RS = 1 } { print $0; RS = 2;  }", "123123", "\n\n31\n3\n", Awk::Goawk as usize);
 
 
 
