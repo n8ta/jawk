@@ -5,6 +5,7 @@ use crate::{binop, binop_num_only, mathop};
 use crate::runtime::arrays::{split_on_regex, split_on_string};
 use crate::awk_str::{AwkStr, RcAwkStr, SubReplStr};
 use crate::printable_error::PrintableError;
+use crate::specials::SclSpecial;
 use crate::typing::GlobalScalarId;
 use crate::util::{clamp_to_max_len, clamp_to_slice_index, index_of, unwrap};
 use crate::vm::bytecode::code_and_immed::Immed;
@@ -157,7 +158,7 @@ pub fn global_arr(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
 }
 
 pub fn gscl_var(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
-    let gscl = vm.gscl(unsafe { imm.global_scl_id}).clone();
+    let gscl = vm.gscl(unsafe { imm.global_scl_id }).clone();
     vm.push_unknown(gscl);
     ip + 1
 }
@@ -287,7 +288,7 @@ binop_num_only!(gteq_num, crate::vm::bytecode::op_helpers::gteq);
 binop_num_only!(eqeq_num, crate::vm::bytecode::op_helpers::eq);
 binop_num_only!(neq_num, crate::vm::bytecode::op_helpers::neq);
 
-
+// a ~ b
 pub fn matches(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
     let regex_str = vm.pop_string(); // the regex
     let str = vm.pop_string(); // the string
@@ -500,8 +501,8 @@ pub fn builtin_split2(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize 
         count += 1.0;
         let string = vm.shitty_malloc.copy_from_slice(elem);
         let _ = vm.rt.arrays.assign(array,
-                                 RcAwkStr::new_bytes(format!("{}", idx + 1).into_bytes()),
-                                 RuntimeScalar::StrNum(string.rc()));
+                                    RcAwkStr::new_bytes(format!("{}", idx + 1).into_bytes()),
+                                    RuntimeScalar::StrNum(string.rc()));
     }
     vm.push_num(count);
     ip + 1
@@ -519,8 +520,8 @@ pub fn builtin_split3(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize 
         count += 1.0;
         let string = vm.shitty_malloc.copy_from_slice(elem);
         let _ = vm.rt.arrays.assign(array,
-                                 vm.shitty_malloc.from_vec(format!("{}", idx + 1).into_bytes()).rc(),
-                                 RuntimeScalar::StrNum(string.rc()));
+                                    vm.shitty_malloc.from_vec(format!("{}", idx + 1).into_bytes()).rc(),
+                                    RuntimeScalar::StrNum(string.rc()));
     }
     vm.push_num(count);
     ip + 1
@@ -569,6 +570,22 @@ pub fn builtin_toupper(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize
     let bytes = str.as_bytes_mut();
     bytes.make_ascii_uppercase();
     vm.push_str(StringScalar::Str(str.rc()));
+    ip + 1
+}
+
+pub fn builtin_matches(vm: &mut VirtualMachine, ip: usize, _imm: Immed) -> usize {
+    let regex_str = vm.pop_string(); // the regex
+    let str = vm.pop_string(); // the string
+    let regex = vm.rt.regex_cache.get(&*regex_str);
+    let (start, len) =
+        if let Some(match_idx) = regex.match_idx(&str) {
+            ((match_idx.start + 1) as f64, (match_idx.len) as f64)
+        } else {
+            (0.0, -1.0)
+        };
+    vm.push_num(start);
+    vm.assign_special(SclSpecial::RSTART, RuntimeScalar::Num(start));
+    vm.assign_special(SclSpecial::RLENGTH, RuntimeScalar::Num(len));
     ip + 1
 }
 

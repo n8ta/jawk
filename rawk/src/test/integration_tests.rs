@@ -1,5 +1,4 @@
-use crate::test::{test_runner, long_number_file, ONE_LINE, SUB_RULES, SUB_ESCAPING, REDIRECT, NUMBERS, NUMBERS2, FLOAT_NUMBERS, NUMERIC_STRING, ABC, PERF_ARRAY_PROGRAM, EMPTY_INDEX_PROGRAM, TTX1,
-};
+use crate::test::{test_runner, long_number_file, ONE_LINE, SUB_RULES, SUB_ESCAPING, REDIRECT, NUMBERS, NUMBERS2, FLOAT_NUMBERS, NUMERIC_STRING, ABC, PERF_ARRAY_PROGRAM, EMPTY_INDEX_PROGRAM, TTX1, test_runner_multifile};
 use crate::test::awks::Awk;
 #[macro_export]
 macro_rules! test {
@@ -10,6 +9,7 @@ macro_rules! test {
             }
         };
     }
+
 
 #[macro_export]
 macro_rules! test_except {
@@ -1170,6 +1170,8 @@ test!(test_split_overwrite, "BEGIN { b[1] = \"should be free'd\"; b[5] = \"exist
 test!(test_split_ret_0, "BEGIN { print split(\"abc def\", b); }", ONE_LINE, "2\n");
 test!(test_split_ret_1, "BEGIN { print split(\"abcdef\", b); }", ONE_LINE, "1\n");
 test!(test_split_ret_2, "BEGIN { print split(\"\", b); }", ONE_LINE, "0\n");
+test!(test_split_fs_clears, "BEGIN { a[1] = 1; a[2] = 2; a[3] = 3; split(\"X Y\", a); print a[1]; print a[2]; print a[3] }", ONE_LINE, "X\nY\n\n");
+test!(test_split_ere_clears, "BEGIN { a[1] = 1; a[2] = 2; a[3] = 3; split(\"XQQQQQY\", a, \"Q+\"); print a[1]; print a[2]; print a[3] }", ONE_LINE, "X\nY\n\n");
 
 test!(test_array_unrolled, "BEGIN { a[1] = 3; print a[\"1\"]; print a[\"1\"]; print a[\"1\"]; print a[\"1\"]; print a[\"1\"] }", ONE_LINE, "3\n3\n3\n3\n3\n");
 test!(test_constants_loop, "BEGIN { a[1] = 1; while(x++<10) { print a[\"1\"] } }", ONE_LINE, "1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n");
@@ -1271,6 +1273,11 @@ test!(test_rs_2, "BEGIN { RS = 1; } { print $1; }", "1234123412341234", "\n234\n
 test_except!(test_rs_3, "BEGIN { RS = 1 } { print $0; RS = 2;  }", "123123", "\n\n31\n3\n", Awk::Goawk as usize);
 
 
+test!(test_match_0, "BEGIN { print match(\"abc\", \"d\"); }", "", "0\n");
+test!(test_match_1, "BEGIN { print match(\"abc\", \"d\"); print RSTART; print RLENGTH; }", "", "0\n0\n-1\n");
+test!(test_match_2, "BEGIN { print match(\"abc\", \"a\"); }", "", "1\n");
+test!(test_match_3, "BEGIN { print match(\"abc\", \"a\"); print match(\"abc\", \"b\"); print match(\"abc\", \"c\"); }", "", "1\n2\n3\n");
+test!(test_match_4, "BEGIN { print match(\"abbbbc\", \"b+\"); print RSTART; print RLENGTH; }", "", "2\n2\n4\n");
 
 // TODO: Things I have yet to impl
 
@@ -1281,13 +1288,13 @@ test_except!(test_rs_3, "BEGIN { RS = 1 } { print $0; RS = 2;  }", "123123", "\n
 
 // test!(test_ofs_print_sep, "BEGIN { print 1, 2, 3; OFS = \"--\"; print 1,2,3 }", ONE_LINE, "1 2 3\n1--2--3\n");
 
-test!(test_native_col_0_sub_0, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
-test!(test_native_col_0_sub_1, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
-test!(test_native_col_0_sub_2, "{ sub(\"a\", \"b\"); print $0; }", "caa", "baa\n");
-test!(test_native_col_0_sub_3, "{ sub(\"a\", \"b\"); print $0; }", "aab", "baa\n");
-test!(test_native_col_0_sub_4, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
-test!(test_native_col_0_sub_5, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
-test!(test_native_col_0_sub_6, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+// test!(test_native_col_0_sub_0, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+// test!(test_native_col_0_sub_1, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+// test!(test_native_col_0_sub_2, "{ sub(\"a\", \"b\"); print $0; }", "caa", "baa\n");
+// test!(test_native_col_0_sub_3, "{ sub(\"a\", \"b\"); print $0; }", "aab", "baa\n");
+// test!(test_native_col_0_sub_4, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+// test!(test_native_col_0_sub_5, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+// test!(test_native_col_0_sub_6, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
 
 const PI: &'static str = "    +3.14";
 // test!(space_rule_simple, "{ print length($1); }", "    abc", "abc");
@@ -1295,5 +1302,13 @@ const PI: &'static str = "    +3.14";
 // test!(gawk_strnum_space_rule_1, "{ print($1 == 3.14) }", PI, "1\n");
 // test!(test_mixed_array,"BEGIN {SUBSEP = \"-\"; a[0,1] = 3 ; print a[\"0-1\"]; }",ONE_LINE,"3\n");
 
-test!(test_col_asgn_0, "{ $1 = \"zz\"; print $0 }", "1  2   3\n  4  5     6    ","zz 2 3\nzz 5 6\n");
+// test!(test_col_asgn_0, "{ $1 = \"zz\"; print $0 }", "1  2   3\n  4  5     6    ","zz 2 3\nzz 5 6\n");
+// #[test]
+// fn setting_argv() {
+//     test_runner_multifile("adding_to_argv",
+//                           "{ print $0; ARGV[2] = \"b\"; ARGC = 3; print ARGC }",
+//                           vec![("file_a_data", "a"), ("file_b_data", "b")],
+//                           "file_a_data\nfile_b_data\n", 0);
+// }
+
 

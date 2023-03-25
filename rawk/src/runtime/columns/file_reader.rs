@@ -46,7 +46,6 @@ impl FileReader {
             return Ok(false);
         };
 
-
         // Drop last record if any
         self.slop.drop_front(self.end_of_current_record);
 
@@ -70,12 +69,12 @@ impl FileReader {
         }
 
         loop {
-            // Check if our last read grabbed more than 1 record
+            // Check if our last read grabbed more than 1 record if so we're done
             if let Some(idx) = rs_idx.or_else(|| index_in_full_dq(&self.rs, &self.slop)) {
                 self.end_of_current_record = idx;
                 return Ok(true);
             }
-            // If not then read some bytes into buf then copy to slop
+            // If not then read some bytes into our deque slop
             let bytes_read = match self.slop.read(&mut file.file) {
                 Ok(b) => b,
                 Err(err) => return Err(PrintableError::new(format!("Something went wrong reading from file `{}`. Error: {}", &file.path, err))),
@@ -89,7 +88,7 @@ impl FileReader {
                     // Reached EOF but we have slop from last read without RS completing it
                     return Ok(true);
                 } else {
-                    // Reached EOF and nothing left in slop buffer we're out of records
+                    // Reached EOF and nothing left in slop buffer we're out of records time for the next file
                     return Ok(false);
                 }
             }

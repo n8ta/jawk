@@ -1,9 +1,7 @@
 #[allow(dead_code)]
-
 mod integration_tests;
 mod io_capture;
 mod awks;
-
 
 
 use std::cell::RefCell;
@@ -36,14 +34,14 @@ const TTX1: &'static str = "BEGIN {    width = 3; height = 3 ;    min_x = -2.1; 
     inc_y = (max_y-min_y) / height;    inc_x = (max_x-min_x) / width;    y = min_y;    for (row=0; row<height; row++) {        x = min_x;        for (col=0; col<width; col++) {            zr = zi = 0;            for (i=0; i<iters; i++) {                old_zr = zr;                zr = zr*zr - zi*zi + x;                zi = 2*old_zr*zi + y;                if (zr*zr + zi*zi > 4) { break; }            }
             idx = 0;            zzz = i*8/iters;            if (zzz < 1) {                idx = 0;            };            if (zzz < 2) {                idx = 1;            };            if (zzz < 3) {                idx = 2;            };            if (zzz < 4) {                idx = 3;            };            if (zzz < 5) {                idx = 4;            };            if (zzz < 6) {                idx = 5;            };            if (zzz < 7) {                idx = 6;            };            if (zzz < 8) {                idx = 7;            };            printf colors[idx];            x += inc_x;        }        y += inc_y;        print \"\";    }}";
 
-fn test_once(interpreter: &str, prog: &str, file: &PathBuf) -> (Vec<u8>, Duration) {
+fn test_once(interpreter: &str, prog: &str, files: &[String]) -> (Vec<u8>, Duration) {
     // Run a single awk once and capture the output
     let start = Instant::now();
-    let mut args = vec![prog];
+    let mut args = vec![prog.to_string()];
     if interpreter == "gawk" {
-        args = vec!["--posix", args[0]]
+        args = vec!["--posix".to_string(), args[0].clone()]
     }
-    args.push(file.to_str().unwrap());
+    args.extend_from_slice(files);
     let output = std::process::Command::new(interpreter)
         .args(args)
         .output()
@@ -54,7 +52,22 @@ fn test_once(interpreter: &str, prog: &str, file: &PathBuf) -> (Vec<u8>, Duratio
 
 const PERF_RUNS: u128 = 5;
 
-pub fn test_runner<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog: &str, file: S, oracle_output: StdoutT, skip_flags: usize) {
+pub fn test_runner<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(
+    test_name: &str,
+    prog: &str,
+    file: S,
+    oracle_output: StdoutT,
+    skip_flags: usize) {
+    test_runner_multifile(test_name, prog, vec![(file, "temp_file")], oracle_output, skip_flags)
+}
+
+pub fn test_runner_multifile<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(
+    test_name: &str,
+    prog: &str,
+    files: Vec<(S, &'static str)>, // Content, file_name
+    oracle_output: StdoutT,
+    skip_flags: usize) {
+
     let oracle_output: Vec<u8> = oracle_output.into();
     println!("Program:\n{}", prog);
     let mut symbolizer = Symbolizer::new();
@@ -70,16 +83,20 @@ pub fn test_runner<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog:
     validate_program(&vm_prog);
 
     let temp_dir = tempdir().unwrap();
-    let file_path = temp_dir.path().join("tmp");
-    fs::write(file_path.clone(), file.as_ref()).unwrap();
-    let file_path_string = file_path.to_str().unwrap().to_string();
+
+    let mut file_names = vec![];
+    for (content, file_name) in files.iter() {
+        let file_path = temp_dir.path().join(file_name);
+        fs::write(file_path.clone(), content.as_ref()).unwrap();
+        file_names.push(file_path.to_str().unwrap().to_string());
+    }
 
     let fake_stdout = Box::new(IoCapture::new());
     let fake_stderr = Box::new(IoCapture::new());
 
     let vm = VirtualMachine::new(
         vm_prog,
-        vec![file_path_string],
+        file_names.clone(),
         fake_stdout.clone(),
         fake_stderr.clone());
 
@@ -100,17 +117,17 @@ pub fn test_runner<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(test_name: &str, prog:
 
 
     let awks = Awk::without(skip_flags);
-    for (interpreter, _awk) in awks  {
+    for (interpreter, _awk) in awks {
         if run_perf_tests {
-            test_perf(test_name, interpreter, prog, &oracle_output, &file_path);
+            test_perf(test_name, interpreter, prog, &oracle_output, &file_names);
         } else {
-            test_against(interpreter, prog, &oracle_output, &file_path);
+            test_against(interpreter, prog, &oracle_output, &file_names);
         }
     }
 }
 
-fn test_against(interpreter: &str, prog: &str, oracle_output: &[u8], file: &PathBuf) {
-    let output = test_once(interpreter, prog, file);
+fn test_against(interpreter: &str, prog: &str, oracle_output: &[u8], files: &[String]) {
+    let output = test_once(interpreter, prog, files);
 
     assert_eq!(
         output.0, oracle_output,
@@ -124,7 +141,7 @@ fn test_perf(
     interpreter: &str,
     prog: &str,
     oracle_output: &[u8],
-    file: &PathBuf,
+    files: &[String],
 ) {
     match std::process::Command::new(interpreter).output() {
         Ok(_) => {}
@@ -134,8 +151,8 @@ fn test_perf(
     let mut other_total = 0;
 
     for _ in 0..PERF_RUNS {
-        let our_result = test_once("./target/release/rawk", prog, file);
-        other_total += test_once(interpreter, prog, file).1.as_micros();
+        let our_result = test_once("./target/release/rawk", prog, files);
+        other_total += test_once(interpreter, prog, files).1.as_micros();
         our_total += our_result.1.as_micros();
         assert_eq!(
             our_result.0, oracle_output,

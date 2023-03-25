@@ -42,7 +42,6 @@ impl StringScalar {
 }
 impl Deref for StringScalar {
     type Target = RcAwkStr;
-
     fn deref(&self) -> &Self::Target {
         match self {
             StringScalar::Str(s) => s,

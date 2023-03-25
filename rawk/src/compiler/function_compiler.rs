@@ -592,10 +592,10 @@ impl<'a> FunctionCompiler<'a> {
             }
             BuiltinFunc::Tolower => Code::BuiltinTolower,
             BuiltinFunc::Toupper => Code::BuiltinToupper,
+            BuiltinFunc::Matches => Code::BuiltinMatches,
             BuiltinFunc::System => todo!("builtin System"),
             BuiltinFunc::Sprintf => todo!("builtin Sprintf"),
             BuiltinFunc::Close => todo!("builtin Close"),
-            BuiltinFunc::Matches => todo!("builtin Matches"),
         };
         let meta = code.meta(&self.typed_program.functions);
         for (idx, arg) in meta.args().iter().enumerate() {

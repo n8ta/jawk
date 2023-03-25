@@ -9,7 +9,7 @@ use crate::util::pad;
 use crate::vm::bytecode::code_and_immed::{CodeAndImmed as CI};
 use crate::vm::bytecode::{Immed, Meta};
 use crate::vm::{VmProgram, StringScalar};
-use crate::vm::bytecode::subroutines::{num_to_var, builtin_atan2, builtin_cos, builtin_exp, builtin_substr2, builtin_substr3, builtin_index, builtin_int, builtin_length0, builtin_length1, builtin_log, builtin_rand, builtin_sin, builtin_split2, builtin_split3, builtin_sqrt, builtin_srand0, builtin_srand1, builtin_tolower, builtin_toupper, num_to_str, str_to_var, str_to_num, var_to_num, var_to_str, pop, pop_str, pop_num, column, assign_gscl_var, assign_gscl_num, assign_gscl_str, assign_gscl_ret_str, assign_gscl_ret_var, assign_gscl_ret_num, global_arr, gscl_var, gscl_num, gscl_str, assign_arg_var, assign_arg_str, assign_arg_num, assign_arg_ret_var, assign_arg_ret_str, assign_arg_ret_num, arg_var, arg_str, arg_num, arg_arr, exp, mult, div, modulo, add, minus, lt, gt, lteq, gteq, eqeq, neq, matches, nmatches, assign_array_var, assign_array_str, assign_array_num, assign_array_ret_var, assign_array_ret_str, assign_array_ret_num, array_index, array_member, concat, gsub3, sub3, rel_jump_if_false_var, rel_jump_if_false_str, rel_jump_if_false_num, rel_jump_if_true_var, rel_jump_if_true_str, rel_jump_if_true_num, rel_jump, print, printf, noop, ret, const_num, const_str, const_str_num, call, neq_num, gteq_num, eqeq_num, lteq_num, lt_num, gt_num, clear_gscl, clear_argscl, rel_jump_if_true_next_line, rel_jump_if_false_next_line, scl_special, assign_scl_special, assign_ret_scl_special};
+use crate::vm::bytecode::subroutines::{num_to_var, builtin_atan2, builtin_cos, builtin_exp, builtin_substr2, builtin_substr3, builtin_index, builtin_int, builtin_length0, builtin_length1, builtin_log, builtin_rand, builtin_sin, builtin_split2, builtin_split3, builtin_sqrt, builtin_srand0, builtin_srand1, builtin_tolower, builtin_toupper, num_to_str, str_to_var, str_to_num, var_to_num, var_to_str, pop, pop_str, pop_num, column, assign_gscl_var, assign_gscl_num, assign_gscl_str, assign_gscl_ret_str, assign_gscl_ret_var, assign_gscl_ret_num, global_arr, gscl_var, gscl_num, gscl_str, assign_arg_var, assign_arg_str, assign_arg_num, assign_arg_ret_var, assign_arg_ret_str, assign_arg_ret_num, arg_var, arg_str, arg_num, arg_arr, exp, mult, div, modulo, add, minus, lt, gt, lteq, gteq, eqeq, neq, matches, nmatches, assign_array_var, assign_array_str, assign_array_num, assign_array_ret_var, assign_array_ret_str, assign_array_ret_num, array_index, array_member, concat, gsub3, sub3, rel_jump_if_false_var, rel_jump_if_false_str, rel_jump_if_false_num, rel_jump_if_true_var, rel_jump_if_true_str, rel_jump_if_true_num, rel_jump, print, printf, noop, ret, const_num, const_str, const_str_num, call, neq_num, gteq_num, eqeq_num, lteq_num, lt_num, gt_num, clear_gscl, clear_argscl, rel_jump_if_true_next_line, rel_jump_if_false_next_line, scl_special, assign_scl_special, assign_ret_scl_special, builtin_matches};
 
 pub type LabelId = usize;
 
@@ -145,6 +145,7 @@ pub enum Code {
     BuiltinSrand1,
     BuiltinTolower,
     BuiltinToupper,
+    BuiltinMatches,
     // END
 
     // Sub and gsub are paired with an assign code depending on what is being assigned to.
@@ -340,6 +341,7 @@ impl Code {
             Code::BuiltinInt => Meta::new(vec![Num], SC::num(1)),
             Code::BuiltinLength0 => Meta::new(vec![], SC::num(1)),
             Code::BuiltinLength1 => Meta::new(vec![Str], SC::num(1)),
+            Code::BuiltinMatches => Meta::new(vec![Str, Str], SC::num(1)),
             Code::BuiltinLog => Meta::new(vec![Num], SC::num(1)),
             Code::BuiltinRand => Meta::new(vec![], SC::num(1)),
             Code::BuiltinSin => Meta::new(vec![Num], SC::num(1)),
@@ -539,6 +541,7 @@ impl Code {
             Code::BuiltinInt => CI::new(builtin_int),
             Code::BuiltinLength0 => CI::new(builtin_length0),
             Code::BuiltinLength1 => CI::new(builtin_length1),
+            Code::BuiltinMatches => CI::new(builtin_matches),
             Code::BuiltinLog => CI::new(builtin_log),
             Code::BuiltinRand => CI::new(builtin_rand),
             Code::BuiltinSin => CI::new(builtin_sin),
