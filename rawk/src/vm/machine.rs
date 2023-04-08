@@ -7,10 +7,11 @@ use crate::runtime::rc_manager::RcManager;
 use crate::runtime::regex_cache::RegexCache;
 use crate::runtime::converter::Converter;
 use crate::vm::{RuntimeScalar, StringScalar};
-use crate::{binop, mathop};
+use crate::{binop, mathop, specials};
 use crate::parser::{SclSpecial};
+use crate::printable_error::PrintableError;
 use crate::runtime::special_manager::SpecialManager;
-use crate::runtime::VmRuntime;
+use crate::runtime::{RecordState, VmRuntime};
 use crate::typing::{GlobalArrayId, GlobalScalarId};
 use crate::vm::{Code, VmFunc, VmProgram};
 use crate::util::{clamp_to_max_len, clamp_to_slice_index, index_of, unwrap};
@@ -63,7 +64,7 @@ impl VirtualMachine {
         for _ in 0..num_gscls {
             global_scalars.push(RuntimeScalar::Str(RcAwkStr::new_bytes(vec![])));
         }
-        let mut special_scalars = SpecialManager::new(1+files.len());
+        let mut special_scalars = SpecialManager::new(1 + files.len());
 
         let s = Self {
             vm_program,
@@ -210,6 +211,15 @@ impl VirtualMachine {
         string
     }
 
+    pub fn next_line(&mut self) -> Result<bool, PrintableError> {
+        let FNR = self.val_to_num(self.special_scalars.get(SclSpecial::FNR));
+        let NR = self.val_to_num(self.special_scalars.get(SclSpecial::NR));
+        let record_state = self.rt.columns.next_record(RecordState::new(NR, FNR))?;
+        self.special_scalars.assign(SclSpecial::FNR, RuntimeScalar::Num(record_state.FNR), &mut self.rt);
+        self.special_scalars.assign(SclSpecial::NR, RuntimeScalar::Num(record_state.NR), &mut self.rt);
+        Ok(record_state.next_record)
+    }
+
     pub fn run_function(&mut self, function: &VmFunc) {
         let mut ip = 0;
 
@@ -222,7 +232,7 @@ impl VirtualMachine {
             }
             ip = (function[ip].code)(self, ip, function[ip].imm);
             if ip == usize::MAX {
-                break
+                break;
             }
         }
     }

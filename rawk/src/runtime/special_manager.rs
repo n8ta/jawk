@@ -18,19 +18,19 @@ impl SpecialManager {
             match special {
                 SclSpecial::FS => RuntimeScalar::Str(RcAwkStr::new_str(" ")),
                 SclSpecial::RS => RuntimeScalar::Str(RcAwkStr::new_str("\n")),
-                SclSpecial::FILENAME => RuntimeScalar::Str(RcAwkStr::new_str("-")),
+                SclSpecial::FILENAME => RuntimeScalar::Str(RcAwkStr::new_str("")),
                 SclSpecial::FNR => RuntimeScalar::Num(0.0),
                 SclSpecial::NF => RuntimeScalar::Num(0.0),
                 SclSpecial::NR => RuntimeScalar::Num(0.0),
                 SclSpecial::CONVFMT => RuntimeScalar::Str(RcAwkStr::new_str("%.6g")),
                 SclSpecial::OFMT => RuntimeScalar::Str(RcAwkStr::new_str("%.6g")),
-                // TODO: OFS ORS
-                SclSpecial::OFS => RuntimeScalar::Str(RcAwkStr::new_str("PRINT OFS SEP NOT YET IMPLEMENTED")),
-                SclSpecial::ORS => RuntimeScalar::Str(RcAwkStr::new_str("PRINT ORS SEP NOT YET IMPLEMENTED")),
                 SclSpecial::RLENGTH => RuntimeScalar::Num(0.0),
                 SclSpecial::RSTART => RuntimeScalar::Num(0.0),
                 SclSpecial::SUBSEP => RuntimeScalar::Str(RcAwkStr::new_str("-")),
                 SclSpecial::ARGC => RuntimeScalar::Num(argc as f64),
+                // TODO: OFS ORS
+                SclSpecial::OFS => RuntimeScalar::Str(RcAwkStr::new_str("PRINT OFS SEP NOT YET IMPLEMENTED")),
+                SclSpecial::ORS => RuntimeScalar::Str(RcAwkStr::new_str("PRINT ORS SEP NOT YET IMPLEMENTED")),
             }
         }).collect();
         Self { storage }
@@ -63,11 +63,12 @@ impl SpecialManager {
                 rt.columns.set_rs(rs);
             }
 
-            // Nothing to be done for these
-            SclSpecial::SUBSEP | SclSpecial::ARGC
-            | SclSpecial::FNR | SclSpecial::NF
-            | SclSpecial::NR | SclSpecial::RLENGTH
-            | SclSpecial::RSTART => {}
+            SclSpecial::NF => {
+                panic!("FN not done yet")
+            }
+
+            // No action needed
+            SclSpecial::FNR | SclSpecial::NR | SclSpecial::RSTART | SclSpecial::RLENGTH | SclSpecial::SUBSEP | SclSpecial::ARGC  => {}
 
             SclSpecial::FILENAME => todo!("scl special manager"),
             SclSpecial::CONVFMT => todo!("scl special manager"),

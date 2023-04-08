@@ -7,6 +7,14 @@ use crate::parser::ScalarType;
 
 pub const NUM_SCL_SPECIALS: usize = 14;
 
+pub const FNR_VAL: usize = 3;
+pub const NF_VAL: usize = 4;
+pub const NR_VAL: usize = 5;
+
+pub const RLENGTH_VAL: usize = 10;
+pub const RSTART_VAL: usize = 11;
+
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(usize)]
 pub enum SclSpecial {

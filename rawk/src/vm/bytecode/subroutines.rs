@@ -1,7 +1,7 @@
 use std::arch::x86_64::_mm_storel_pd;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::{binop, binop_num_only, mathop};
+use crate::{binop, binop_num_only, mathop, specials};
 use crate::runtime::arrays::{split_on_regex, split_on_string};
 use crate::awk_str::{AwkStr, RcAwkStr, SubReplStr};
 use crate::printable_error::PrintableError;
@@ -703,8 +703,7 @@ pub fn rel_jump_if_true_num(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> u
 
 pub fn rel_jump_if_true_next_line(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
-    let more_lines = handle_err!(vm.rt.columns.next_record());
-    if more_lines {
+    if handle_err!(vm.next_line()) {
         offset_ip(ip, offset)
     } else {
         ip + 1
@@ -713,8 +712,7 @@ pub fn rel_jump_if_true_next_line(vm: &mut VirtualMachine, ip: usize, imm: Immed
 
 pub fn rel_jump_if_false_next_line(vm: &mut VirtualMachine, ip: usize, imm: Immed) -> usize {
     let offset = unsafe { imm.offset };
-    let more_lines = handle_err!(vm.rt.columns.next_record());
-    if more_lines {
+    if handle_err!(vm.next_line()) {
         ip + 1
     } else {
         offset_ip(ip, offset)

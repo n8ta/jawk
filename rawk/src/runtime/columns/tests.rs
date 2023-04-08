@@ -1,5 +1,6 @@
 use tempfile::{tempdir, TempDir};
 use crate::runtime::columns::Columns;
+use crate::runtime::RecordState;
 
 fn setup(data: &str) -> (Columns, TempDir) {
     let data = data.as_bytes();
@@ -25,54 +26,57 @@ fn test_files() {
         file_path_2.to_str().unwrap().to_string(),
     ]);
 
-    assert!(cols.next_record().unwrap());
+    let st = RecordState::new(0.0, 0.0);
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "a b c".as_bytes());
     assert_eq!(cols.get(1), "a".as_bytes());
     assert_eq!(cols.get(2), "b".as_bytes());
     assert_eq!(cols.get(3), "c".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(3), "f".as_bytes());
     assert_eq!(cols.get(2), "e".as_bytes());
     assert_eq!(cols.get(1), "d".as_bytes());
     assert_eq!(cols.get(0), "d e f".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(3), "i".as_bytes());
     assert_eq!(cols.get(2), "h".as_bytes());
     assert_eq!(cols.get(1), "g".as_bytes());
     assert_eq!(cols.get(0), "g h i".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "1 2 3".as_bytes());
     assert_eq!(cols.get(3), "3".as_bytes());
     assert_eq!(cols.get(2), "2".as_bytes());
     assert_eq!(cols.get(1), "1".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(3), "6".as_bytes());
     assert_eq!(cols.get(2), "5".as_bytes());
     assert_eq!(cols.get(1), "4".as_bytes());
     assert_eq!(cols.get(0), "4 5 6".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(3), "9".as_bytes());
     assert_eq!(cols.get(2), "8".as_bytes());
     assert_eq!(cols.get(1), "7".as_bytes());
     assert_eq!(cols.get(0), "7 8 9".as_bytes());
-    assert_eq!(cols.next_record().unwrap(), false);
-    assert_eq!(cols.next_record().unwrap(), false);
+    assert_eq!(cols.next_record(st).unwrap().next_record, false);
+    assert_eq!(cols.next_record(st).unwrap().next_record, false);
 }
 
 
 #[test]
 fn test_simple_one_line() {
+    let st = RecordState::new(0.0, 0.0);
     let (mut cols, temp_dir) = setup("1 2 3\n");
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "1 2 3".as_bytes());
-    assert_eq!(cols.next_record().unwrap(), false);
+    assert_eq!(cols.next_record(st).unwrap().next_record, false);
 }
 
 
 #[test]
 fn test_setting_fields() {
+    let st = RecordState::new(0.0, 0.0);
     let (mut cols, temp_dir) = setup("1 2 3\n");
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "1 2 3".as_bytes());
     let c = "c".as_bytes();
     cols.set(2, c);
@@ -85,8 +89,9 @@ fn test_setting_fields() {
 
 #[test]
 fn test_setting_0() {
+    let st = RecordState::new(0.0, 0.0);
     let (mut cols, temp_dir) = setup("1 2 3\n");
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(1), "1".as_bytes());
     let c = "A B C".as_bytes();
     cols.set(0, c);
@@ -98,8 +103,9 @@ fn test_setting_0() {
 
 #[test]
 fn test_setting_columns_and_fs_0() {
+    let st = RecordState::new(0.0, 0.0);
     let (mut cols, a) = setup("A B C\n");
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(2), "B".as_bytes());
     cols.set_fs("B".as_bytes().to_vec());
     cols.set(0, "A B C".as_bytes());
@@ -112,79 +118,84 @@ fn test_setting_columns_and_fs_0() {
 
 #[test]
 fn test_setting_fs_1() {
+    let st = RecordState::new(0.0, 0.0);
     let (mut cols, temp_dir) = setup("abc\nabc\nabc\n");
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(2), "".as_bytes());
     cols.set_fs("b".as_bytes().to_vec());
 
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(1), "a".as_bytes());
     assert_eq!(cols.get(2), "c".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(1), "a".as_bytes());
     assert_eq!(cols.get(2), "c".as_bytes());
 }
 
 #[test]
 fn test_setting_rs_0() {
+    let st = RecordState::new(0.0, 0.0);
     let (mut cols, temp_dir) = setup("a b c\n-ZZZ1-ZZZ2");
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "a b c".as_bytes());
     cols.set_rs("-".as_bytes().to_vec());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "ZZZ1".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "ZZZ2".as_bytes());
-    assert_eq!(cols.next_record().unwrap(), false);
-    assert_eq!(cols.next_record().unwrap(), false);
+    assert_eq!(cols.next_record(st).unwrap().next_record, false);
+    assert_eq!(cols.next_record(st).unwrap().next_record, false);
 }
 
 #[test]
 fn test_setting_rs_1() {
+    let st = RecordState::new(0.0, 0.0);
     let (mut cols, temp_dir) = setup("1234123412341234");
     cols.set_rs("1".as_bytes().to_vec());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "234".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "234".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "234".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "234".as_bytes());
-    assert!(!cols.next_record().unwrap());
+    assert!(!cols.next_record(st).unwrap().next_record);
 }
 
 
 #[test]
 fn test_setting_rs_2() {
+    let st = RecordState::new(0.0, 0.0);
     let (mut cols, temp_dir) = setup("123");
     cols.set_rs("1".as_bytes().to_vec());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "".as_bytes());
     cols.set_rs("2".as_bytes().to_vec());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "3".as_bytes());
 }
 
 #[test]
 fn test_setting_rs_3() {
+    let st = RecordState::new(0.0, 0.0);
     let (mut cols, temp_dir) = setup("123123");
     cols.set_rs("1".as_bytes().to_vec());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "".as_bytes());
     cols.set_rs("2".as_bytes().to_vec());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "31".as_bytes());
-    assert!(cols.next_record().unwrap());
+    assert!(cols.next_record(st).unwrap().next_record);
     assert_eq!(cols.get(0), "3".as_bytes());
-    assert!(!cols.next_record().unwrap());
+    assert!(!cols.next_record(st).unwrap().next_record);
 }
 

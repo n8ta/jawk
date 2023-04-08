@@ -1,4 +1,5 @@
 pub mod arrays;
+#[allow(non_snake_case)]
 pub mod columns;
 pub mod converter;
 pub mod regex_cache;

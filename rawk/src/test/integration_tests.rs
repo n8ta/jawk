@@ -1278,37 +1278,59 @@ test!(test_match_1, "BEGIN { print match(\"abc\", \"d\"); print RSTART; print RL
 test!(test_match_2, "BEGIN { print match(\"abc\", \"a\"); }", "", "1\n");
 test!(test_match_3, "BEGIN { print match(\"abc\", \"a\"); print match(\"abc\", \"b\"); print match(\"abc\", \"c\"); }", "", "1\n2\n3\n");
 test!(test_match_4, "BEGIN { print match(\"abbbbc\", \"b+\"); print RSTART; print RLENGTH; }", "", "2\n2\n4\n");
+test!(test_match_5, "BEGIN { RSTART = 123; print RSTART; match(\"abc\", \"b\"); print RSTART; }", "", "123\n2\n");
 
-// TODO: Things I have yet to impl
+const PI: &'static str = "    +3.14";
 
 // test!(test_nf_0, "{ print NF }", ONE_LINE, "3\n");
 // test!(test_nf_1, "{ print NF }", "1 2 3\n1 2 3 4\n", "3\n4\n");
 // test!(test_nf_2, "{ print NF; $4 = \"a\"; print NF; print $0 }", ONE_LINE, "3\n4\n1 2 3 4\n");
 // test!(test_nf_3, "{ print NF; $5 = \"a\"; print NF; print $0 }", ONE_LINE, "3\n5\n1 2 3 4  5\n");
+// test!(test_nf_4, "{ print NF; NF = 10; print $0; print length($0); }", "abc", "1\nabc        \n12\n");
 
-// test!(test_ofs_print_sep, "BEGIN { print 1, 2, 3; OFS = \"--\"; print 1,2,3 }", ONE_LINE, "1 2 3\n1--2--3\n");
+test!(test_nr_basic, "{ print NR }", "11\n22\n33\n44\n55\nz\nz\n", "1\n2\n3\n4\n5\n6\n7\n");
+test!(test_fnr_basic, "{ print FNR }", "11\n22\n33\n44\n55\nz\nz\n", "1\n2\n3\n4\n5\n6\n7\n");
+#[test]
+fn test_fnr_nr_two_files() {
+    test_runner_multifile("test_fnr_nr_two_files", "{print NR; print FNR}",
+                          vec![("1\n2\n", "file1"), ("4\n5\n", "file2")],
+                          "1\n1\n2\n2\n3\n1\n4\n2\n", 0);
+}
 
-// test!(test_native_col_0_sub_0, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
-// test!(test_native_col_0_sub_1, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
-// test!(test_native_col_0_sub_2, "{ sub(\"a\", \"b\"); print $0; }", "caa", "baa\n");
-// test!(test_native_col_0_sub_3, "{ sub(\"a\", \"b\"); print $0; }", "aab", "baa\n");
-// test!(test_native_col_0_sub_4, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
-// test!(test_native_col_0_sub_5, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
-// test!(test_native_col_0_sub_6, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+#[test]
+fn test_filename_two_files() {
+    test_runner_multifile("test_fnr_nr_two_files", "{print FILENAME}",
+                          vec![("1\n2\n3\n", "file1"), ("4\n5\n", "file2")],
+                          "file1\nfile1\nfile1\nfile2\nfile2\n", 0);
+}
+/*
+    TODO: Things I have yet to impl
 
-const PI: &'static str = "    +3.14";
-// test!(space_rule_simple, "{ print length($1); }", "    abc", "abc");
-// test!(gawk_strnum_space_rule_0, "{ print($1 == \"+3.14\") }", PI, "1\n");
-// test!(gawk_strnum_space_rule_1, "{ print($1 == 3.14) }", PI, "1\n");
-// test!(test_mixed_array,"BEGIN {SUBSEP = \"-\"; a[0,1] = 3 ; print a[\"0-1\"]; }",ONE_LINE,"3\n");
 
-// test!(test_col_asgn_0, "{ $1 = \"zz\"; print $0 }", "1  2   3\n  4  5     6    ","zz 2 3\nzz 5 6\n");
-// #[test]
-// fn setting_argv() {
-//     test_runner_multifile("adding_to_argv",
-//                           "{ print $0; ARGV[2] = \"b\"; ARGC = 3; print ARGC }",
-//                           vec![("file_a_data", "a"), ("file_b_data", "b")],
-//                           "file_a_data\nfile_b_data\n", 0);
-// }
 
+    test!(test_ofs_print_sep, "BEGIN { print 1, 2, 3; OFS = \"--\"; print 1,2,3 }", ONE_LINE, "1 2 3\n1--2--3\n");
+
+    test!(test_native_col_0_sub_0, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+    test!(test_native_col_0_sub_1, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+    test!(test_native_col_0_sub_2, "{ sub(\"a\", \"b\"); print $0; }", "caa", "baa\n");
+    test!(test_native_col_0_sub_3, "{ sub(\"a\", \"b\"); print $0; }", "aab", "baa\n");
+    test!(test_native_col_0_sub_4, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+    test!(test_native_col_0_sub_5, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+    test!(test_native_col_0_sub_6, "{ sub(\"a\", \"b\"); print $0; }", "aaa", "baa\n");
+
+    test!(space_rule_simple, "{ print length($1); }", "    abc", "abc");
+    test!(gawk_strnum_space_rule_0, "{ print($1 == \"+3.14\") }", PI, "1\n");
+    test!(gawk_strnum_space_rule_1, "{ print($1 == 3.14) }", PI, "1\n");
+    test!(test_mixed_array,"BEGIN {SUBSEP = \"-\"; a[0,1] = 3 ; print a[\"0-1\"]; }",ONE_LINE,"3\n");
+
+    test!(test_col_asgn_0, "{ $1 = \"zz\"; print $0 }", "1  2   3\n  4  5     6    ","zz 2 3\nzz 5 6\n");
+    #[test]
+    fn setting_argv() {
+        test_runner_multifile("adding_to_argv",
+                              "{ print $0; ARGV[2] = \"b\"; ARGC = 3; print ARGC }",
+                              vec![("file_a_data", "a"), ("file_b_data", "b")],
+                              "file_a_data\nfile_b_data\n", 0);
+    }
+
+ */
 
