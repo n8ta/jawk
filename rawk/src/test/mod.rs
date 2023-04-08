@@ -5,7 +5,7 @@ mod awks;
 
 
 use std::cell::RefCell;
-use crate::{analyze, lex, parse, Symbolizer};
+use crate::{analyze, lex, parse, runner, Symbolizer};
 use std::fs;
 use std::io::{Write};
 use std::path::PathBuf;
@@ -34,16 +34,16 @@ const TTX1: &'static str = "BEGIN {    width = 3; height = 3 ;    min_x = -2.1; 
     inc_y = (max_y-min_y) / height;    inc_x = (max_x-min_x) / width;    y = min_y;    for (row=0; row<height; row++) {        x = min_x;        for (col=0; col<width; col++) {            zr = zi = 0;            for (i=0; i<iters; i++) {                old_zr = zr;                zr = zr*zr - zi*zi + x;                zi = 2*old_zr*zi + y;                if (zr*zr + zi*zi > 4) { break; }            }
             idx = 0;            zzz = i*8/iters;            if (zzz < 1) {                idx = 0;            };            if (zzz < 2) {                idx = 1;            };            if (zzz < 3) {                idx = 2;            };            if (zzz < 4) {                idx = 3;            };            if (zzz < 5) {                idx = 4;            };            if (zzz < 6) {                idx = 5;            };            if (zzz < 7) {                idx = 6;            };            if (zzz < 8) {                idx = 7;            };            printf colors[idx];            x += inc_x;        }        y += inc_y;        print \"\";    }}";
 
-fn test_once(interpreter: &str, prog: &str, files: &[String]) -> (Vec<u8>, Duration) {
+fn test_once(interpreter: &str, args: &[String]) -> (Vec<u8>, Duration) {
     // Run a single awk once and capture the output
     let start = Instant::now();
-    let mut args = vec![prog.to_string()];
-    if interpreter == "gawk" {
-        args = vec!["--posix".to_string(), args[0].clone()]
-    }
-    args.extend_from_slice(files);
+    let mut args = args.to_vec();
+
+    let mut modified_args = if interpreter == "gawk" { vec!["--posix".to_string()] } else { vec![] };
+    modified_args.extend_from_slice(&args);
+
     let output = std::process::Command::new(interpreter)
-        .args(args)
+        .args(modified_args)
         .output()
         .unwrap();
     let dir = start.elapsed();
@@ -67,40 +67,23 @@ pub fn test_runner_multifile<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(
     files: Vec<(S, &'static str)>, // Content, file_name
     oracle_output: StdoutT,
     skip_flags: usize) {
-
     let oracle_output: Vec<u8> = oracle_output.into();
-    println!("Program:\n{}", prog);
-    let mut symbolizer = Symbolizer::new();
-    let program =
-        analyze(parse(lex(&prog, &mut symbolizer).unwrap(), &mut symbolizer).unwrap(), &mut symbolizer).unwrap();
-    // println!("Ast:\n{}", &program);
-
-    let vm_prog = compile(program).unwrap();
-    let prog_pretty = vm_prog.pretty_print();
-    let prog_pretty = unsafe { String::from_utf8_unchecked(prog_pretty) };
-    println!("{}", &prog_pretty);
-
-    validate_program(&vm_prog);
-
     let temp_dir = tempdir().unwrap();
 
-    let mut file_names = vec![];
+    let mut args = vec![];
+    args.push(prog.to_string());
     for (content, file_name) in files.iter() {
         let file_path = temp_dir.path().join(file_name);
         fs::write(file_path.clone(), content.as_ref()).unwrap();
-        file_names.push(file_path.to_str().unwrap().to_string());
+        args.push(file_path.to_str().unwrap().to_string());
     }
+
 
     let fake_stdout = Box::new(IoCapture::new());
     let fake_stderr = Box::new(IoCapture::new());
-
-    let vm = VirtualMachine::new(
-        vm_prog,
-        file_names.clone(),
-        fake_stdout.clone(),
-        fake_stderr.clone());
-
-    let _ = vm.run();
+    let mut rawk_args = vec!["--debug".to_string()];
+    rawk_args.extend_from_slice(&args);
+    let _ = runner(rawk_args, fake_stdout.clone(), fake_stderr.clone()).unwrap();
 
     // These strings may not be valid utf but who cares it's a test
     let output = fake_stdout.collect();
@@ -119,15 +102,15 @@ pub fn test_runner_multifile<S: AsRef<str>, StdoutT: Into<Vec<u8>>>(
     let awks = Awk::without(skip_flags);
     for (interpreter, _awk) in awks {
         if run_perf_tests {
-            test_perf(test_name, interpreter, prog, &oracle_output, &file_names);
+            test_perf(test_name, interpreter, &oracle_output, &args);
         } else {
-            test_against(interpreter, prog, &oracle_output, &file_names);
+            test_against(interpreter, &oracle_output, &args);
         }
     }
 }
 
-fn test_against(interpreter: &str, prog: &str, oracle_output: &[u8], files: &[String]) {
-    let output = test_once(interpreter, prog, files);
+fn test_against(interpreter: &str, oracle_output: &[u8], args: &[String]) {
+    let output = test_once(interpreter, args);
 
     assert_eq!(
         output.0, oracle_output,
@@ -139,9 +122,8 @@ fn test_against(interpreter: &str, prog: &str, oracle_output: &[u8], files: &[St
 fn test_perf(
     test_name: &str,
     interpreter: &str,
-    prog: &str,
     oracle_output: &[u8],
-    files: &[String],
+    args: &[String],
 ) {
     match std::process::Command::new(interpreter).output() {
         Ok(_) => {}
@@ -151,8 +133,8 @@ fn test_perf(
     let mut other_total = 0;
 
     for _ in 0..PERF_RUNS {
-        let our_result = test_once("./target/release/rawk", prog, files);
-        other_total += test_once(interpreter, prog, files).1.as_micros();
+        let our_result = test_once("./target/release/rawk", args);
+        other_total += test_once(interpreter, args).1.as_micros();
         our_total += our_result.1.as_micros();
         assert_eq!(
             our_result.0, oracle_output,
