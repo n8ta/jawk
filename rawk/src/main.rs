@@ -37,9 +37,9 @@ mod runtime;
 pub type IO = Box<dyn Write>;
 
 pub fn runner(args: Vec<String>, out: IO, mut err: IO) -> Result<(IO, IO), PrintableError> {
+    let mut symbolizer = Symbolizer::new();
     let args = AwkArgs::new(args)?;
 
-    let mut symbolizer = Symbolizer::new();
     let ast = analyze(parse(lex(&args.program, &mut symbolizer)?, &mut symbolizer, )?, &mut symbolizer)?;
     if args.debug {
         println!("{}", ast);
@@ -54,10 +54,10 @@ pub fn runner(args: Vec<String>, out: IO, mut err: IO) -> Result<(IO, IO), Print
     let vm = VirtualMachine::new(prog, args.files, out, err);
     let (mut out, mut err) = vm.run();
     if let Err(err) = out.flush() {
-        return Err(PrintableError::new(format!("Failed to write to stdout. Error: {}", err)))
+        return Err(PrintableError::new(format!("Failed to write to stdout. Message: {}", err)))
     }
     if let Err(err) = err.flush() {
-        return Err(PrintableError::new(format!("Failed to write to stderr. Error: {}", err)))
+        return Err(PrintableError::new(format!("Failed to write to stderr. Message: {}", err)))
     }
     Ok((out, err))
 }

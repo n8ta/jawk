@@ -1,5 +1,7 @@
+use crate::runner;
 use crate::test::{test_runner, long_number_file, ONE_LINE, SUB_RULES, SUB_ESCAPING, REDIRECT, NUMBERS, NUMBERS2, FLOAT_NUMBERS, NUMERIC_STRING, ABC, PERF_ARRAY_PROGRAM, EMPTY_INDEX_PROGRAM, TTX1, test_runner_multifile};
 use crate::test::awks::Awk;
+use crate::test::io_capture::IoCapture;
 #[macro_export]
 macro_rules! test {
         ($name:ident,$prog:expr,$file:expr,$stdout:expr) => {
@@ -1302,6 +1304,22 @@ fn test_filename_two_files() {
     test_runner_multifile("test_fnr_nr_two_files", "{print FILENAME}",
                           vec![("1\n2\n3\n", "file1"), ("4\n5\n", "file2")],
                           "file1\nfile1\nfile1\nfile2\nfile2\n", 0);
+}
+
+#[test]
+fn test_argv_rawk() {
+    // only test rawk since argv[0] contains interpreter name it won't pass for all awks
+    test_runner_multifile("test_argv_argc", "BEGIN {print ARGC; for (i = 0; i < ARGC; i++) { print ARGV[i] } }",
+                          vec![("1\n", "file1ø"), ("2\n", "filΩ2"), ("2\n", "filΩ2   uh-oh-spaces")],
+                          "3\nrawk\nfile1ø\nfilΩ2\nfilΩ2   uh-oh-spaces\n", Awk::Onetrueawk  as usize| Awk::Goawk  as usize| Awk::Mawk  as usize| Awk::Gawk as usize );
+}
+
+#[test]
+fn test_argv_all() {
+    // don't print argv[0] so we can test against other awks
+    test_runner_multifile("test_argv_argc", "BEGIN {print ARGC; for (i = 1; i < ARGC; i++) { print ARGV[i] } }",
+                          vec![("1\n", "file1ø"), ("2\n", "filΩ2"), ("2\n", "filΩ2   uh-oh-spaces")],
+                          "3\nfile1ø\nfilΩ2\nfilΩ2   uh-oh-spaces\n", 0);
 }
 /*
     TODO: Things I have yet to impl

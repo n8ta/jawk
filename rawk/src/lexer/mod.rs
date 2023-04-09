@@ -1,12 +1,14 @@
 mod types;
 mod escaped_string_reader;
 
+pub use types::{BinOp, LogicalOp, MathOp, Token, TokenType};
+pub use escaped_string_reader::escaped_string_reader;
+
 use crate::{PrintableError, Symbolizer};
 use std::iter::Peekable;
 use std::str::Chars;
-pub use types::{BinOp, LogicalOp, MathOp, Token, TokenType};
+
 use crate::awk_str::{AwkStr, RcAwkStr};
-use crate::lexer::escaped_string_reader::escaped_string_reader;
 
 type LexerResult = Result<Vec<Token>, PrintableError>;
 
